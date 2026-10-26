@@ -1,0 +1,86 @@
+/* tekurobokun トークン（確定。方向性C：端末） */
+/* ライト＝印字用紙、ダーク＝端末画面。フェイシャルはテーマに関係なく白地・黒線で固定 */
+:root {
+  /* 色 */
+  --color-bg: #f3f4f1;
+  --color-surface: #fbfbf9;
+  --color-ink: #16181d;
+  --color-ink-muted: #5d626c;
+  --color-rule: #16181d;
+  --color-rule-faint: #c9ccd1;
+  --color-accent: #2440c8;
+  --color-accent-ink: #ffffff;
+  --color-danger: #b4232a;
+  --color-keyboard: #d6d8dc;
+  --color-face-bg: #ffffff;
+  --color-face-ink: #000000;
+  --color-face-caption: #12873a;
+
+  /* 書体（ロケールごとに切り替える） */
+  --font-body-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-display-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-body: var(--font-body-ja);
+  --font-display: var(--font-display-ja);
+  --font-caption: "DotGothic16", "M PLUS 1 Code", monospace; /* 機体の字幕 */
+
+  /* 文字サイズ（タブレットで1〜2m離れても読める大きさ） */
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.625rem;
+  --text-xl: 2.25rem;
+  --leading-body: 1.6;
+  --term-text-size: 1.125rem; /* 入力ページの文字の大きさ（設定で変えられる。初期値18px） */
+  --term-leading: 1.45;
+
+  /* 余白 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* 線・角丸 */
+  --stroke-thin: 1px;
+  --stroke-bold: 3px;
+  --radius-sm: 4px;
+  --radius-md: 10px;
+
+  /* モーション */
+  --motion-fast: 120ms;
+  --motion-base: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cursor-blink: 1s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0e1116;
+    --color-surface: #151a21;
+    --color-ink: #e6e9ee;
+    --color-ink-muted: #98a0ab;
+    --color-rule: #e6e9ee;
+    --color-rule-faint: #2b323c;
+    --color-accent: #8ea2ff;
+    --color-accent-ink: #0e1116;
+    --color-danger: #ff7b80;
+    --color-keyboard: #262c35;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e1116;
+  --color-surface: #151a21;
+  --color-ink: #e6e9ee;
+  --color-ink-muted: #98a0ab;
+  --color-rule: #e6e9ee;
+  --color-rule-faint: #2b323c;
+  --color-accent: #8ea2ff;
+  --color-accent-ink: #0e1116;
+  --color-danger: #ff7b80;
+  --color-keyboard: #262c35;
+  color-scheme: dark;
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- tekurobokun アイコン（マスター）。CIの顔：四角い輪郭、二重円の目、5分割の口。
+       余白ルール：輪郭の外側に64px（キャンバスの6.25%）を空ける。線の太さは44px で統一 -->
+  <title>tekurobokun</title>
+  <rect x="64" y="64" width="896" height="896" rx="168" fill="#ffffff"/>
+  <g fill="none" stroke="#000000" stroke-width="44" stroke-linejoin="round">
+    <rect x="86" y="86" width="852" height="852" rx="146"/>
+    <circle cx="332" cy="400" r="142"/>
+    <circle cx="332" cy="400" r="68"/>
+    <circle cx="692" cy="400" r="142"/>
+    <circle cx="692" cy="400" r="68"/>
+    <rect x="196" y="628" width="632" height="176" rx="28"/>
+    <path d="M322.4 628V804M448.8 628V804M575.2 628V804M701.6 628V804"/>
+  </g>
+</svg>

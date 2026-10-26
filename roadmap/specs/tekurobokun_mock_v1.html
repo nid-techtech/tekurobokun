@@ -1,0 +1,551 @@
+<title>テクロボくん展示版モック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400;500;700&family=DotGothic16&display=swap">
+<style>
+/* レイアウト：上から画面IDごとに縦に並べ、各画面は実寸の枠で描く（狭い幅では枠ごと横スクロール） */
+/* ===== tokens.css の写し ===== */
+/* tekurobokun トークン（確定。方向性C：端末） */
+/* ライト＝印字用紙、ダーク＝端末画面。フェイシャルはテーマに関係なく白地・黒線で固定 */
+:root {
+  /* 色 */
+  --color-bg: #f3f4f1;
+  --color-surface: #fbfbf9;
+  --color-ink: #16181d;
+  --color-ink-muted: #5d626c;
+  --color-rule: #16181d;
+  --color-rule-faint: #c9ccd1;
+  --color-accent: #2440c8;
+  --color-accent-ink: #ffffff;
+  --color-danger: #b4232a;
+  --color-keyboard: #d6d8dc;
+  --color-face-bg: #ffffff;
+  --color-face-ink: #000000;
+  --color-face-caption: #12873a;
+
+  /* 書体（ロケールごとに切り替える） */
+  --font-body-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-display-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-body: var(--font-body-ja);
+  --font-display: var(--font-display-ja);
+  --font-caption: "DotGothic16", "M PLUS 1 Code", monospace; /* 機体の字幕 */
+
+  /* 文字サイズ（タブレットで1〜2m離れても読める大きさ） */
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.625rem;
+  --text-xl: 2.25rem;
+  --leading-body: 1.6;
+  --term-text-size: 1.125rem; /* 入力ページの文字の大きさ（設定で変えられる。初期値18px） */
+  --term-leading: 1.45;
+
+  /* 余白 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* 線・角丸 */
+  --stroke-thin: 1px;
+  --stroke-bold: 3px;
+  --radius-sm: 4px;
+  --radius-md: 10px;
+
+  /* モーション */
+  --motion-fast: 120ms;
+  --motion-base: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cursor-blink: 1s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0e1116;
+    --color-surface: #151a21;
+    --color-ink: #e6e9ee;
+    --color-ink-muted: #98a0ab;
+    --color-rule: #e6e9ee;
+    --color-rule-faint: #2b323c;
+    --color-accent: #8ea2ff;
+    --color-accent-ink: #0e1116;
+    --color-danger: #ff7b80;
+    --color-keyboard: #262c35;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e1116;
+  --color-surface: #151a21;
+  --color-ink: #e6e9ee;
+  --color-ink-muted: #98a0ab;
+  --color-rule: #e6e9ee;
+  --color-rule-faint: #2b323c;
+  --color-accent: #8ea2ff;
+  --color-accent-ink: #0e1116;
+  --color-danger: #ff7b80;
+  --color-keyboard: #262c35;
+  color-scheme: dark;
+}
+/* ===== ここまで写し ===== */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: var(--space-6) var(--space-7);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: var(--space-7);
+}
+.mock-head { display: grid; gap: var(--space-3); }
+.mock-head h1 { font-family: var(--font-display); font-weight: 400; font-size: var(--text-xl); margin: 0; text-wrap: balance; }
+.note { color: var(--color-ink-muted); margin: 0; max-width: 65ch; }
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.toolbar button {
+  font: inherit; font-size: var(--text-xs);
+  background: var(--color-surface); color: var(--color-ink);
+  border: var(--stroke-thin) solid var(--color-rule); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3); cursor: pointer;
+}
+.toolbar button[aria-pressed="true"] { background: var(--color-ink); color: var(--color-bg); }
+.toolbar button:focus-visible, .ctl:focus-visible { outline: var(--stroke-bold) solid var(--color-accent); outline-offset: 2px; }
+
+section.screen { display: grid; gap: var(--space-3); min-width: 0; }
+.screen-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); border-top: var(--stroke-bold) solid var(--color-rule); padding-top: var(--space-3); }
+.screen-id { font-family: var(--font-display); font-size: var(--text-md); }
+.screen-head h2 { margin: 0; font-size: var(--text-md); }
+.scroller { overflow-x: auto; padding-bottom: var(--space-2); }
+.variants { display: flex; gap: var(--space-5); align-items: flex-start; }
+.variant { display: grid; gap: var(--space-2); flex: none; }
+.variant-label { font-size: var(--text-xs); color: var(--color-ink-muted); }
+.variant-label b { color: var(--color-ink); }
+
+/* ===== タブレット（横 1024×768 の実寸） ===== */
+.tablet {
+  width: 1280px; height: 800px; flex: none; position: relative;
+  border: 14px solid var(--color-ink); border-radius: 28px;
+  background: var(--color-surface); color: var(--color-ink);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden;
+}
+.t-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--stroke-bold) solid var(--color-rule);
+}
+.t-name { font-family: var(--font-display); font-weight: 700; font-size: var(--text-lg); letter-spacing: 0.04em; }
+.status { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-md); font-weight: 700; }
+.status::before { content: ""; width: 14px; height: 14px; border: var(--stroke-bold) solid currentColor; border-radius: 50%; }
+.status.is-busy::before { background: currentColor; }
+.status.is-thinking::before { border-style: dashed; animation: spin 1.6s linear infinite; }
+.status.is-offline { color: var(--color-danger); }
+.status.is-offline::before { border-radius: 0; transform: rotate(45deg); }
+
+.t-log { overflow: hidden; padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-3); min-height: 0; }
+.log-empty { font-size: var(--text-md); color: var(--color-ink-muted); }
+.cursor { display: inline-block; width: 0.6em; height: 1.1em; background: var(--color-accent); vertical-align: text-bottom; animation: blink var(--cursor-blink) steps(1) infinite; }
+
+.t-input { padding: var(--space-4) var(--space-5); border-top: var(--stroke-thin) solid var(--color-rule-faint); display: grid; gap: var(--space-3); }
+.field-row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-3); align-items: stretch; }
+.field {
+  border: var(--stroke-bold) solid var(--color-rule); border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4); font-size: var(--text-lg); min-height: 72px;
+  display: flex; align-items: center; background: var(--color-bg); min-width: 0; overflow-wrap: anywhere;
+}
+.field.placeholder { color: var(--color-ink-muted); }
+.field.focused { outline: var(--stroke-bold) solid var(--color-accent); outline-offset: 2px; }
+.btns { display: flex; gap: var(--space-2); }
+.ctl {
+  font: inherit; font-size: var(--text-lg); font-weight: 700; min-width: 120px;
+  border: var(--stroke-bold) solid var(--color-rule); border-radius: var(--radius-md);
+  background: var(--color-ink); color: var(--color-bg); cursor: pointer; padding: 0 var(--space-5);
+}
+.ctl.sub { background: transparent; color: var(--color-ink); min-width: 96px; font-size: var(--text-md); }
+.ctl[disabled] { background: transparent; color: var(--color-ink-muted); border-color: var(--color-rule-faint); cursor: not-allowed; }
+.ctl.hover { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
+.autosend { display: grid; gap: var(--space-1); font-size: var(--text-sm); color: var(--color-ink-muted); }
+
+/* OSのキーボード（Microsoft SwiftKey、横向きタブレット）の見た目の目安。実物の高さは設定で変わる */
+.t-kb { height: 340px; background: var(--color-keyboard); border-top: var(--stroke-thin) solid var(--color-rule-faint); display: grid; grid-template-rows: 64px 1fr; color: var(--color-ink-muted); font-family: system-ui, sans-serif; }
+.kb-dict { display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5); border-bottom: var(--stroke-thin) solid var(--color-rule-faint); font-size: var(--text-md); }
+.kb-pill { border: 2px solid currentColor; border-radius: 999px; padding: 0 var(--space-3); font-weight: 700; }
+.kb-dict span:nth-child(2) { flex: 1; }
+.kb-mic { width: 48px; height: 48px; border-radius: 50%; background: var(--color-surface); color: var(--color-ink); display: grid; place-items: center; }
+.kb-rows { display: grid; gap: 8px; padding: var(--space-3) var(--space-5); align-content: center; opacity: 0.6; }
+.kb-rows div { display: flex; gap: 8px; justify-content: center; }
+.kb-rows span { flex: 1; max-width: 96px; height: 52px; border-radius: 6px; background: var(--color-surface); }
+
+.offline { display: grid; place-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
+.offline h3 { margin: 0; font-size: var(--text-xl); color: var(--color-danger); }
+.offline.inactive h3 { color: var(--color-ink); }
+.offline p { margin: 0; font-size: var(--text-md); }
+
+
+/* ===== 端末の見せ方（コマンドライン）：記号・時刻・反転表示・角のない部品・文字の大きさと太さをそろえる ===== */
+.term { font-size: var(--term-text-size); line-height: var(--term-leading); }
+.term .t-name, .term .field, .term .ctl, .term .status, .term .sh, .term .autosend { font-size: var(--term-text-size); line-height: var(--term-leading); }
+.term .t-bar { background: var(--color-ink); color: var(--color-surface); border-bottom: 0; padding: var(--space-1) var(--space-4); }
+.term .t-name { font-weight: 700; letter-spacing: 0; }
+.term .status { font-weight: 400; gap: 0; }
+.term .status::before { content: "["; width: auto; height: auto; border: 0; border-radius: 0; background: none; animation: none; transform: none; }
+.term .status::after { content: "]"; }
+.term .t-log { padding: var(--space-3) var(--space-4); gap: var(--space-1); }
+/* シェル（bash・zsh）風のログ：行は左端から折り返す */
+.sh { display: block; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sh .ts { color: var(--color-ink-muted); }
+.sh .prompt { color: var(--color-accent); }
+.sh-meta { color: var(--color-ink-muted); }
+.sh-meta b { color: var(--color-accent); font-weight: 700; }
+.sh-comment { color: var(--color-ink-muted); }
+.term .t-input { border-top: 0; padding: 0 var(--space-4) var(--space-3); gap: var(--space-1); }
+.term .t-log { padding-bottom: 0; }
+.term .field-row { align-items: center; }
+.term .field { border: 0; border-radius: 0; background: transparent; padding: 0; min-height: 0; outline: 0; }
+.term .field { display: block; }
+.term .field.placeholder .placeholder-text { color: var(--color-ink-muted); }
+.term .field.placeholder { color: inherit; }
+.term .ctl { border: 0; border-radius: 0; background: transparent; color: var(--color-ink); min-width: 0; font-weight: 400; padding: 0.1em 0.2em; }
+.term .ctl::before { content: "["; } .term .ctl::after { content: "]"; }
+.term .ctl.hover, .term .ctl:not([disabled]):hover { background: var(--color-ink); color: var(--color-surface); }
+.term .ctl[disabled] { color: var(--color-ink-muted); }
+.term .bar-text { white-space: pre; color: var(--color-accent); }
+.term .offline { place-content: center start; text-align: left; padding: var(--space-6); gap: var(--space-1); }
+.term .offline h3 { font-size: var(--term-text-size); font-weight: 700; }
+.term .offline h3::before { content: "! "; }
+.term .offline.inactive h3::before { content: "# "; }
+.term .offline p { font-size: var(--term-text-size); color: var(--color-ink-muted); }
+
+/* ===== 機体のフェイシャル（800×600 の実寸、テーマに関係なく白地黒線） ===== */
+.face { width: 400px; height: 300px; flex: none; background: var(--color-face-bg); border: var(--stroke-thin) solid var(--color-rule-faint); }
+.face.full { width: 800px; height: 600px; }
+.face svg { width: 100%; height: 100%; display: block; }
+.face svg * { stroke: var(--color-face-ink); fill: none; }
+.face svg .solid { fill: var(--color-face-ink); }
+.face svg text { fill: var(--color-face-ink); stroke: none; font-family: var(--font-body); }
+.face svg .cap-bg { fill: var(--color-face-bg); stroke: var(--color-face-ink); }
+.orbit-l { transform-box: view-box; transform-origin: 184px 149px; animation: spin 1.2s linear infinite; }
+.sleep { animation: bob 3.2s ease-in-out infinite alternate; }
+.face svg .caption { fill: var(--color-face-caption); stroke: none; font-family: var(--font-caption); }
+.orbit-r { transform-box: view-box; transform-origin: 616px 149px; animation: spin 1.2s linear infinite; }
+
+/* ===== 決まったこと ===== */
+.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); }
+.decisions h2 { font-size: var(--text-md); margin: 0 0 var(--space-3); border-top: var(--stroke-bold) solid var(--color-rule); padding-top: var(--space-3); }
+.decisions ol, .decisions ul { margin: 0; padding-left: 1.4em; display: grid; gap: var(--space-2); }
+.decisions li { min-width: 0; }
+.decisions small { display: block; color: var(--color-ink-muted); }
+
+/* 考え中インジケータ（ログの行の中、読み上げ用の文言は視覚的に隠して残す） */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.think { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 1.5em; color: var(--color-accent); }
+/* スピナー：点字の8点が1つずつ欠けて回る（100msごとに文字を差し替える） */
+.think-braille b { font-family: var(--font-body); font-weight: 400; font-size: 1.4em; line-height: 1; width: 1em; text-align: center; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes bob { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cursor, .status.is-thinking::before, .orbit-l, .orbit-r, .sleep { animation: none; }
+}
+</style>
+
+<div class="page">
+  <header class="mock-head">
+    <h1>テクロボくん 展示版モック</h1>
+    <p class="note">見た目だけで、中身はありません。上半分が来場者用タブレットの入力ページ（実寸 1024×768、画面のキーボードが出た状態）、下半分が機体のフェイシャル（実寸 800×600 を半分に縮小、S02a のみ実寸）です。</p>
+    <div class="toolbar" role="group" aria-label="表示の切り替え">
+      <button type="button" id="btn_theme_light" data-theme-set="light">ライト</button>
+      <button type="button" id="btn_theme_dark" data-theme-set="dark">ダーク</button>
+      <button type="button" id="btn_theme_system" data-theme-set="system" aria-pressed="true">システム</button>
+      <button type="button" id="btn_locale_ja" data-locale-set="ja" aria-pressed="true">日本語</button>
+      <button type="button" id="btn_locale_pseudo" data-locale-set="pseudo">疑似ロケール</button>
+      <button type="button" id="btn_text_16" data-text-size="1rem">文字 16px</button>
+      <button type="button" id="btn_text_18" data-text-size="1.125rem" aria-pressed="true">文字 18px（初期値）</button>
+      <button type="button" id="btn_text_20" data-text-size="1.25rem">文字 20px</button>
+      <button type="button" id="btn_text_24" data-text-size="1.5rem">文字 24px</button>
+    </div>
+  </header>
+
+  <main id="screens" style="display:grid;gap:var(--space-7)"></main>
+
+  <div class="decisions">
+    <div>
+      <h2>決まったこと</h2>
+      <ul>
+        <li>方向性はC「端末」。会話を1行ずつ印字されるログとして見せる</li>
+        <li>入力はタブレットのキーボードの音声入力。ページ側は入力欄と送信だけを持つ</li>
+        <li>タブレットは横向き。端末は Lenovo Xiaoxin Pad（Android）、キーボードは Microsoft SwiftKey のディクテーション（S01a）</li>
+        <li>キーボードは画面下に常に出しておき、その上に状態行・ログ・入力行だけを詰めて置く。マイクの案内は入力欄の空欄表示に入れる（S01a〜S01e）</li>
+        <li>入力ページの文字の大きさは設定で変えられる。初期値は 18px。実機で見える行数を確かめて決める</li>
+        <li>入力が3秒止まったら自動送信する。待ち時間は設定で変えられる（S01b）</li>
+        <li>テクロボくんが考え中・話し中の間は入力を受け付けない（S01c・S01d）</li>
+        <li>考え中は、ログの末尾にテクロボくんの行を出し、点字のスピナーで示す（S01c）</li>
+        <li>入力ページの文字はすべて等幅の M PLUS 1 Code で組む。機体の字幕だけ DotGothic16</li>
+        <li>入力ページはシェル（bash・zsh）の見せ方にする：来場者の発言は時刻つきのプロンプト行（user@nid-techtech:~/makers %）、テクロボくんの返事は「finished thinking in 考えた時間」の行と「&gt;」で始まる行。考え中・話し中はプロンプトを出さない。反転した状態行、[送る] のような括弧のボタン、文字の進捗バー、# で始まる案内（S01a〜S01g）</li>
+        <li>プロンプトのディレクトリ名（~/makers）はイベントごとに設定で変えられる</li>
+        <li>入力を受け付ける端末は同時に1台だけ。手持ちのスマホを有効にしている間、タブレットは無効になる。切り替えはバックエンドPCか無線キーボードで行い、入力ページには切り替えの操作を置かない（S01g）</li>
+        <li>会話ログは消さずに残す。話しかけ方の手がかりになり、不適切な発言への抑止にもなる（S01e）</li>
+        <li>感情は neutral・happy・surprised・curious・troubled の5種類（S02c）。複数の感情が混ざる場合の扱いは後で決める</li>
+        <li>話し中の口は高さが伸び縮みする（S02b）</li>
+        <li>バックエンドにつながらないときは眠っている顔。目を閉じ、口を少し開け、ゆっくり上下に揺れる（S02e）</li>
+        <li>機体の画面の左上に、端末風の緑のドット文字で字幕を1行だけ出す。書体は DotGothic16。目と重ならない高さに置く（S02f）</li>
+        <li>言語は日本語のみ（モード1）。辞書と疑似ロケールの土台は持つ</li>
+        <li>フェイシャルは白地黒線で固定。目・口の基本座標は既存の config 値を使う</li>
+        <li>テクロボくんは話しかけられ待ち。自分からは話しかけない</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 辞書（モックの文言はすべてここから参照する） =====
+const DICT = {
+  ja: {
+    "app.name": "TEKUROBO-KUN",
+    "status.ready": "待機中",
+    "status.listening": "入力中",
+    "status.thinking": "考え中",
+    "status.speaking": "話し中",
+    "status.offline": "つながっていません",
+    "input.placeholder": "キーボードのマイクを押して、話しかけてください",
+    "input.send_button": "送る",
+    "input.clear_button": "消す",
+    "input.autosend": "{seconds}秒後に送ります",
+    "input.inactive_title": "いまは別の端末で受け付けています",
+    "input.inactive_body": "この端末からは話しかけられません。スタッフが切り替えると使えるようになります。",
+    "shell.user": "user",
+    "shell.host": "nid-techtech",
+    "shell.dir": "~/makers",
+    "shell.prompt": "{user}@{host}:{dir} %",
+    "shell.finished": "{name} finished thinking in {duration}",
+    "shell.thinking": "{name} is thinking",
+    "shell.output_mark": ">",
+    "log.you": "あなた",
+    "log.robot": "テクロボ",
+    "log.empty": "まだ会話はありません。テクロボくんに話しかけてみましょう。",
+    "log.thinking": "考えています",
+    "error.offline_title": "テクロボくんにつながっていません",
+    "error.offline_body": "スタッフに声をかけてください。つながると自動で元に戻ります。",
+    "keyboard.label": "端末のキーボード（Microsoft SwiftKey）",
+    "keyboard.lang": "JA",
+    "keyboard.dictation": "マイクをタップしてディクテーションする",
+    "face.caption_line": "{who}> {text}",
+    "sample.you_1": "こんにちは、何ができるの？",
+    "sample.robot_1": "話しかけてもらえれば返事をします。今日は何を作りに来たんですか？",
+    "sample.you_2": "ロボットを見に来た",
+    "sample.robot_2": "それなら目の前にいます。じっくりどうぞ。",
+    "sample.you_partial": "テクロボくんの好きな食べ物は",
+    "sample.you_3": "テクロボくんの好きな食べ物は何？",
+    "sample.robot_3": "食べられないので、はんだの煙で我慢しています。",
+    "sample.you_long": "ねえねえテクロボくんってどうやって動いてるの、中にパソコンが入ってるって本当なの、それとも誰かが遠くから操作してるの",
+    "sample.robot_long": "中にパソコンが入っていて、顔と声を担当しています。考えるのは隣の机にある別のパソコンです。誰かが操作しているわけではありません。ただ、間違えることはあるので、変なことを言ったら笑ってください。"
+  }
+};
+// 疑似ロケール：文字列を約4割伸ばし、記号で囲む（プレースホルダは保つ）
+DICT.pseudo = Object.fromEntries(Object.entries(DICT.ja).map(([k, v]) => {
+  const pad = "～".repeat(Math.max(1, Math.round(v.replace(/\{\w+\}/g, "").length * 0.4)));
+  return [k, `［${v}${pad}］`];
+}));
+
+let locale = "ja";
+const t = (key, vars = {}) => (DICT[locale][key] ?? key).replace(/\{(\w+)\}/g, (_, n) => vars[n] ?? `{${n}}`);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ===== タブレットの部品 =====
+const micIcon = (size = 28) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="8" y="2.5" width="8" height="12" rx="4"/><path d="M4.5 11a7.5 7.5 0 0 0 15 0M12 18.5V22"/></svg>`;
+
+function statusChip(kind) {
+  const cls = { ready: "", listening: "is-busy", thinking: "is-thinking", speaking: "is-busy", offline: "is-offline" }[kind];
+  return `<span class="status ${cls}">${esc(t("status." + kind))}</span>`;
+}
+// ログの時刻（見た目のための仮の値。1行ごとに数秒進める）
+let clock = 0;
+const nextTs = () => { const sec = 14 * 3600 + 2 * 60 + 11 + clock; clock += 4 + (clock % 3) * 9; const p = (n) => String(n).padStart(2, "0"); return `${p(Math.floor(sec / 3600))}:${p(Math.floor(sec / 60) % 60)}:${p(sec % 60)}`; };
+const tsSpan = () => `<span class="ts">${nextTs()}</span>`;
+const promptText = () => t("shell.prompt", { user: t("shell.user"), host: t("shell.host"), dir: t("shell.dir") });
+const promptHtml = () => `${tsSpan()} <span class="prompt">${esc(promptText())}</span> `;
+// 考えた時間（バックエンドが測る値。見た目のための仮の値）
+const THINK_MS = [3850, 22331, 5402, 8117, 4096, 12708];
+let thinkIndex = 0;
+const formatDuration = (ms) => `${Math.floor(ms / 1000)}s${ms % 1000}ms`;
+function line(who, key, { cursor = false } = {}) {
+  if (who === "you") return `<div class="sh">${promptHtml()}${esc(t(key))}</div>`;
+  const ms = THINK_MS[thinkIndex++ % THINK_MS.length];
+  return `<div class="sh sh-meta">${esc(t("shell.finished", { name: "\u0000", duration: formatDuration(ms) })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)}</div>
+    <div class="sh">${esc(t("shell.output_mark"))} ${esc(t(key))}${cursor ? '<span class="cursor"></span>' : ""}</div>`;
+}
+function thinkingLine() {
+  return `<div class="sh sh-meta" role="status">${esc(t("shell.thinking", { name: "\u0000" })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)} ${thinkIndicator()}<span class="sr-only">${esc(t("log.thinking"))}</span></div>`;
+}
+function keyboard() {
+  const row = (n) => `<div>${"<span></span>".repeat(n)}</div>`;
+  return `<div class="t-kb" aria-label="${esc(t("keyboard.label"))}">
+    <div class="kb-dict"><span class="kb-pill">${esc(t("keyboard.lang"))}</span><span>${esc(t("keyboard.dictation"))}</span><span class="kb-mic">${micIcon(26)}</span></div>
+    <div class="kb-rows">${row(11)}${row(11)}${row(10)}${row(9)}</div></div>`;
+}
+function inputArea({ text = "", focused = true, countdown = null, sendDisabled = false, waitKey = null, hover = false, placeholderKey = "input.placeholder", hidden = false }) {
+  if (hidden) return `<div class="t-input"></div>`;
+  const field = text
+    ? `<div class="field sh ${focused ? "focused" : ""}">${promptHtml()}${esc(text)}<span class="cursor"></span></div>`
+    : `<div class="field sh placeholder ${focused ? "focused" : ""}">${promptHtml()}<span class="cursor"></span> <span class="placeholder-text">${esc(t(placeholderKey))}</span></div>`;
+  const textBar = (pct) => { const n = Math.round(pct / 10); return `[${"█".repeat(n)}${"░".repeat(10 - n)}]`; };
+  const auto = countdown != null
+    ? `<div class="autosend"><span>${esc(t("input.autosend", { seconds: countdown.sec }))} <span class="bar-text">${textBar(countdown.pct)}</span></span></div>` : "";
+  const wait = waitKey ? `<div class="wait-note">${esc(t(waitKey))}</div>` : "";
+  return `<div class="t-input">
+    <div class="field-row">${field}
+      <div class="btns"><button class="ctl sub" type="button" ${text ? "" : "disabled"}>${esc(t("input.clear_button"))}</button>
+      <button class="ctl ${hover ? "hover" : ""}" type="button" ${sendDisabled || !text ? "disabled" : ""}>${esc(t("input.send_button"))}</button></div>
+    </div>${auto}${wait}</div>`;
+}
+function tablet({ status, log, input, kb = true, body = null }) {
+  return `<div class="tablet term">
+    <div class="t-bar"><span class="t-name">${esc(t("app.name"))}</span>${statusChip(status)}</div>
+    ${body ?? `<div class="t-log">${log}</div>`}
+    ${body ? "<div></div>" : inputArea(input)}
+    ${kb ? keyboard() : "<div></div>"}
+  </div>`;
+}
+
+// ===== 考え中インジケータ =====
+const BRAILLE = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+function thinkIndicator() {
+  return `<span class="think think-braille" aria-hidden="true"><b data-spinner>${BRAILLE[0]}</b></span>`;
+}
+// スピナーは文字の差し替えで回す（reduced-motion では止める）
+let spinnerFrame = 0;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+setInterval(() => {
+  if (reduceMotion.matches) return;
+  spinnerFrame = (spinnerFrame + 1) % BRAILLE.length;
+  document.querySelectorAll("[data-spinner]").forEach((el) => { el.textContent = BRAILLE[spinnerFrame]; });
+}, 100);
+
+// ===== フェイシャル（800×600 座標。既存 config：目 offsetX216 y149 r111/82、口 y430 w694 h143 5分割） =====
+const E = { lx: 184, rx: 616, y: 149, ro: 111, ri: 82, sw: 10 };
+const M = { x: 53, y: 430, w: 694, h: 143, seg: 5, sw: 11 };
+
+function eyes(kind) {
+  const pair = (fn) => fn(E.lx, "l") + fn(E.rx, "r");
+  const outer = (cx) => `<circle cx="${cx}" cy="${E.y}" r="${E.ro}" stroke-width="${E.sw}"/>`;
+  switch (kind) {
+    case "happy": // 上半分の弧（目を細めて笑う）
+      return pair((cx) => `<path d="M${cx - E.ro} ${E.y + 20} A${E.ro} ${E.ro} 0 0 1 ${cx + E.ro} ${E.y + 20}" stroke-width="${E.sw}"/><path d="M${cx - E.ri} ${E.y + 20} A${E.ri} ${E.ri} 0 0 1 ${cx + E.ri} ${E.y + 20}" stroke-width="${E.sw}"/>`);
+    case "surprised": // 内側の円が小さくなる
+      return pair((cx) => outer(cx) + `<circle cx="${cx}" cy="${E.y}" r="34" stroke-width="${E.sw}"/>`);
+    case "curious": // 内側の円が右上を見る、片目だけ小さく
+      return pair((cx, s) => outer(cx) + `<circle cx="${cx + 18}" cy="${E.y - 18}" r="${s === "l" ? 70 : 52}" stroke-width="${E.sw}"/>`);
+    case "troubled": // 上まぶたの線で半分閉じる（外側の線だけ八の字）
+      return pair((cx, s) => outer(cx) + `<circle cx="${cx}" cy="${E.y + 14}" r="${E.ri - 6}" stroke-width="${E.sw}"/><line x1="${cx - E.ro - 6}" y1="${E.y - (s === "l" ? 30 : 60)}" x2="${cx + E.ro + 6}" y2="${E.y - (s === "l" ? 60 : 30)}" stroke-width="${E.sw}"/>`);
+    case "loading": // 内側の円が外側の中を回る
+      return pair((cx, s) => outer(cx) + `<g class="orbit-${s}"><circle cx="${cx}" cy="${E.y - 26}" r="${E.ri - 26}" stroke-width="${E.sw}"/></g>`);
+    case "look_left":
+      return pair((cx) => outer(cx) + `<circle cx="${cx - 22}" cy="${E.y}" r="${E.ri}" stroke-width="${E.sw}"/>`);
+    case "sleep": // 閉じた目（下向きの弧）
+      return pair((cx) => `<path d="M${cx - 80} ${E.y} A90 90 0 0 0 ${cx + 80} ${E.y}" stroke-width="${E.sw}"/>`);
+    case "blink":
+      return pair((cx) => `<line x1="${cx - E.ro}" y1="${E.y}" x2="${cx + E.ro}" y2="${E.y}" stroke-width="${E.sw}"/>`);
+    default:
+      return pair((cx) => outer(cx) + `<circle cx="${cx}" cy="${E.y}" r="${E.ri}" stroke-width="${E.sw}"/>`);
+  }
+}
+function mouth(kind = "rest", level = 0) {
+  let h = M.h, fills = "";
+  if (kind === "a") h = M.h * (0.45 + level * 0.85); // A：高さが伸び縮み
+  const top = M.y - h / 2, segW = M.w / M.seg;
+  let lines = "";
+  for (let i = 1; i < M.seg; i++) lines += `<line x1="${M.x + segW * i}" y1="${top}" x2="${M.x + segW * i}" y2="${top + h}" stroke-width="${M.sw}"/>`;
+  return `${fills}<rect x="${M.x}" y="${top}" width="${M.w}" height="${h}" rx="14" stroke-width="${M.sw}"/>${lines}`;
+}
+function face({ eye = "normal", m = "rest", level = 0, extra = "", full = false, sleep = false }) {
+  const body = `${eyes(eye)}${mouth(m, level)}`;
+  return `<div class="face ${full ? "full" : ""}"><svg viewBox="0 0 800 600" role="img" aria-label="フェイシャル">${sleep ? `<g class="sleep">${body}</g>` : body}${extra}</svg></div>`;
+}
+function caption(who, key) {
+  return `<text class="caption" x="14" y="24" font-size="18">${esc(t("face.caption_line", { who: t(who), text: t(key) }))}</text>`;
+}
+const variant = (label, html) => `<div class="variant"><div class="variant-label">${label}</div>${html}</div>`;
+function screen(id, name, body, note = "") {
+  return `<section class="screen" id="screen_${id.toLowerCase()}"><div class="screen-head"><span class="screen-id">${id}</span><h2>${name}</h2></div>
+    ${note ? `<p class="note">${note}</p>` : ""}<div class="scroller"><div class="variants">${body}</div></div></section>`;
+}
+
+// ===== 画面の組み立て =====
+function render() {
+  const hist = () => { clock = 0; thinkIndex = 0; return line("you", "sample.you_1") + line("robot", "sample.robot_1") + line("you", "sample.you_2") + line("robot", "sample.robot_2"); };
+  const html = [
+    screen("S01a", "入力ページ：待機（会話なし）",
+      variant("横向き 1280×800", tablet({ status: "ready", log: (clock = 0, `<div class="sh sh-comment"># ${esc(t("log.empty"))}</div>`), input: {} })),
+      "入力行（プロンプト）にフォーカスが当たり、SwiftKey が出ている状態。来場者はキーボードのマイクを押して話す。"),
+    screen("S01b", "入力ページ：話している途中（自動送信あり）",
+      variant("<b>話し終えた直後</b>：入力が止まると送信までの残り時間を表示", tablet({ status: "listening", log: hist(), input: { text: t("sample.you_3"), countdown: { sec: 3, pct: 20 } } })) +
+      variant("<b>送るボタン</b>：hover・押下時の見た目。3秒待たずに送れる", tablet({ status: "listening", log: hist(), input: { text: t("sample.you_partial"), hover: true } })),
+      "入力が3秒止まると自動で送る。待ち時間は設定で変えられる。"),
+    screen("S01c", "入力ページ：テクロボくんが考え中",
+      variant("送った行の下に「is thinking」と点字のスピナーが出る。プロンプトは出ない", tablet({ status: "thinking", log: hist() + line("you", "sample.you_3") + thinkingLine(), input: { hidden: true } })),
+      "シェルがコマンドを実行している間と同じく、考え中は入力行（プロンプト）を出さない。読み上げ用に「考えています」は残す。"),
+    screen("S01d", "入力ページ：テクロボくんが話し中",
+      variant("考えた時間と返事が出て、話し終わるまでカーソルが点滅する。話し終わると次のプロンプトが出る", tablet({ status: "speaking", log: hist() + line("you", "sample.you_3") + line("robot", "sample.robot_3", { cursor: true }), input: { hidden: true } }))),
+    screen("S01e", "入力ページ：長い文と長い会話",
+      variant("ログは消さずに残し、古い行は上へ流れる。長い文は折り返す。上のボタンで文字の大きさを切り替えて、見える行数を確かめられる", tablet({ status: "ready", log: hist() + line("you", "sample.you_long") + line("robot", "sample.robot_long"), input: {} }))),
+    screen("S01f", "入力ページ：バックエンドにつながらない",
+      variant("自動で再接続を試み続け、つながったら S01a に戻る", tablet({ status: "offline", kb: false, body: `<div class="offline"><h3>${esc(t("error.offline_title"))}</h3><p>${esc(t("error.offline_body"))}</p></div>` }))),
+
+    screen("S01g", "入力ページ：別の端末が有効になっている",
+      variant("手持ちのスマホが有効な間、タブレットはこの表示になる。切り替えはバックエンドPCか無線キーボードで行う", tablet({ status: "ready", kb: false, body: `<div class="offline inactive"><h3>${esc(t("input.inactive_title"))}</h3><p>${esc(t("input.inactive_body"))}</p></div>` }))),
+
+    screen("S02a", "フェイシャル：待機（実寸 800×600）",
+      variant("既存 config の座標そのまま。この状態でまばたき・きょろきょろをする", face({ full: true })),
+      "以下 S02 は 800×600 を半分に縮小して並べている。"),
+    screen("S02b", "フェイシャル：話し中の口（音声の大きさに連動）",
+      variant("<b>小</b>", face({ m: "a", level: 0.2 })) + variant("<b>中</b>", face({ m: "a", level: 0.55 })) + variant("<b>大</b>", face({ m: "a", level: 0.9 })),
+      "口の高さが音量に合わせて伸び縮みする。"),
+    screen("S02c", "フェイシャル：感情（emotion）の候補",
+      variant("<b>neutral</b> 通常", face({})) + variant("<b>happy</b> うれしい", face({ eye: "happy" })) +
+      variant("<b>surprised</b> おどろき", face({ eye: "surprised" })) + variant("<b>curious</b> 気になる・疑問", face({ eye: "curious" })) +
+      variant("<b>troubled</b> 困った", face({ eye: "troubled" })),
+      "表情は目だけで描き分け、口は話し中の動きに専念させる案。"),
+    screen("S02d", "フェイシャル：考え中（LOADING）とアイドル動作",
+      variant("<b>LOADING</b> 内側の円が回る", face({ eye: "loading" })) + variant("<b>まばたき</b>", face({ eye: "blink" })) +
+      variant("<b>きょろきょろ</b>", face({ eye: "look_left" }))),
+    screen("S02e", "フェイシャル：バックエンドにつながらないとき（眠っている）",
+      variant("眠っている顔：目を閉じ、口を少し開け、顔全体がゆっくり上下に揺れる", face({ eye: "sleep", m: "a", level: 0.05, sleep: true }))),
+    screen("S02f", "フェイシャル：字幕",
+      variant("<b>考え中</b>：来場者の発言", face({ eye: "loading", extra: caption("log.you", "sample.you_3") })) +
+      variant("<b>話し中</b>：テクロボくんの発言", face({ m: "a", level: 0.6, extra: caption("log.robot", "sample.robot_3") })) +
+      variant("実寸 800×600", face({ full: true, m: "a", level: 0.6, extra: caption("log.robot", "sample.robot_3") })),
+      "1行だけ、左上に背景の箱なしで出す。目の上端より上に収まる。1行に入らない長い文は末尾側を表示する（端末が流れるように）。"),
+  ];
+  document.getElementById("screens").innerHTML = html.join("");
+}
+
+// ===== 切り替え =====
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => {
+  const v = b.dataset.themeSet;
+  if (v === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+}));
+document.querySelectorAll("[data-locale-set]").forEach((b) => b.addEventListener("click", () => {
+  locale = b.dataset.localeSet;
+  document.documentElement.lang = locale === "ja" ? "ja" : "ja-x-pseudo";
+  document.querySelectorAll("[data-locale-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+}));
+document.querySelectorAll("[data-text-size]").forEach((b) => b.addEventListener("click", () => {
+  document.documentElement.style.setProperty("--term-text-size", b.dataset.textSize);
+  document.querySelectorAll("[data-text-size]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+}));
+document.documentElement.lang = "ja";
+render();
+</script>

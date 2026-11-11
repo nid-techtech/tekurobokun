@@ -5,7 +5,9 @@
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
 - T1-1 → T4-10へ移動（実機での会話の確認を、先に開発機の仮のサーバーで行うため）
-- [ ] T1-2 【エージェント】Bunのワークスペースでモノレポを作る（`apps/backend`・`apps/console`・`apps/robot`・`packages/protocol`・`packages/i18n`・`packages/theme`、ルートの`package.json`・`tsconfig`・`.gitignore`）
+- [x] T1-2 【エージェント】Bunのワークスペースでモノレポを作る（`apps/backend`・`apps/console`・`apps/robot`・`packages/protocol`・`packages/i18n`・`packages/theme`、ルートの`package.json`・`tsconfig`・`.gitignore`）
+  - 実施: Opus・high
+  - メモ: TypeScript 7.0.2。共通設定は`tsconfig.base.json`、ルートの`tsconfig.json`は`scripts/`用（T1-7で中身ができるまで型検査の対象外）。`apps/robot/package.json`は仮置きで、T1-3でヘボコン版の内容に差し替える
 - [ ] T1-3 【エージェント】ヘボコン版（`../tekurobokun-lite`）を履歴なしで`apps/robot`へコピーし、モノレポで動くようにする。識別子とproductNameを変え、走行と音声スロットの配線を外す（`f`・`/`は残す）
   - 推奨: Sonnet・high以上
   - 依存: T1-2

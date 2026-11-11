@@ -1,1 +1,20 @@
+# 依存とビルド成果物
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 機体アプリ（Tauri）のビルド成果物
+apps/robot/src-tauri/target/
+
+# 実行時のデータとローカル設定
+logs/
+config/*.local.json
+.env
+.env.*
+
+# OSとエディタ
+.DS_Store
+Thumbs.db
+
+# ロードマップの旧版
 roadmap/archived/

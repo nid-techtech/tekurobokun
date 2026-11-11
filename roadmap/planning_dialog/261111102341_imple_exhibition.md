@@ -220,5 +220,8 @@ type LogEntry = {
 
 ## 10. 開発と動作確認
 
-- 開発機（Windows）では、`apps/backend`をスタブ（`--stub`）で起動すれば、LLM・VOICEVOXなしで入力ページと機体を動かせる
-- 実機での確認は、バックエンドPC（Ubuntu）・機体（Windows）・タブレット（Android）を、持ち込みのルーターでつないで行う
+検証は3段階で行う。段階が上がっても、変わるのは`config/backend.local.json`の接続先とモデル名だけとする。
+
+- **スタブ**：開発機（Windows）で`apps/backend`をスタブ（`--stub`）で起動する。LLM・VOICEVOXなしで入力ページと機体を動かせる。【エージェント】の検証はこの段階で行う
+- **仮のサーバー**（Phase 1〜3）：開発機に、llama-server（Windows版、CPU）とGemma 4 E2B、VOICEVOX ENGINE（Windows版）を置き、実際のAPIで会話を通す。JSONの形式指定、返事の検証、文の分割と合成、機体での再生を、バックエンドPCの準備を待たずに確かめる
+- **本番**（Phase 4）：バックエンドPC（Ubuntu、RX480）に移し、GPU（Vulkan）での動作、モデルの比較と決定、応答時間、連続稼働を確かめる。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ

@@ -4,8 +4,7 @@
 
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
-- [ ] T1-1 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Gemma 4 E4B・Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）を起動できるようにし、Bun 1.4を入れ、LANでのIPを固定する
-  - エージェントの項目と並行して進めてよい
+- T1-1 → T4-10へ移動（実機での会話の確認を、先に開発機の仮のサーバーで行うため）
 - [ ] T1-2 【エージェント】Bunのワークスペースでモノレポを作る（`apps/backend`・`apps/console`・`apps/robot`・`packages/protocol`・`packages/i18n`・`packages/theme`、ルートの`package.json`・`tsconfig`・`.gitignore`）
 - [ ] T1-3 【エージェント】ヘボコン版（`../tekurobokun-lite`）を履歴なしで`apps/robot`へコピーし、モノレポで動くようにする。識別子とproductNameを変え、走行と音声スロットの配線を外す（`f`・`/`は残す）
   - 推奨: Sonnet・high以上
@@ -19,9 +18,12 @@ Phaseの推奨: Opus・high以上
   - 依存: T1-5
 - [ ] T1-7 【エージェント】checkコマンド（`bun run check`）を作る：`tsc`、Biome、`bun test`、i18nの検査、トークンの検査を実行し、失敗した部分だけを表示する
   - 依存: T1-3, T1-4, T1-6
-- [ ] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、バックエンドPCでのllama-server・VOICEVOXの動作確認のコマンド）
+- [ ] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、開発機の仮のサーバーの用意と、llama-server・VOICEVOXの動作確認のコマンド）
   - 推奨: Sonnet・medium以上
   - 依存: T1-7
+- [ ] T1-9 【ユーザー】開発機（Windows）に仮のサーバーを用意する：llama-server（Windows版）とGemma 4 E2BのGGUF（4bit）、VOICEVOX ENGINE 0.25.2（Windows版）。用意の手順はT1-8で`CONTRIBUTING.md`に書く
+  - 依存: T1-8
+  - CPUで動かす想定。開発機のGPUが使えればそれでもよい
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
@@ -39,8 +41,7 @@ Phaseの推奨: Opus・high以上
   - 依存: T2-2
 - [ ] T2-6 【ユーザー】人格プロンプトの初版を`config/persona.md`に書く（全体構想の人格設定を土台に、短く）
   - 依存: T2-2
-- [ ] T2-7 【ユーザー】バックエンドPCで比較スクリプトを実行し、使うモデルを決めて`config/backend.local.json`に書く
-  - 依存: T1-1, T2-5, T2-6
+- T2-7 → T4-11へ移動（モデルの比較はバックエンドPCの準備のあとに行うため）
 - [ ] T2-8 【エージェント】`CONTRIBUTING.md`に、バックエンド（スタブを含む）と入力ページの起動方法、設定ファイルを追記する
   - 推奨: Sonnet・medium以上
   - 依存: T2-4
@@ -64,8 +65,8 @@ Phaseの推奨: Opus・high以上
   - 推奨: Sonnet・medium以上
   - 依存: T3-2
   - 画面: S01d
-- [ ] T3-7 【ユーザー】VOICEVOXの話者を決めて`config/backend.local.json`に書く（仮でよい）
-  - 依存: T1-1, T3-1
+- [ ] T3-7 【ユーザー】開発機のVOICEVOXで話者を聞き比べて決め、`config/backend.local.json`に書く（仮でよい）
+  - 依存: T1-9, T3-1
 - [ ] T3-8 【エージェント】`CONTRIBUTING.md`に、機体アプリの起動方法と設定を追記する
   - 推奨: Sonnet・medium以上
   - 依存: T3-6
@@ -92,9 +93,14 @@ Phaseの推奨: Opus・high以上
   - 依存: T4-5
 - [ ] T4-8 【ユーザー】会話ログの保存期間と、ブースに掲示する文言を決める（VOICEVOXのクレジットを含む）
   - 依存: T3-7
-- [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、展示当日の起動手順と端末の切り替え方を追記する
+- [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、バックエンドPC（Ubuntu）の準備、展示当日の起動手順、端末の切り替え方を追記する
   - 推奨: Sonnet・medium以上
   - 依存: T4-6
+- [ ] T4-10 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Gemma 4 E4B・Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）とBun 1.4を入れ、リポジトリを置き、LANでのIPを固定する
+  - 依存: T4-9
+  - 準備ができ次第、前のPhaseの途中でも進めてよい（手順はT1-8の`CONTRIBUTING.md`の仮のサーバーの手順を参考にする）
+- [ ] T4-11 【ユーザー】バックエンドPCで比較スクリプトを実行し、使うモデルを決めて`config/backend.local.json`に書く
+  - 依存: T2-5, T2-6, T4-10
 
 ## Phase 5: 字幕と公開の準備（時間があれば）
 Phaseの推奨: Sonnet・high以上

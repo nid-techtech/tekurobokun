@@ -1,0 +1,18 @@
+/* 同梱フォント（SIL Open Font License 1.1。ライセンス文は各フォントのフォルダのOFL.txt）。
+   オフラインで使うため、外部から読み込まない。書体の指定はtokens.cssの--font-*を使う。 */
+
+@font-face {
+  font-family: "M PLUS 1 Code";
+  src: url("./fonts/mplus1code/MPLUS1Code-Variable.ttf") format("truetype");
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "DotGothic16";
+  src: url("./fonts/dotgothic16/DotGothic16-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}

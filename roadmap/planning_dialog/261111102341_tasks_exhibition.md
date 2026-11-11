@@ -17,7 +17,9 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・high
   - メモ: `parse*Message`は受け取った文字列（JSON）を引数に取り、型にある項目だけで組み立て直して返す。`index`は0以上の整数、`thinkingMs`・`autosendMs`・`fontSizePx`は0以上の有限数として検証する
   - 依存: T1-2
-- [ ] T1-5 【エージェント】トークンを配置する：`specs/`のトークンを`packages/theme/tokens.css`へ、`brand.md`とマスターSVGを`docs/brand/`へコピーし、M PLUS 1 CodeとDotGothic16のフォントファイルをOFLのライセンス文と一緒に同梱する
+- [x] T1-5 【エージェント】トークンを配置する：`specs/`のトークンを`packages/theme/tokens.css`へ、`brand.md`とマスターSVGを`docs/brand/`へコピーし、M PLUS 1 CodeとDotGothic16のフォントファイルをOFLのライセンス文と一緒に同梱する
+  - 実施: Opus・high
+  - メモ: `@font-face`は`packages/theme/fonts.css`に分けた（`tokens.css`は`specs/`と一致させるため）。フォントはgoogle/fontsのTTF（M PLUS 1 Codeは可変・wght 100〜700）
   - 推奨: Sonnet・medium以上
   - 依存: T1-2
 - [ ] T1-6 【エージェント】i18nの基盤を作る：`packages/i18n`にParaglide JS 2を入れ、モックの辞書を移す。疑似ロケールの生成、ロケールの判定・保持・フォールバック、`lang`属性、ロケールごとの書体を用意し、consoleとrobotから参照できるようにする

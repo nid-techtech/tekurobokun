@@ -13,7 +13,9 @@ Phaseの推奨: Opus・high以上
   - メモ: シリアル通信はRust側でも未配線（`serial_link`はコードだけ残す）。起動時の挨拶（hello_world.wav）は音声スロットとは別のため残した。音声スロットの設定・WAVと`AudioSlotRegistry`は未配線で残る
   - 推奨: Sonnet・high以上
   - 依存: T1-2
-- [ ] T1-4 【エージェント】`packages/protocol`にメッセージの型と検証関数を定義し、単体テストを書く
+- [x] T1-4 【エージェント】`packages/protocol`にメッセージの型と検証関数を定義し、単体テストを書く
+  - 実施: Opus・high
+  - メモ: `parse*Message`は受け取った文字列（JSON）を引数に取り、型にある項目だけで組み立て直して返す。`index`は0以上の整数、`thinkingMs`・`autosendMs`・`fontSizePx`は0以上の有限数として検証する
   - 依存: T1-2
 - [ ] T1-5 【エージェント】トークンを配置する：`specs/`のトークンを`packages/theme/tokens.css`へ、`brand.md`とマスターSVGを`docs/brand/`へコピーし、M PLUS 1 CodeとDotGothic16のフォントファイルをOFLのライセンス文と一緒に同梱する
   - 推奨: Sonnet・medium以上

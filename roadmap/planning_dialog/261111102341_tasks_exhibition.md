@@ -8,7 +8,9 @@ Phaseの推奨: Opus・high以上
 - [x] T1-2 【エージェント】Bunのワークスペースでモノレポを作る（`apps/backend`・`apps/console`・`apps/robot`・`packages/protocol`・`packages/i18n`・`packages/theme`、ルートの`package.json`・`tsconfig`・`.gitignore`）
   - 実施: Opus・high
   - メモ: TypeScript 7.0.2。共通設定は`tsconfig.base.json`、ルートの`tsconfig.json`は`scripts/`用（T1-7で中身ができるまで型検査の対象外）。`apps/robot/package.json`は仮置きで、T1-3でヘボコン版の内容に差し替える
-- [ ] T1-3 【エージェント】ヘボコン版（`../tekurobokun-lite`）を履歴なしで`apps/robot`へコピーし、モノレポで動くようにする。識別子とproductNameを変え、走行と音声スロットの配線を外す（`f`・`/`は残す）
+- [x] T1-3 【エージェント】ヘボコン版（`../tekurobokun-lite`）を履歴なしで`apps/robot`へコピーし、モノレポで動くようにする。識別子とproductNameを変え、走行と音声スロットの配線を外す（`f`・`/`は残す）
+  - 実施: Opus・high
+  - メモ: シリアル通信はRust側でも未配線（`serial_link`はコードだけ残す）。起動時の挨拶（hello_world.wav）は音声スロットとは別のため残した。音声スロットの設定・WAVと`AudioSlotRegistry`は未配線で残る
   - 推奨: Sonnet・high以上
   - 依存: T1-2
 - [ ] T1-4 【エージェント】`packages/protocol`にメッセージの型と検証関数を定義し、単体テストを書く

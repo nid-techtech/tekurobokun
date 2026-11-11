@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { AudioPlayer } from "./AudioPlayer";
 import type { AudioSlotInfo } from "../config/config";
+import { AudioPlayer } from "./AudioPlayer";
 
 // bun:testの実行環境にはWeb Audio APIが存在しないため、最小限のフェイクで代替する。
 class FakeAudioBufferSourceNode {
@@ -35,7 +35,9 @@ beforeEach(() => {
   originalFetch = globalThis.fetch;
   (globalThis as { AudioContext: unknown }).AudioContext = FakeAudioContext;
   globalThis.fetch = (() =>
-    Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) })) as unknown as typeof fetch;
+    Promise.resolve({
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    })) as unknown as typeof fetch;
 });
 
 afterEach(() => {

@@ -26,7 +26,9 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・high
   - メモ: Paraglideは2系の最新（2.29.3。最新の3系はスペックシートの指定外）。コンパイルはViteプラグインでなくCLIで、`bun install`のpostinstallと`packages/i18n`の`compile`で行い、出力（`src/paraglide`）は共有でGit管理外。疑似ロケール`ja-x-pseudo`は公開版のビルドにも入るが、実行時に開発時以外は選べない。型は`tsconfig.base.json`の`allowJs`でJSDocから得る
   - 依存: T1-5
-- [ ] T1-7 【エージェント】checkコマンド（`bun run check`）を作る：`tsc`、Biome、`bun test`、i18nの検査、トークンの検査を実行し、失敗した部分だけを表示する
+- [x] T1-7 【エージェント】checkコマンド（`bun run check`）を作る：`tsc`、Biome、`bun test`、i18nの検査、トークンの検査を実行し、失敗した部分だけを表示する
+  - 実施: Opus・high
+  - メモ: 未使用キーは警告にとどめ、失敗にしない（Phase 2・3で画面を作るまで大半が未使用のため）。検査を通すため、robotの`styles.css`の色・pxの直書きをトークンに置き換え、HUDの「(なし)」を辞書（`debug.no_caption`）に移した。Biome 2.6.6の整形を全体に適用
   - 依存: T1-3, T1-4, T1-6
 - [ ] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、開発機の仮のサーバーの用意と、llama-server・VOICEVOXの動作確認のコマンド）
   - 推奨: Sonnet・medium以上

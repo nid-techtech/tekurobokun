@@ -1,10 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import { parseClientMessage, parseServerMessage } from "./parse.ts";
-import type { ClientMessage, ConsoleSettings, Health, Reply, ServerMessage, Turn } from "./types.ts";
+import type {
+  ClientMessage,
+  ConsoleSettings,
+  Health,
+  Reply,
+  ServerMessage,
+  Turn,
+} from "./types.ts";
 
 const j = (v: unknown) => JSON.stringify(v);
 
-const turn: Turn = { id: "t1", at: "2026-11-14T10:00:00+09:00", device: "tablet", text: "こんにちは" };
+const turn: Turn = {
+  id: "t1",
+  at: "2026-11-14T10:00:00+09:00",
+  device: "tablet",
+  text: "こんにちは",
+};
 const reply: Reply = { say: "やあ。", emotion: "happy", thinkingMs: 1234 };
 const settings: ConsoleSettings = {
   autosendMs: 3000,
@@ -80,13 +92,19 @@ describe("parseServerMessage", () => {
 
   test("感情はすべて受け付ける", () => {
     for (const emotion of ["neutral", "happy", "surprised", "curious", "troubled"]) {
-      expect(parseServerMessage(j({ type: "turn_replied", turnId: "t1", ...reply, emotion }))).not.toBeNull();
+      expect(
+        parseServerMessage(j({ type: "turn_replied", turnId: "t1", ...reply, emotion })),
+      ).not.toBeNull();
     }
   });
 
   test("ネストした余分な項目も落とす", () => {
     const parsed = parseServerMessage(
-      j({ type: "turn_started", turn: { ...turn, secret: 1, reply: { ...reply, raw: "x" } }, extra: 1 }),
+      j({
+        type: "turn_started",
+        turn: { ...turn, secret: 1, reply: { ...reply, raw: "x" } },
+        extra: 1,
+      }),
     );
     expect(parsed).toEqual({ type: "turn_started", turn: { ...turn, reply } });
   });
@@ -94,13 +112,27 @@ describe("parseServerMessage", () => {
   const invalid: [string, unknown][] = [
     ["クライアント向けのtype", { type: "utterance", text: "a" }],
     ["settingsがない", { type: "welcome", history: [] }],
-    ["promptが欠ける", { type: "welcome", settings: { ...settings, prompt: { user: "a" } }, history: [] }],
+    [
+      "promptが欠ける",
+      { type: "welcome", settings: { ...settings, prompt: { user: "a" } }, history: [] },
+    ],
     ["autosendMsが負", { type: "welcome", settings: { ...settings, autosendMs: -1 }, history: [] }],
     ["historyが配列でない", { type: "welcome", settings, history: {} }],
     ["historyに崩れた要素", { type: "welcome", settings, history: [turn, { id: "t2" }] }],
     ["sessionが未知", { type: "status", session: "sleep", activeDevice: "a", health }],
-    ["health.backendがfalse", { type: "status", session: "idle", activeDevice: "a", health: { ...health, backend: false } }],
-    ["health.llmがない", { type: "status", session: "idle", activeDevice: "a", health: { backend: true, tts: true, robot: true } }],
+    [
+      "health.backendがfalse",
+      { type: "status", session: "idle", activeDevice: "a", health: { ...health, backend: false } },
+    ],
+    [
+      "health.llmがない",
+      {
+        type: "status",
+        session: "idle",
+        activeDevice: "a",
+        health: { backend: true, tts: true, robot: true },
+      },
+    ],
     ["activeDeviceがない", { type: "status", session: "idle", health }],
     ["turnのtextがない", { type: "turn_started", turn: { id: "t1", at: "x", device: "a" } }],
     ["turnのreplyが崩れている", { type: "turn_started", turn: { ...turn, reply: { say: "a" } } }],
@@ -109,9 +141,26 @@ describe("parseServerMessage", () => {
     ["thinkingMsが文字列", { type: "turn_replied", turnId: "t1", ...reply, thinkingMs: "1" }],
     ["thinkingMsがnull", { type: "turn_replied", turnId: "t1", ...reply, thinkingMs: null }],
     ["turnIdがない", { type: "turn_replied", ...reply }],
-    ["speechのlastがない", { type: "speech", turnId: "t1", index: 0, text: "a", emotion: "happy", wav: "" }],
-    ["speechのwavが数値", { type: "speech", turnId: "t1", index: 0, last: false, text: "a", emotion: "happy", wav: 1 }],
-    ["speechのindexが負", { type: "speech", turnId: "t1", index: -1, last: false, text: "a", emotion: "happy", wav: "" }],
+    [
+      "speechのlastがない",
+      { type: "speech", turnId: "t1", index: 0, text: "a", emotion: "happy", wav: "" },
+    ],
+    [
+      "speechのwavが数値",
+      { type: "speech", turnId: "t1", index: 0, last: false, text: "a", emotion: "happy", wav: 1 },
+    ],
+    [
+      "speechのindexが負",
+      {
+        type: "speech",
+        turnId: "t1",
+        index: -1,
+        last: false,
+        text: "a",
+        emotion: "happy",
+        wav: "",
+      },
+    ],
   ];
   test.each(invalid)("崩れた形は null: %s", (_, msg) => {
     expect(parseServerMessage(j(msg))).toBeNull();

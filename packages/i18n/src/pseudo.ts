@@ -11,6 +11,9 @@ export function pseudoText(text: string): string {
 /** 辞書全体を疑似ロケールに変換する（$schemaはそのまま残す）。 */
 export function pseudoMessages(source: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [key, key === SCHEMA_KEY ? value : pseudoText(value)]),
+    Object.entries(source).map(([key, value]) => [
+      key,
+      key === SCHEMA_KEY ? value : pseudoText(value),
+    ]),
   );
 }

@@ -11,5 +11,8 @@ test("プレースホルダは保ち、伸ばす量の計算から外す", () =>
 });
 
 test("$schemaはそのまま残す", () => {
-  expect(pseudoMessages({ $schema: "x", "a.b": "あ" })).toEqual({ $schema: "x", "a.b": "［あ～］" });
+  expect(pseudoMessages({ $schema: "x", "a.b": "あ" })).toEqual({
+    $schema: "x",
+    "a.b": "［あ～］",
+  });
 });

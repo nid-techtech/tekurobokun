@@ -1,11 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { initLocale } from "@tekurobokun/i18n";
-import { config } from "./config/config";
-import { BarcodeKeyboardSource } from "./input/InputSource";
-import { InputRouter } from "./input/InputRouter";
-import { FacialEngine } from "./facial/FacialEngine";
 import { AudioPlayer } from "./audio/AudioPlayer";
+import { config } from "./config/config";
 import { DebugHUD, type DebugSnapshot } from "./facial/DebugHUD";
+import { FacialEngine } from "./facial/FacialEngine";
+import { InputRouter } from "./input/InputRouter";
+import { BarcodeKeyboardSource } from "./input/InputSource";
 
 // 走行（DriveStateMachine・シリアル通信）と音声スロット（数字キーでの再生）は、この版では配線しない。
 // コードは今後の版のために残す。

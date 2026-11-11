@@ -61,5 +61,9 @@ export type SpeechMessage = {
   wav: string;
 };
 
-export type BroadcastMessage = WelcomeMessage | StatusMessage | TurnStartedMessage | TurnRepliedMessage;
+export type BroadcastMessage =
+  | WelcomeMessage
+  | StatusMessage
+  | TurnStartedMessage
+  | TurnRepliedMessage;
 export type ServerMessage = BroadcastMessage | SpeechMessage;

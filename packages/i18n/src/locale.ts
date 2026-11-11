@@ -25,7 +25,11 @@ export function isAllowedLocale(value: unknown, dev: boolean): value is Locale {
  * （Paraglideの判定：localStorage → ブラウザの言語 → 原文の言語）、原文の言語。
  * 使えないロケールは飛ばし、最後は原文の言語（ja）にフォールバックする。
  */
-export function resolveLocale(input: { query: string | null; current: string; dev: boolean }): Locale {
+export function resolveLocale(input: {
+  query: string | null;
+  current: string;
+  dev: boolean;
+}): Locale {
   const fromQuery = input.query === null ? null : (QUERY_ALIASES[input.query] ?? input.query);
   if (isAllowedLocale(fromQuery, input.dev)) return fromQuery;
   if (isAllowedLocale(input.current, input.dev)) return input.current;

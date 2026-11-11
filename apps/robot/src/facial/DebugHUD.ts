@@ -1,3 +1,5 @@
+import { m } from "@tekurobokun/i18n";
+
 export interface DebugSnapshot {
   params: Record<string, number | string>;
   currentCaption: string | null;
@@ -25,7 +27,7 @@ export class DebugHUD {
     if (!this.enabled) return;
 
     const lines = Object.entries(snapshot.params).map(([key, value]) => `${key}: ${value}`);
-    lines.push(`caption: ${snapshot.currentCaption ?? "(なし)"}`);
+    lines.push(`caption: ${snapshot.currentCaption ?? m["debug.no_caption"]()}`);
     this.container.textContent = lines.join("\n");
   }
 }

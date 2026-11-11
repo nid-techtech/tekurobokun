@@ -5,8 +5,8 @@ import {
   type Emotion,
   type Health,
   type Reply,
-  type ServerMessage,
   SESSION_STATES,
+  type ServerMessage,
   type SessionState,
   type Turn,
 } from "./types.ts";
@@ -23,8 +23,7 @@ const isNonNegNum = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && v >= 0;
 const isIndex = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
 
-export const isEmotion = (v: unknown): v is Emotion =>
-  (EMOTIONS as readonly unknown[]).includes(v);
+export const isEmotion = (v: unknown): v is Emotion => (EMOTIONS as readonly unknown[]).includes(v);
 export const isSessionState = (v: unknown): v is SessionState =>
   (SESSION_STATES as readonly unknown[]).includes(v);
 

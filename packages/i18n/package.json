@@ -9,8 +9,9 @@
   },
   "scripts": {
     "gen:pseudo": "bun scripts/gen_pseudo.ts",
-    "compile": "bun run gen:pseudo && paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage preferredLanguage baseLocale",
-    "typecheck": "tsc -p ."
+    "compile": "bun run gen:pseudo && bun run compile:messages",
+    "typecheck": "tsc -p .",
+    "compile:messages": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage preferredLanguage baseLocale"
   },
   "devDependencies": {
     "@inlang/paraglide-js": "~2.29.3",

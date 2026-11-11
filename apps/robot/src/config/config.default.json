@@ -24,18 +24,41 @@
   "audio": {
     "slots": {
       "1": { "filePath": "/audio/01_hello.wav", "caption": "こんにちは！今日は何をしましょうか？" },
-      "2": { "filePath": "/audio/02_introduce.wav", "caption": "私はテクロボくんと申します。長岡造形大学のサークル「TECH☆TECH」で作られ、いつもみんなのものづくりを見守っています。" },
-      "3": { "filePath": "/audio/03_emacs.wav", "caption": "vimは使いづらいです。emacsのほうが優れていると思いませんか？" },
-      "4": { "filePath": "/audio/04_errormessage.wav", "caption": "エラーメッセージは怖くないです。ホントですよ！" },
-      "5": { "filePath": "/audio/05_warning.wav", "caption": "あと1日早く作り始めていればもっと楽だったと思いますよ。" },
-      "6": { "filePath": "/audio/06_diet.wav", "caption": "ダイエットしたいです。いろんな意味で。" },
-      "7": { "filePath": "/audio/07_toohot.wav", "caption": "私はチョコレートではないんですけど、暑いところに長時間いると良くないですね。溶けちゃいます。" },
-      "8": { "filePath": "/audio/08_shutup.wav", "caption": "私のことがうるさいと感じるなら、電源を引っこ抜いてください。" },
+      "2": {
+        "filePath": "/audio/02_introduce.wav",
+        "caption": "私はテクロボくんと申します。長岡造形大学のサークル「TECH☆TECH」で作られ、いつもみんなのものづくりを見守っています。"
+      },
+      "3": {
+        "filePath": "/audio/03_emacs.wav",
+        "caption": "vimは使いづらいです。emacsのほうが優れていると思いませんか？"
+      },
+      "4": {
+        "filePath": "/audio/04_errormessage.wav",
+        "caption": "エラーメッセージは怖くないです。ホントですよ！"
+      },
+      "5": {
+        "filePath": "/audio/05_warning.wav",
+        "caption": "あと1日早く作り始めていればもっと楽だったと思いますよ。"
+      },
+      "6": {
+        "filePath": "/audio/06_diet.wav",
+        "caption": "ダイエットしたいです。いろんな意味で。"
+      },
+      "7": {
+        "filePath": "/audio/07_toohot.wav",
+        "caption": "私はチョコレートではないんですけど、暑いところに長時間いると良くないですね。溶けちゃいます。"
+      },
+      "8": {
+        "filePath": "/audio/08_shutup.wav",
+        "caption": "私のことがうるさいと感じるなら、電源を引っこ抜いてください。"
+      },
       "9": { "filePath": "/audio/09_yes.wav", "caption": "はい。" },
       "0": { "filePath": "/audio/10_no.wav", "caption": "いいえ。" }
     },
-    "errorSound": { "filePath": "/audio/error.wav", "caption": "無効な操作です。やり直してください。" },
+    "errorSound": {
+      "filePath": "/audio/error.wav",
+      "caption": "無効な操作です。やり直してください。"
+    },
     "startupGreeting": { "filePath": "/audio/hello_world.wav", "caption": "ハローワールド！" }
   }
 }
-

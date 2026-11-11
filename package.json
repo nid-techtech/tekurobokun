@@ -9,9 +9,11 @@
   ],
   "scripts": {
     "postinstall": "bun run --filter @tekurobokun/i18n compile",
-    "typecheck": "bun run --filter \"*\" typecheck"
+    "typecheck": "bun run --filter \"*\" typecheck",
+    "check": "bun scripts/check.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
     "@types/bun": "^1.4.4",
     "typescript": "^7.0.2"
   }

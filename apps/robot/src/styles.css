@@ -1,10 +1,13 @@
+@import "@tekurobokun/theme/tokens.css";
+
 :root {
   color-scheme: dark;
 }
 
+/* キャンバスの外側。フェイシャルの線と同じ黒で塗る */
 body {
   margin: 0;
-  background-color: #000000;
+  background-color: var(--color-face-ink);
 }
 
 /* 800x600固定。拡大縮小・レターボックスは発生させない（B1完了条件）。 */
@@ -18,10 +21,11 @@ body {
   top: 0;
   left: 0;
   margin: 0;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #0f0;
-  font: 13px monospace;
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--color-face-ink) 60%, transparent);
+  color: var(--color-face-caption);
+  font-family: monospace;
+  font-size: var(--text-xs);
   white-space: pre;
   pointer-events: none;
 }

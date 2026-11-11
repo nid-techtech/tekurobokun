@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { intlLocale, isAllowedLocale, PSEUDO_LOCALE, publicLocales, resolveLocale } from "./locale.ts";
+import {
+  intlLocale,
+  isAllowedLocale,
+  PSEUDO_LOCALE,
+  publicLocales,
+  resolveLocale,
+} from "./locale.ts";
 
 describe("resolveLocale", () => {
   test("URLの指定を優先する", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DriveStateMachine, type DriveKey, type DriveState } from "./DriveStateMachine";
+import { type DriveKey, type DriveState, DriveStateMachine } from "./DriveStateMachine";
 
 // 仕様4.1の状態遷移表を全パターン網羅する。undefined = 無視（同一状態への遷移を含む）。
 const TRANSITION_TABLE: Record<DriveState, Partial<Record<DriveKey, DriveState>>> = {
@@ -31,7 +31,10 @@ function createMachineAt(state: DriveState): DriveStateMachine {
 }
 
 describe("DriveStateMachine 状態遷移表（仕様4.1）", () => {
-  for (const [fromState, row] of Object.entries(TRANSITION_TABLE) as [DriveState, Partial<Record<DriveKey, DriveState>>][]) {
+  for (const [fromState, row] of Object.entries(TRANSITION_TABLE) as [
+    DriveState,
+    Partial<Record<DriveKey, DriveState>>,
+  ][]) {
     for (const key of ALL_KEYS) {
       const expected = row[key] ?? null;
       test(`${fromState} + '${key}' -> ${expected ?? "無視"}`, () => {

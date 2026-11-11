@@ -1,5 +1,3 @@
-export { m } from "./paraglide/messages.js";
-export { baseLocale, getLocale, type Locale, locales } from "./paraglide/runtime.js";
 export {
   changeLocale,
   initLocale,
@@ -10,3 +8,5 @@ export {
   publicLocales,
   resolveLocale,
 } from "./locale.ts";
+export { m } from "./paraglide/messages.js";
+export { baseLocale, getLocale, type Locale, locales } from "./paraglide/runtime.js";

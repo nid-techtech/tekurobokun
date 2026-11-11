@@ -25,5 +25,6 @@
   "log.thinking": "［考えています～～］",
   "error.offline_title": "［テクロボくんにつながっていません～～～～～～］",
   "error.offline_body": "［スタッフに声をかけてください。つながると自動で元に戻ります。～～～～～～～～～～～～］",
-  "face.caption_line": "［{who}> {text}～］"
+  "face.caption_line": "［{who}> {text}～］",
+  "debug.no_caption": "［(なし)～～］"
 }

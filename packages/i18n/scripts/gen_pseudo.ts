@@ -6,4 +6,7 @@ import { pseudoMessages } from "../src/pseudo.ts";
 
 const dir = new URL("../messages/", import.meta.url);
 const source: Record<string, string> = await Bun.file(new URL("ja.json", dir)).json();
-await Bun.write(new URL("ja-x-pseudo.json", dir), `${JSON.stringify(pseudoMessages(source), null, 2)}\n`);
+await Bun.write(
+  new URL("ja-x-pseudo.json", dir),
+  `${JSON.stringify(pseudoMessages(source), null, 2)}\n`,
+);

@@ -30,7 +30,9 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・high
   - メモ: 未使用キーは警告にとどめ、失敗にしない（Phase 2・3で画面を作るまで大半が未使用のため）。検査を通すため、robotの`styles.css`の色・pxの直書きをトークンに置き換え、HUDの「(なし)」を辞書（`debug.no_caption`）に移した。Biome 2.6.6の整形を全体に適用
   - 依存: T1-3, T1-4, T1-6
-- [ ] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、開発機の仮のサーバーの用意と、llama-server・VOICEVOXの動作確認のコマンド）
+- [x] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、開発機の仮のサーバーの用意と、llama-server・VOICEVOXの動作確認のコマンド）
+  - 実施: Opus・high
+  - メモ: llama.cppのWindows版は`b{番号}`のビルドに付く（`v0.9.0`などの版のリリースには実行ファイルがない）。llama-serverの既定ポートは9931に変わっていたため、手順では`--port 8080`を明示した。モデルはggml-org/gemma-4-E2B-it-GGUFの`Q4_0`
   - 推奨: Sonnet・medium以上
   - 依存: T1-7
 - [ ] T1-9 【ユーザー】開発機（Windows）に仮のサーバーを用意する：llama-server（Windows版）とGemma 4 E2BのGGUF（4bit）、VOICEVOX ENGINE 0.25.2（Windows版）。用意の手順はT1-8で`CONTRIBUTING.md`に書く

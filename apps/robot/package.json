@@ -11,6 +11,8 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@tekurobokun/i18n": "workspace:*",
+    "@tekurobokun/theme": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "p5": "^2.3.2"

@@ -5,5 +5,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@tekurobokun/i18n": "workspace:*",
+    "@tekurobokun/theme": "workspace:*"
   }
 }

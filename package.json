@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.3",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
+    "postinstall": "bun run --filter @tekurobokun/i18n compile",
     "typecheck": "bun run --filter \"*\" typecheck"
   },
   "devDependencies": {

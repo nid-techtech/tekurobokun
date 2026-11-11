@@ -22,7 +22,9 @@ Phaseの推奨: Opus・high以上
   - メモ: `@font-face`は`packages/theme/fonts.css`に分けた（`tokens.css`は`specs/`と一致させるため）。フォントはgoogle/fontsのTTF（M PLUS 1 Codeは可変・wght 100〜700）
   - 推奨: Sonnet・medium以上
   - 依存: T1-2
-- [ ] T1-6 【エージェント】i18nの基盤を作る：`packages/i18n`にParaglide JS 2を入れ、モックの辞書を移す。疑似ロケールの生成、ロケールの判定・保持・フォールバック、`lang`属性、ロケールごとの書体を用意し、consoleとrobotから参照できるようにする
+- [x] T1-6 【エージェント】i18nの基盤を作る：`packages/i18n`にParaglide JS 2を入れ、モックの辞書を移す。疑似ロケールの生成、ロケールの判定・保持・フォールバック、`lang`属性、ロケールごとの書体を用意し、consoleとrobotから参照できるようにする
+  - 実施: Opus・high
+  - メモ: Paraglideは2系の最新（2.29.3。最新の3系はスペックシートの指定外）。コンパイルはViteプラグインでなくCLIで、`bun install`のpostinstallと`packages/i18n`の`compile`で行い、出力（`src/paraglide`）は共有でGit管理外。疑似ロケール`ja-x-pseudo`は公開版のビルドにも入るが、実行時に開発時以外は選べない。型は`tsconfig.base.json`の`allowJs`でJSDocから得る
   - 依存: T1-5
 - [ ] T1-7 【エージェント】checkコマンド（`bun run check`）を作る：`tsc`、Biome、`bun test`、i18nの検査、トークンの検査を実行し、失敗した部分だけを表示する
   - 依存: T1-3, T1-4, T1-6

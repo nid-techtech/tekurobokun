@@ -15,6 +15,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "noEmit": true
   }
 }

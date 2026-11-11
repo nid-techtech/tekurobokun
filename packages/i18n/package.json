@@ -3,8 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./locale.css": "./locale.css"
+  },
   "scripts": {
+    "gen:pseudo": "bun scripts/gen_pseudo.ts",
+    "compile": "bun run gen:pseudo && paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage preferredLanguage baseLocale",
     "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@inlang/paraglide-js": "~2.29.3",
+    "@inlang/plugin-message-format": "4.6.0"
   }
 }

@@ -1,0 +1,8 @@
+/* ロケールごとの書体。値はtokens.cssの--font-*-{言語}を参照し、ここには書かない。
+   言語を追加するときは、tokens.cssに--font-*-{言語}を足し、ここに:lang()の規則を足す。
+   :lang(ja)は疑似ロケール（ja-x-pseudo）にも当たる。 */
+
+:root:lang(ja) {
+  --font-body: var(--font-body-ja);
+  --font-display: var(--font-display-ja);
+}

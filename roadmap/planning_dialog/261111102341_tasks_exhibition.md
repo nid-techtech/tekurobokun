@@ -1,0 +1,119 @@
+# tekurobokun tasks（展示版）
+
+目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261111102341_imple_exhibition.md`。
+
+## Phase 1: 土台
+Phaseの推奨: Opus・high以上
+- [ ] T1-1 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Gemma 4 E4B・Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）を起動できるようにし、Bun 1.4を入れ、LANでのIPを固定する
+  - エージェントの項目と並行して進めてよい
+- [ ] T1-2 【エージェント】Bunのワークスペースでモノレポを作る（`apps/backend`・`apps/console`・`apps/robot`・`packages/protocol`・`packages/i18n`・`packages/theme`、ルートの`package.json`・`tsconfig`・`.gitignore`）
+- [ ] T1-3 【エージェント】ヘボコン版（`../tekurobokun-lite`）を履歴なしで`apps/robot`へコピーし、モノレポで動くようにする。識別子とproductNameを変え、走行と音声スロットの配線を外す（`f`・`/`は残す）
+  - 推奨: Sonnet・high以上
+  - 依存: T1-2
+- [ ] T1-4 【エージェント】`packages/protocol`にメッセージの型と検証関数を定義し、単体テストを書く
+  - 依存: T1-2
+- [ ] T1-5 【エージェント】トークンを配置する：`specs/`のトークンを`packages/theme/tokens.css`へ、`brand.md`とマスターSVGを`docs/brand/`へコピーし、M PLUS 1 CodeとDotGothic16のフォントファイルをOFLのライセンス文と一緒に同梱する
+  - 推奨: Sonnet・medium以上
+  - 依存: T1-2
+- [ ] T1-6 【エージェント】i18nの基盤を作る：`packages/i18n`にParaglide JS 2を入れ、モックの辞書を移す。疑似ロケールの生成、ロケールの判定・保持・フォールバック、`lang`属性、ロケールごとの書体を用意し、consoleとrobotから参照できるようにする
+  - 依存: T1-5
+- [ ] T1-7 【エージェント】checkコマンド（`bun run check`）を作る：`tsc`、Biome、`bun test`、i18nの検査、トークンの検査を実行し、失敗した部分だけを表示する
+  - 依存: T1-3, T1-4, T1-6
+- [ ] T1-8 【エージェント】`CONTRIBUTING.md`の骨格を書く（受け付け方針、開発環境、セットアップ、checkコマンド、バックエンドPCでのllama-server・VOICEVOXの動作確認のコマンド）
+  - 推奨: Sonnet・medium以上
+  - 依存: T1-7
+
+## Phase 2: 文字だけの会話
+Phaseの推奨: Opus・high以上
+- [ ] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
+  - 依存: T1-4
+- [ ] T2-2 【エージェント】`DialogueEngine`（llama-server版とスタブ）を作る：人格プロンプトと直近の往復、JSONスキーマ制約の可否の確認、返事の検証とフォールバック、考えた時間の計測。単体テストを書く
+  - 依存: T2-1
+- [ ] T2-3 【エージェント】`InputDeviceRegistry`と`ConversationSession`（待機中・考え中、受付可否、履歴、機体がいないときは返事のあとすぐ待機中）を作る。単体テストを書く
+  - 依存: T2-2
+- [ ] T2-4 【エージェント】入力ページを作る：接続と自動再接続、端末名、状態行、シェル風のログ、入力行（自動送信の進捗バー、送る・消す）、設定の反映（文字の大きさ・プロンプト・待ち時間）、`prefers-reduced-motion`
+  - 依存: T1-6, T2-3
+  - 画面: S01a, S01b, S01c, S01e
+- [ ] T2-5 【エージェント】モデル比較のスクリプト（`scripts/bench_dialogue.ts`）を作る：同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、返事を一覧にする
+  - 推奨: Sonnet・high以上
+  - 依存: T2-2
+- [ ] T2-6 【ユーザー】人格プロンプトの初版を`config/persona.md`に書く（全体構想の人格設定を土台に、短く）
+  - 依存: T2-2
+- [ ] T2-7 【ユーザー】バックエンドPCで比較スクリプトを実行し、使うモデルを決めて`config/backend.local.json`に書く
+  - 依存: T1-1, T2-5, T2-6
+- [ ] T2-8 【エージェント】`CONTRIBUTING.md`に、バックエンド（スタブを含む）と入力ページの起動方法、設定ファイルを追記する
+  - 推奨: Sonnet・medium以上
+  - 依存: T2-4
+
+## Phase 3: 機体で話す
+Phaseの推奨: Opus・high以上
+- [ ] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
+  - 依存: T2-3
+- [ ] T3-2 【エージェント】`ConversationSession`に話し中を加える：文ごとの`speech`の送信（再生中に次の文を合成）、最後の`playback_done`で待機中、機体の切断で待機中、タイムアウト。単体テストを書く
+  - 依存: T3-1
+- [ ] T3-3 【エージェント】機体の`RobotLink`（接続と自動再接続、`hello`、メッセージの受け取り）を作る
+  - 推奨: Sonnet・high以上
+  - 依存: T1-3, T1-4
+- [ ] T3-4 【エージェント】機体の`AudioPlayer`を作り直す：WAVの順の再生、振幅から口の値、各文の再生終了の通知
+  - 依存: T3-3
+- [ ] T3-5 【エージェント】`FacialEngine`と`IdleAnimator`を作る：`IDLE`・`SPEAKING`・`LOADING`、`emotion`の5種、まばたき・きょろきょろ（疑似乱数、設定で調整）、表情が変わらない間の描画頻度の抑制
+  - 推奨: Sonnet・high以上
+  - 依存: T3-4
+  - 画面: S02a, S02b, S02c, S02d
+- [ ] T3-6 【エージェント】入力ページに話し中の表示を加える
+  - 推奨: Sonnet・medium以上
+  - 依存: T3-2
+  - 画面: S01d
+- [ ] T3-7 【ユーザー】VOICEVOXの話者を決めて`config/backend.local.json`に書く（仮でよい）
+  - 依存: T1-1, T3-1
+- [ ] T3-8 【エージェント】`CONTRIBUTING.md`に、機体アプリの起動方法と設定を追記する
+  - 推奨: Sonnet・medium以上
+  - 依存: T3-6
+
+## Phase 4: 止まらない展示
+Phaseの推奨: Opus・high以上
+- [ ] T4-1 【エージェント】バックエンドで、LLM・VOICEVOXの応答の有無を`status`に載せ、どちらかが落ちている間は入力を受け付けないようにする。復旧すれば自動で戻す
+  - 依存: T3-2
+- [ ] T4-2 【エージェント】機体に、眠っている顔（切断中・LLMかVOICEVOXが落ちているとき）を加える
+  - 推奨: Sonnet・high以上
+  - 依存: T3-5, T4-1
+  - 画面: S02e
+- [ ] T4-3 【エージェント】`OperatorConsole`を作る：バックエンドPCのターミナルで、数字キーで有効な端末を切り替え、現在の状態を表示する
+  - 依存: T4-1
+- [ ] T4-4 【エージェント】入力ページに全面の案内（つながらない、別の端末が有効）と自動での復帰を加える
+  - 推奨: Sonnet・high以上
+  - 依存: T4-1, T4-3
+  - 画面: S01f, S01g
+- [ ] T4-5 【エージェント】`ContentFilter`（入力と返事の検査、定型の返事への差し替え）を作る。単体テストを書く
+  - 依存: T4-1
+- [ ] T4-6 【エージェント】`ConversationLog`（日ごとのJSONLへの追記、起動時の表示用の履歴の読み込み）を作る。単体テストを書く
+  - 依存: T4-5
+- [ ] T4-7 【ユーザー】禁止語リストと定型の返事を`config/filter.local.json`に書く
+  - 依存: T4-5
+- [ ] T4-8 【ユーザー】会話ログの保存期間と、ブースに掲示する文言を決める（VOICEVOXのクレジットを含む）
+  - 依存: T3-7
+- [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、展示当日の起動手順と端末の切り替え方を追記する
+  - 推奨: Sonnet・medium以上
+  - 依存: T4-6
+
+## Phase 5: 字幕と公開の準備（時間があれば）
+Phaseの推奨: Sonnet・high以上
+- [ ] T5-1 【エージェント】機体に`CaptionOverlay`（左上の1行の字幕、長い文は末尾側）を加える
+  - 依存: T4-2
+  - 画面: S02f
+- [ ] T5-2 【エージェント】バックエンドPCの自動起動の設定（llama-server・VOICEVOX ENGINE・`apps/backend`のsystemdユニット）を書く
+  - 依存: T4-9
+- [ ] T5-3 【ユーザー】バックエンドPCに自動起動の設定を入れる
+  - 依存: T5-2
+- [ ] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンと入力ページのファビコンを作る
+  - 推奨: Sonnet・medium以上
+  - 依存: T1-5
+- [ ] T5-5 【エージェント】CIのワークフロー（checkコマンドを呼ぶ）を作る
+  - 依存: T4-9
+- [ ] T5-6 【エージェント】READMEとGitHubのAbout欄の文案を書く（会話を記録していること、外部に送らないこと、コード署名がないことを注意事項に含める）
+  - 依存: T5-1
+- [ ] T5-7 【エージェント】`CONTRIBUTING.md`に、ビルド、アイコンの生成、リリース手順を追記する
+  - 推奨: Sonnet・medium以上
+  - 依存: T5-4, T5-5
+- [ ] T5-8 【エージェント】0.1.0のリリース準備をする（`CHANGELOG.md`、バージョン、`timeline.md`、`tauri build`の確認）。コミットメッセージとコマンドの提示で停止する
+  - 依存: T5-6, T5-7

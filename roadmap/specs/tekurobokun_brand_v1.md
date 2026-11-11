@@ -1,4 +1,4 @@
-# tekurobokun ブランド方針（暫定）
+# tekurobokun ブランド方針
 
 ## 方向性：C. 端末
 

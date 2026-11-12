@@ -18,6 +18,7 @@ describe("loadBackendConfig", () => {
     const config = parseBackendConfig(raw);
     expect(config.console.autosendMs).toBe(3000);
     expect(config.console.fontSizePx).toBe(18);
+    expect(config.console.bottomInsetPx).toBe(0);
     expect(config.devices.list).toContain(config.devices.active);
   });
 

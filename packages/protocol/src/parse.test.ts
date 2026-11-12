@@ -21,6 +21,7 @@ const reply: Reply = { say: "やあ。", emotion: "happy", thinkingMs: 1234 };
 const settings: ConsoleSettings = {
   autosendMs: 3000,
   fontSizePx: 20,
+  bottomInsetPx: 12,
   prompt: { user: "guest", host: "tekurobokun", dir: "~" },
 };
 const health: Health = { backend: true, llm: true, tts: false, robot: true };
@@ -117,6 +118,14 @@ describe("parseServerMessage", () => {
       { type: "welcome", settings: { ...settings, prompt: { user: "a" } }, history: [] },
     ],
     ["autosendMsが負", { type: "welcome", settings: { ...settings, autosendMs: -1 }, history: [] }],
+    [
+      "bottomInsetPxがない",
+      { type: "welcome", settings: { ...settings, bottomInsetPx: undefined }, history: [] },
+    ],
+    [
+      "bottomInsetPxが負",
+      { type: "welcome", settings: { ...settings, bottomInsetPx: -1 }, history: [] },
+    ],
     ["historyが配列でない", { type: "welcome", settings, history: {} }],
     ["historyに崩れた要素", { type: "welcome", settings, history: [turn, { id: "t2" }] }],
     ["sessionが未知", { type: "status", session: "sleep", activeDevice: "a", health }],

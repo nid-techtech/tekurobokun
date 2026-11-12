@@ -18,6 +18,7 @@ import { ConversationSession } from "./session.ts";
 const settings: ConsoleSettings = {
   autosendMs: 3000,
   fontSizePx: 18,
+  bottomInsetPx: 0,
   prompt: { user: "user", host: "host", dir: "~" },
 };
 const staticDir = mkdtempSync(join(tmpdir(), "tekurobo-static-"));

@@ -5,7 +5,8 @@
 /* 入力ページ：シェル（bash・zsh）の見せ方（スペックシート6節）。
    反転した状態行、時刻つきのプロンプト行、「>」で始まる返事、括弧のボタン、文字の進捗バー。
    文字の大きさと太さはそろえ、角丸や塗りつぶしの部品は使わない。値はtokens.cssだけを参照する。
-   画面のキーボードが出たら、viewportのinteractive-widget=resizes-contentで、その上の高さに収める。 */
+   画面のキーボードが出たら、その上の見えている範囲に収める。高さと位置はViewportFit（viewport_fit.ts）が
+   --viewport-height・--viewport-topで渡す。渡されるまでは100dvhで、上端に置く。 */
 
 html,
 body {
@@ -20,7 +21,10 @@ body {
 }
 
 .term {
-  height: 100dvh;
+  position: fixed;
+  inset-inline: 0;
+  top: var(--viewport-top, 0);
+  height: var(--viewport-height, 100dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;

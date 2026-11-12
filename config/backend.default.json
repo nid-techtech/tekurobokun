@@ -20,6 +20,7 @@
   "console": {
     "autosendMs": 3000,
     "fontSizePx": 18,
+    "bottomInsetPx": 0,
     "prompt": {
       "user": "user",
       "host": "nid-techtech",

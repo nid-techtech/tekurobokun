@@ -23,6 +23,8 @@ export type Turn = {
 export type ConsoleSettings = {
   autosendMs: number;
   fontSizePx: number;
+  /** 入力ページの下に空ける余白（キーボードとのずれの調節） */
+  bottomInsetPx: number;
   prompt: { user: string; host: string; dir: string };
 };
 

@@ -111,6 +111,7 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
     console: {
       autosendMs: n("console.autosendMs"),
       fontSizePx: n("console.fontSizePx"),
+      bottomInsetPx: n("console.bottomInsetPx"),
       prompt: {
         user: s("console.prompt.user"),
         host: s("console.prompt.host"),

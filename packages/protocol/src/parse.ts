@@ -62,11 +62,14 @@ function toHealth(v: unknown): Health | null {
 function toSettings(v: unknown): ConsoleSettings | null {
   if (!isObj(v) || !isObj(v.prompt)) return null;
   const { prompt } = v;
-  if (!isNonNegNum(v.autosendMs) || !isNonNegNum(v.fontSizePx)) return null;
+  if (!isNonNegNum(v.autosendMs) || !isNonNegNum(v.fontSizePx) || !isNonNegNum(v.bottomInsetPx)) {
+    return null;
+  }
   if (!isStr(prompt.user) || !isStr(prompt.host) || !isStr(prompt.dir)) return null;
   return {
     autosendMs: v.autosendMs,
     fontSizePx: v.fontSizePx,
+    bottomInsetPx: v.bottomInsetPx,
     prompt: { user: prompt.user, host: prompt.host, dir: prompt.dir },
   };
 }

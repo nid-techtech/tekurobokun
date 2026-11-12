@@ -41,7 +41,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
-引き継ぎ: W2-1〜W2-3通過（修正2件は`development/261113035214_fix_phase2.md`）。W2-4が不合格だったため仕様変更（`development/261113061803_change_console_pwa_viewport.md`、プランアセット v2）。T2-9完了。次はT2-10。そのあとT2-11 → W2-6 → W2-7 → T2-12・W2-4（ユーザー）。タブレットのブラウザはEdge（Android）
+引き継ぎ: W2-1〜W2-3通過（修正2件は`development/261113035214_fix_phase2.md`）。W2-4が不合格だったため仕様変更（`development/261113061803_change_console_pwa_viewport.md`、プランアセット v2）。T2-9〜T2-12完了。次はW2-6 → W2-7 → W2-4（ユーザー）。タブレットのブラウザはEdge（Android）
 - [x] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
   - 実施: Opus・low
   - メモ: ポートは8787、WebSocketは`/ws`、配信は`apps/console/dist`。設定にはimple 6節の項目のほか、`llm.jsonSchema`・`maxTokens`・`temperature`・`timeoutMs`と`historyDisplayTurns`を足した。HealthMonitorは`/health`（llama-server）と`/version`（VOICEVOX）を問い合わせ、機体の接続の有無も持つ
@@ -76,13 +76,18 @@ Phaseの推奨: Opus・high以上
   - メモ: web.devのインストール条件（名前、192・512pxのアイコン、`start_url`、`display`）を満たし、Service Workerは置かない（ヘッドレスのEdgeの`Page.getInstallabilityErrors`が0件）。アイコンは`bun run console:icons`（`scripts/gen_console_icons.ts`がTauri CLIの`tauri icon`を呼ぶ）で`apps/console/public/icons/`に書き出す。色の値をトークンから写さないよう、マニフェストに`theme_color`・`background_color`は書かない。Android版Edgeでのインストールの操作と`fullscreen`の扱いは、Microsoftの公式ドキュメントに記載が見つからず、W2-4で実機で確かめる
   - 推奨: Sonnet・high以上
   - 依存: T2-4
-- [ ] T2-10 【エージェント】`ViewportFit`を作る：画面の高さを`visualViewport`の高さから下部マージンを引いた値に合わせ、ブラウザがずらした分を打ち消す。PWAとして起動していないときは、最初のタップで全画面表示にする。`console.bottomInsetPx`（初期値0）を設定ファイルと`ConsoleSettings`に足す。単体テストを書く
+- [x] T2-10 【エージェント】`ViewportFit`を作る：画面の高さを`visualViewport`の高さから下部マージンを引いた値に合わせ、ブラウザがずらした分を打ち消す。PWAとして起動していないときは、最初のタップで全画面表示にする。`console.bottomInsetPx`（初期値0）を設定ファイルと`ConsoleSettings`に足す。単体テストを書く
+  - 実施: Opus・low
+  - メモ: `.term`を`position: fixed`にし、`--viewport-height`・`--viewport-top`（JSで設定。未設定なら`100dvh`・0）で高さと位置を渡す。全画面表示は`click`（捕捉）で、全画面でなければタップのたびに要求する。PWA判定は`display-mode`の`fullscreen`・`standalone`
   - 依存: T2-4
   - 画面: S01a, S01b, S01c, S01e
-- [ ] T2-11 【エージェント】`CONTRIBUTING.md`に、タブレットへのインストール手順（Edgeのflags、登録するオリジン、オリジンが変わったらやり直すこと）と、設定の`console.bottomInsetPx`を追記する
+- [x] T2-11 【エージェント】`CONTRIBUTING.md`に、タブレットへのインストール手順（Edgeのflags、登録するオリジン、オリジンが変わったらやり直すこと）と、設定の`console.bottomInsetPx`を追記する
   - 推奨: Sonnet・medium以上
+  - 実施: Opus・low
+  - メモ: Android版Edgeのflagsの表示名とインストールの項目名は公式ドキュメントで見つからず、Chromiumの名前で書いた。T2-12でChromeと同じと確かめ、注意書きを確認済みの内容に直した
   - 依存: T2-9, T2-10
-- [ ] T2-12 【ユーザー】タブレットのEdgeでflagsにバックエンドのオリジンを登録し、入力ページをPWAとしてインストールする（手順はT2-11の`CONTRIBUTING.md`）
+- [x] T2-12 【ユーザー】タブレットのEdgeでflagsにバックエンドのオリジンを登録し、入力ページをPWAとしてインストールする（手順はT2-11の`CONTRIBUTING.md`）
+  - メモ: flagsはChromeと同じ（`Insecure origins treated as secure`）。インストールして起動し、キーボードを出しても状態行と入力行が収まることをユーザーが確かめた
   - 依存: T2-11
 
 ## Phase 3: 機体で話す

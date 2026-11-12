@@ -8,6 +8,7 @@ import { Link } from "./link.ts";
 import { LogView } from "./log_view.ts";
 import { PromptInput } from "./prompt_input.ts";
 import { type StatusKind, StatusLine } from "./status_line.ts";
+import { browserViewportFit } from "./viewport_fit.ts";
 
 const DEFAULT_DEVICE = "tablet";
 
@@ -31,6 +32,10 @@ function promptText(): string {
     dir: p?.dir || m["shell.dir"](),
   });
 }
+
+// キーボードを除いて見えている範囲に画面を合わせる。PWAでないときは最初のタップで全画面にする。
+const viewportFit = browserViewportFit();
+viewportFit.start();
 
 const statusLine = new StatusLine();
 const log = new LogView(promptText);
@@ -60,6 +65,7 @@ function applySettings(settings: ConsoleSettings): void {
   state.settings = settings;
   document.documentElement.style.setProperty("--term-text-size", `${settings.fontSizePx}px`);
   input.configure(promptText(), settings.autosendMs);
+  viewportFit.setBottomInset(settings.bottomInsetPx);
 }
 
 function onMessage(message: ServerMessage): void {

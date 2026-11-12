@@ -102,6 +102,30 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 
 **端末名**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。入力を受け付けるのは、`config/backend.*.json`の`devices.active`の端末だけです。スタッフのスマホは`?device=phone`で開きます。
 
+**画面の高さ**：入力ページは、キーボードを除いて実際に見えている範囲（`visualViewport`）に画面の高さを合わせ、ブラウザがページをずらした分も打ち消します（`apps/console/src/viewport_fit.ts`）。PWAとして起動していないときは、最初のタップで全画面表示にします（全画面を抜けても、次のタップで戻ります）。
+
+### タブレットへのインストール
+
+展示用のタブレット（Android版のEdge）には、入力ページをPWAとしてインストールし、アドレスバーを出さない全画面で起動します。PWAのインストールはHTTPSが条件ですが、入力ページはHTTP（`http://{IP}:8787`）のままなので、Edgeのflagsで、そのオリジンを安全なオリジンとして扱わせます。flagsはその端末のEdge全体に効くため、展示用のタブレットにだけ設定します。
+
+1. バックエンドを起動しておき（`bun run console:build`のあと`bun run backend`、または`bun run backend:stub`）、そのPCのLANのIPアドレスを調べます（PowerShellで`ipconfig`の「IPv4 アドレス」）。タブレットのEdgeで`http://{IP}:8787/?device=tablet`が開けることを確かめます
+2. タブレットのEdgeのアドレスバーに`edge://flags`と入力し、`Insecure origins treated as secure`（`#unsafely-treat-insecure-origin-as-secure`）を探します
+3. テキスト欄に、バックエンドのオリジンを入れます：`http://{IP}:8787`（スキーム・IP・ポートまで。パスと`?device=`は付けない。複数あるときはカンマ区切り）。項目を`Enabled`にし、下に出る再起動のボタンでEdgeを再起動します
+4. `http://{IP}:8787/?device=tablet`を開き直し、Edgeのメニュー（`…`）から、アプリとしてインストールする項目（「ホーム画面に追加」など）を選びます。インストールされると、ホーム画面にtekurobokunのアイコンが増えます
+5. ホーム画面のアイコンから起動し、アドレスバーが出ないこと、横向きになること、状態行と入力行がキーボードに隠れないことを確かめます
+
+- インストールしたPWAは、マニフェストの`start_url`（`/?device=tablet`）で起動します。スタッフのスマホは、インストールせずにブラウザで`?device=phone`を開いて使います
+- **オリジンが変わったら、やり直します**。仮のサーバー（開発機）から本番（バックエンドPC）に移ったとき、IPアドレスやポートが変わったときは、古いアプリをアンインストールし、手順2〜4をやり直します（flagsのオリジンを書き換え、インストールし直す）。PWAは、インストールしたときのオリジンにしかつながりません。会場では、バックエンドPCのIPアドレスをルーターの設定で固定しておくと、やり直しを避けられます
+- Android版のEdgeでも、flagsの項目はChromeと同じです（2026年11月に展示用のタブレットで確認）。インストールしたPWAは全画面で起動します。起動の直後はステータスバーが透けて見えますが、少しすると隠れます
+
+**キーボードとのずれの調節**：キーボードを出したときに、入力行の下がキーボードの上端の帯などに隠れる場合は、`config/backend.local.json`の`console.bottomInsetPx`で、画面の下に空ける余白（px）を足します。設定はバックエンドの起動時に読むので、書き換えたらバックエンドを再起動します。入力ページは自動で再接続し、新しい値を反映します（アプリを開き直す必要はありません）。
+
+```json
+{
+  "console": { "bottomInsetPx": 24 }
+}
+```
+
 ### 設定ファイル
 
 設定は`config/backend.default.json`（Gitで管理）にあり、同じフォルダに`config/backend.local.json`（Git管理外）を置くと、書いた項目だけを上書きします。オブジェクトは項目ごとに、配列と値はまるごと置き換えます。
@@ -126,6 +150,7 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 | `devices.active`                   | 起動時に入力を受け付ける端末                                                    | `tablet`                           |
 | `console.autosendMs`               | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                   | `3000`                             |
 | `console.fontSizePx`               | 入力ページの文字の大きさ                                                        | `18`                               |
+| `console.bottomInsetPx`            | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                    | `0`                                |
 | `console.prompt`                   | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える） | `user`・`nid-techtech`・`~/makers` |
 | `speakingGraceMs`                  | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                      | `5000`                             |
 | `healthIntervalMs`                 | llama-serverとVOICEVOXへの問い合わせの間隔                                      | `5000`                             |

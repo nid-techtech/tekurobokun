@@ -10,7 +10,12 @@
   "scripts": {
     "postinstall": "bun run --filter @tekurobokun/i18n compile",
     "typecheck": "bun run --filter \"*\" typecheck",
-    "check": "bun scripts/check.ts"
+    "check": "bun scripts/check.ts",
+    "backend": "bun apps/backend/src/index.ts",
+    "backend:stub": "bun apps/backend/src/index.ts --stub",
+    "console:dev": "bun run --filter @tekurobokun/console dev",
+    "console:build": "bun run --filter @tekurobokun/console build",
+    "bench": "bun scripts/bench_dialogue.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",

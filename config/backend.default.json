@@ -1,0 +1,32 @@
+{
+  "port": 8787,
+  "llm": {
+    "baseUrl": "http://127.0.0.1:8080",
+    "model": "gemma-4-e2b",
+    "contextTurns": 4,
+    "jsonSchema": true,
+    "maxTokens": 256,
+    "temperature": 0.7,
+    "timeoutMs": 60000
+  },
+  "tts": {
+    "baseUrl": "http://127.0.0.1:50021",
+    "speaker": 1
+  },
+  "devices": {
+    "list": ["tablet", "phone"],
+    "active": "tablet"
+  },
+  "console": {
+    "autosendMs": 3000,
+    "fontSizePx": 18,
+    "prompt": {
+      "user": "user",
+      "host": "nid-techtech",
+      "dir": "~/makers"
+    }
+  },
+  "speakingGraceMs": 5000,
+  "healthIntervalMs": 5000,
+  "historyDisplayTurns": 50
+}

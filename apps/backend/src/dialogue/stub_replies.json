@@ -1,0 +1,13 @@
+{
+  "delayMs": 1500,
+  "replies": [
+    { "say": "こんにちは。スタブのテクロボくんです。", "emotion": "happy" },
+    { "say": "なるほど。もう少し詳しく教えてください。", "emotion": "curious" },
+    { "say": "えっ、そうなんですか。", "emotion": "surprised" },
+    { "say": "うーん、それは少し難しいですね。", "emotion": "troubled" },
+    { "say": "わかりました。ほかにも話しかけてみてください。", "emotion": "neutral" }
+  ],
+  "malformedTrigger": "崩れ",
+  "malformedRaw": "えっと、返事の形を忘れてしまいました。でも表示は止まりません。",
+  "failTrigger": "落ちて"
+}

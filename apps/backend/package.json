@@ -5,6 +5,11 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
+    "start": "bun src/index.ts",
+    "stub": "bun src/index.ts --stub",
     "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@tekurobokun/protocol": "workspace:*"
   }
 }

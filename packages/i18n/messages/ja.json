@@ -17,6 +17,7 @@
   "shell.dir": "~/makers",
   "shell.prompt": "{user}@{host}:{dir} %",
   "shell.finished": "{name} finished thinking in {duration}",
+  "shell.duration": "{seconds}s{millis}ms",
   "shell.thinking": "{name} is thinking",
   "shell.output_mark": ">",
   "log.you": "あなた",

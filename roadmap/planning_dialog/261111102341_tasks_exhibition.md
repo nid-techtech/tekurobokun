@@ -41,23 +41,34 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
-引き継ぎ: Phase 1完了（W1-1〜W1-3通過）。次はT2-1から。T2-2でllama-serverのJSONスキーマ制約の可否を確かめる。仮のサーバーは`CONTRIBUTING.md`の手順で起動する（ポートは8080・50021）。`bun run check`の未使用キーの警告は、画面を作るPhase 3の終わりに失敗へ切り替えるか判断する
-- [ ] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
+引き継ぎ: T2-1〜T2-6・T2-8完了。次はW2-1から。W2-2はスタブ（`bun run console:build`→`bun run backend:stub`→`http://localhost:8787/?device=tablet`）で行い、発言に「崩れ」を含めると形式の崩れた返事になる。考え中・話し中は、キーボードを閉じないよう入力欄のフォーカスを残したまま入力行を見た目だけ隠している（実機での挙動はW2-4で確かめる）
+- [x] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
+  - 実施: Opus・low
+  - メモ: ポートは8787、WebSocketは`/ws`、配信は`apps/console/dist`。設定にはimple 6節の項目のほか、`llm.jsonSchema`・`maxTokens`・`temperature`・`timeoutMs`と`historyDisplayTurns`を足した。HealthMonitorは`/health`（llama-server）と`/version`（VOICEVOX）を問い合わせ、機体の接続の有無も持つ
   - 依存: T1-4
-- [ ] T2-2 【エージェント】`DialogueEngine`（llama-server版とスタブ）を作る：人格プロンプトと直近の往復、JSONスキーマ制約の可否の確認、返事の検証とフォールバック、考えた時間の計測。単体テストを書く
+- [x] T2-2 【エージェント】`DialogueEngine`（llama-server版とスタブ）を作る：人格プロンプトと直近の往復、JSONスキーマ制約の可否の確認、返事の検証とフォールバック、考えた時間の計測。単体テストを書く
+  - 実施: Opus・low
+  - メモ: llama-serverの`/v1/chat/completions`は`response_format: {type: "json_schema", json_schema: {schema}}`を受け付ける（tools/server/README.mdで確認）ため、これを使う。思考出力は`chat_template_kwargs.enable_thinking: false`で止める。返事の形式の指示は`apps/backend/src/dialogue/reply_format.md`。スタブは「崩れ」で形式の崩れ、「落ちて」でLLMの失敗を再現する
   - 依存: T2-1
-- [ ] T2-3 【エージェント】`InputDeviceRegistry`と`ConversationSession`（待機中・考え中、受付可否、履歴、機体がいないときは返事のあとすぐ待機中）を作る。単体テストを書く
+- [x] T2-3 【エージェント】`InputDeviceRegistry`と`ConversationSession`（待機中・考え中、受付可否、履歴、機体がいないときは返事のあとすぐ待機中）を作る。単体テストを書く
+  - 実施: Opus・low
+  - メモ: Phase 2では、返事のあと常にすぐ待機中に戻る（話し中への分岐はPhase 3で足す）。LLMが失敗した発言は、返事のない発言として表示用の履歴に残る
   - 依存: T2-2
-- [ ] T2-4 【エージェント】入力ページを作る：接続と自動再接続、端末名、状態行、シェル風のログ、入力行（自動送信の進捗バー、送る・消す）、設定の反映（文字の大きさ・プロンプト・待ち時間）、`prefers-reduced-motion`
+- [x] T2-4 【エージェント】入力ページを作る：接続と自動再接続、端末名、状態行、シェル風のログ、入力行（自動送信の進捗バー、送る・消す）、設定の反映（文字の大きさ・プロンプト・待ち時間）、`prefers-reduced-motion`
+  - 実施: Opus・low
+  - メモ: プロンプト行の時刻は、モックに合わせて時:分:秒にした（implは時:分）。考えた時間の書式として辞書キー`shell.duration`を足した。`?device=`を省略すると`tablet`。S01f・S01gの全面の案内はPhase 4で作るため、いまは切断中に状態行を「つながっていません」にして入力行を隠すだけ
   - 依存: T1-6, T2-3
   - 画面: S01a, S01b, S01c, S01e
-- [ ] T2-5 【エージェント】モデル比較のスクリプト（`scripts/bench_dialogue.ts`）を作る：同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、返事を一覧にする
+- [x] T2-5 【エージェント】モデル比較のスクリプト（`scripts/bench_dialogue.ts`）を作る：同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、返事を一覧にする
+  - 実施: Opus・low
+  - メモ: 接続先と質問は`config/bench.default.json`（`bench.local.json`で上書き）。結果は`logs/bench/{日時}.md`。動作は偽のサーバーでだけ確かめた
   - 推奨: Sonnet・high以上
   - 依存: T2-2
-- [ ] T2-6 【ユーザー】人格プロンプトの初版を`config/persona.md`に書く（全体構想の人格設定を土台に、短く）
+- [x] T2-6 【ユーザー】人格プロンプトの初版を`config/persona.md`に書く（全体構想の人格設定を土台に、短く）
   - 依存: T2-2
 - T2-7 → T4-11へ移動（モデルの比較はバックエンドPCの準備のあとに行うため）
-- [ ] T2-8 【エージェント】`CONTRIBUTING.md`に、バックエンド（スタブを含む）と入力ページの起動方法、設定ファイルを追記する
+- [x] T2-8 【エージェント】`CONTRIBUTING.md`に、バックエンド（スタブを含む）と入力ページの起動方法、設定ファイルを追記する
+  - 実施: Opus・low
   - 推奨: Sonnet・medium以上
   - 依存: T2-4
 

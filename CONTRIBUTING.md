@@ -71,7 +71,79 @@ bun run tauri dev
 
 ### バックエンドと入力ページ
 
-バックエンド（`apps/backend`）と入力ページ（`apps/console`）を作るときに追記します。
+バックエンド（`apps/backend`）は、入力ページ（`apps/console`）のビルド成果物の配信と、WebSocket（`/ws`）を受け持ちます。入力ページは、バックエンドとWebSocketでつながり、切れたら自動で再接続します。
+
+**スタブで動かす**（LLMとVOICEVOXなし。開発機だけで会話の流れを確かめられます）
+
+```powershell
+bun run console:build    # 入力ページをビルドする（apps/console/dist）
+bun run backend:stub     # バックエンドをスタブで起動する
+```
+
+ブラウザで`http://localhost:8787/?device=tablet`を開きます。スタブは、約1.5秒考えてから決まった返事を順に返します。発言に「崩れ」を含めると形式の崩れた返事（感情は`neutral`になる）、「落ちて」を含めるとLLMの失敗を再現します。返事の中身は`apps/backend/src/dialogue/stub_replies.json`にあります。
+
+**実際のAPIで動かす**（後述の「仮のサーバー」、または本番のバックエンドPC）
+
+```powershell
+bun run console:build
+bun run backend          # config/backend.*.json の llm・tts の接続先につなぐ
+```
+
+人格プロンプトは`config/persona.md`から読みます（なければ、返事の形式の指示だけでLLMに問い合わせ、起動時に警告を出します）。返事の形式の指示（`{"say", "emotion"}`のJSONで返す）は`apps/backend/src/dialogue/reply_format.md`にあり、人格プロンプトのあとに付けて渡します。
+
+**入力ページを開発する**（変更をすぐ反映する）
+
+```powershell
+bun run backend:stub     # 別のPowerShellで起動しておく
+bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、LANからも開ける）
+```
+
+開発サーバーは`/ws`をバックエンド（既定は`http://127.0.0.1:8787`）へ中継します。バックエンドのポートを変えたときは、環境変数`BACKEND_URL`で中継先を指定します。疑似ロケールは開発サーバーでだけ使えます（`?locale=pseudo`）。
+
+**端末名**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。入力を受け付けるのは、`config/backend.*.json`の`devices.active`の端末だけです。スタッフのスマホは`?device=phone`で開きます。
+
+### 設定ファイル
+
+設定は`config/backend.default.json`（Gitで管理）にあり、同じフォルダに`config/backend.local.json`（Git管理外）を置くと、書いた項目だけを上書きします。オブジェクトは項目ごとに、配列と値はまるごと置き換えます。
+
+```json
+{
+  "llm": { "baseUrl": "http://192.168.0.10:8080", "model": "qwen3-4b" }
+}
+```
+
+| 項目                               | 内容                                                                            | 初期値                             |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
+| `port`                             | 待ち受けのポート（入力ページとWebSocket）                                       | `8787`                             |
+| `llm.baseUrl`                      | llama-serverの接続先（OpenAI互換API）                                           | `http://127.0.0.1:8080`            |
+| `llm.model`                        | モデル名（llama-serverの`--alias`）                                             | `gemma-4-e2b`                      |
+| `llm.contextTurns`                 | LLMに渡す直近の往復数                                                           | `4`                                |
+| `llm.jsonSchema`                   | JSONスキーマ制約（`response_format`）を使うか                                   | `true`                             |
+| `llm.maxTokens`・`llm.temperature` | 生成の上限トークン数と温度                                                      | `256`・`0.7`                       |
+| `llm.timeoutMs`                    | LLMの応答を待つ上限                                                             | `60000`                            |
+| `tts.baseUrl`・`tts.speaker`       | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                   | `http://127.0.0.1:50021`・`1`      |
+| `devices.list`                     | 端末の一覧（順番は、端末を切り替える数字キーの順）                              | `["tablet", "phone"]`              |
+| `devices.active`                   | 起動時に入力を受け付ける端末                                                    | `tablet`                           |
+| `console.autosendMs`               | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                   | `3000`                             |
+| `console.fontSizePx`               | 入力ページの文字の大きさ                                                        | `18`                               |
+| `console.prompt`                   | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える） | `user`・`nid-techtech`・`~/makers` |
+| `speakingGraceMs`                  | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                      | `5000`                             |
+| `healthIntervalMs`                 | llama-serverとVOICEVOXへの問い合わせの間隔                                      | `5000`                             |
+| `historyDisplayTurns`              | 入力ページに送る表示用の履歴の件数                                              | `50`                               |
+
+バックエンドは、`llm.baseUrl`の`/health`と`tts.baseUrl`の`/version`に定期的に問い合わせます。LLMが応答しない間は、発言を受け付けません。
+
+### モデルの比較
+
+同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、返事を一覧にします。人格プロンプトと返事の形式は、バックエンドと同じものを使います。
+
+```powershell
+bun run bench                         # config/bench.*.json の接続先すべて
+bun run bench -- --target qwen3-4b    # 1つの接続先だけ
+bun run bench -- --repeat 3           # 質問のセットを3回くり返す
+```
+
+接続先と質問は`config/bench.default.json`にあり、`config/bench.local.json`で上書きできます。接続先ごとに`baseUrl`・`model`のほか、`jsonSchema`・`maxTokens`・`temperature`を変えられます（書かない項目は`config/backend.*.json`の`llm`の値）。結果は`logs/bench/{日時}.md`に書き出します。
 
 ## 開発機の仮のサーバー
 
@@ -158,7 +230,7 @@ curl.exe -s -X POST "http://127.0.0.1:50021/synthesis?speaker=1" `
 Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 ```
 
-バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。設定の項目は、バックエンドを作るときに追記します。
+バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・50021）とモデル名（`gemma-4-e2b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
 
 ## リポジトリ構成
 
@@ -173,7 +245,8 @@ tekurobokun/
 │  ├─ i18n/      Paraglide JS 2の辞書（原文：ja）と疑似ロケール、ロケールの判定
 │  └─ theme/     tokens.cssとフォント（M PLUS 1 Code・DotGothic16。OFLのライセンス文つき）
 ├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
-├─ scripts/      checkコマンドとその検査
+├─ logs/         会話ログとモデル比較の結果（Git管理外）
+├─ scripts/      checkコマンドとその検査、モデル比較のスクリプト
 ├─ docs/
 │  ├─ brand/     ブランドの資料とマスターSVG（roadmap/specs/の写し。編集しない）
 │  └─ reference/ 全体構想

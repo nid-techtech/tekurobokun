@@ -1,0 +1,218 @@
+@import "@tekurobokun/theme/tokens.css";
+@import "@tekurobokun/theme/fonts.css";
+@import "@tekurobokun/i18n/locale.css";
+
+/* 入力ページ：シェル（bash・zsh）の見せ方（スペックシート6節）。
+   反転した状態行、時刻つきのプロンプト行、「>」で始まる返事、括弧のボタン、文字の進捗バー。
+   文字の大きさと太さはそろえ、角丸や塗りつぶしの部品は使わない。値はtokens.cssだけを参照する。
+   画面のキーボードが出たら、viewportのinteractive-widget=resizes-contentで、その上の高さに収める。 */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+.term {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  font-size: var(--term-text-size);
+  line-height: var(--term-leading);
+}
+
+/* ===== 状態行 ===== */
+.t-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-4);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.t-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.status::before {
+  content: "[";
+}
+.status::after {
+  content: "]";
+}
+.status.is-offline {
+  color: var(--color-danger);
+}
+
+/* ===== ログ ===== */
+.t-log {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) 0;
+}
+/* 行が少ないうちは下に寄せる（スクロールできるよう、justify-contentではなく余白で寄せる） */
+.t-log::before {
+  content: "";
+  flex: 1 0 auto;
+}
+.sh-turn {
+  display: contents;
+}
+.sh {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.sh .ts {
+  color: var(--color-ink-muted);
+}
+.sh .prompt {
+  color: var(--color-accent);
+}
+.sh-meta {
+  color: var(--color-ink-muted);
+}
+.sh-meta b {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+.sh-comment {
+  color: var(--color-ink-muted);
+}
+.think {
+  color: var(--color-accent);
+}
+.think b {
+  font-weight: 400;
+}
+
+/* ===== 入力行（最後のプロンプト行） ===== */
+.t-input {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0 var(--space-4) var(--space-3);
+}
+/* 考え中・話し中は出さない。キーボードを閉じないよう、要素は残して見た目だけ隠す */
+.t-input.is-hidden {
+  position: absolute;
+  inline-size: var(--stroke-thin);
+  block-size: var(--stroke-thin);
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+.field {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+.field-head {
+  flex: none;
+  white-space: pre;
+}
+.field-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  caret-color: var(--color-accent);
+  field-sizing: content;
+  max-block-size: calc(var(--term-leading) * 4em);
+}
+.field-input::placeholder {
+  color: var(--color-ink-muted);
+  opacity: 1;
+}
+
+.btns {
+  display: flex;
+  gap: var(--space-2);
+}
+.ctl {
+  /* 押せる部品は最小48×48px */
+  min-inline-size: var(--space-7);
+  min-block-size: var(--space-7);
+  padding: 0.1em 0.2em;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+.ctl::before {
+  content: "[";
+}
+.ctl::after {
+  content: "]";
+}
+.ctl:not([disabled]):hover,
+.ctl:not([disabled]):active {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.ctl[disabled] {
+  color: var(--color-ink-muted);
+  cursor: not-allowed;
+}
+.ctl:focus-visible {
+  outline: var(--stroke-bold) solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+
+.autosend {
+  color: var(--color-ink-muted);
+}
+.autosend[hidden] {
+  display: none;
+}
+.bar-text {
+  white-space: pre;
+  color: var(--color-accent);
+}
+
+/* 読み上げ用に残し、見た目は隠す */
+.sr-only {
+  position: absolute;
+  inline-size: var(--stroke-thin);
+  block-size: var(--stroke-thin);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctl {
+    transition: none;
+  }
+}

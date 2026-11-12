@@ -13,13 +13,20 @@
     "apps/backend": {
       "name": "@tekurobokun/backend",
       "version": "0.0.0",
+      "dependencies": {
+        "@tekurobokun/protocol": "workspace:*",
+      },
     },
     "apps/console": {
       "name": "@tekurobokun/console",
       "version": "0.0.0",
       "dependencies": {
         "@tekurobokun/i18n": "workspace:*",
+        "@tekurobokun/protocol": "workspace:*",
         "@tekurobokun/theme": "workspace:*",
+      },
+      "devDependencies": {
+        "vite": "6.4.6",
       },
     },
     "apps/robot": {

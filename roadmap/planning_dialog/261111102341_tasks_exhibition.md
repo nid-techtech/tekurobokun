@@ -35,7 +35,7 @@ Phaseの推奨: Opus・high以上
   - メモ: llama.cppのWindows版は`b{番号}`のビルドに付く（`v0.9.0`などの版のリリースには実行ファイルがない）。llama-serverの既定ポートは9931に変わっていたため、手順では`--port 8080`を明示した。モデルはggml-org/gemma-4-E2B-it-GGUFの`Q4_0`
   - 推奨: Sonnet・medium以上
   - 依存: T1-7
-- [ ] T1-9 【ユーザー】開発機（Windows）に仮のサーバーを用意する：llama-server（Windows版）とGemma 4 E2BのGGUF（4bit）、VOICEVOX ENGINE 0.25.2（Windows版）。用意の手順はT1-8で`CONTRIBUTING.md`に書く
+- [x] T1-9 【ユーザー】開発機（Windows）に仮のサーバーを用意する：llama-server（Windows版）とGemma 4 E2BのGGUF（4bit）、VOICEVOX ENGINE 0.25.2（Windows版）。用意の手順はT1-8で`CONTRIBUTING.md`に書く
   - 依存: T1-8
   - CPUで動かす想定。開発機のGPUが使えればそれでもよい
 

@@ -41,7 +41,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
-引き継ぎ: W2-1〜W2-3通過（修正2件は`development/261113035214_fix_phase2.md`）。W2-4が不合格だったため仕様変更（`development/261113061803_change_console_pwa_viewport.md`、プランアセット v2）。T2-9〜T2-12完了。次はW2-6 → W2-7 → W2-4（ユーザー）。タブレットのブラウザはEdge（Android）
+引き継ぎ: W2-1〜W2-3通過（修正2件は`development/261113035214_fix_phase2.md`）。W2-4（現W2-8）が不合格だったため仕様変更（`development/261113061803_change_console_pwa_viewport.md`、プランアセット v2）。T2-9〜T2-12完了。walkの記載順をIDの番号順にそろえ、W2-4→W2-8、W2-5→W2-9に移した。次はW2-6 → W2-7 → W2-8・W2-9（ユーザー）。タブレットのブラウザはEdge（Android）
 - [x] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
   - 実施: Opus・low
   - メモ: ポートは8787、WebSocketは`/ws`、配信は`apps/console/dist`。設定にはimple 6節の項目のほか、`llm.jsonSchema`・`maxTokens`・`temperature`・`timeoutMs`と`historyDisplayTurns`を足した。HealthMonitorは`/health`（llama-server）と`/version`（VOICEVOX）を問い合わせ、機体の接続の有無も持つ
@@ -73,7 +73,7 @@ Phaseの推奨: Opus・high以上
   - 依存: T2-4
 - [x] T2-9 【エージェント】入力ページをPWAにする：Webアプリマニフェスト（名前、`start_url`は`/?device=tablet`、`display`は全画面、横向き、アイコン）と、マスターSVGから入力ページのアイコン（PWA用のPNGとファビコン）を作り、バックエンドから配信する。インストールの条件（Service Workerの要否を含む）とEdge（Android）での扱いを、公式ドキュメントで確かめてから作る
   - 実施: Opus・high
-  - メモ: web.devのインストール条件（名前、192・512pxのアイコン、`start_url`、`display`）を満たし、Service Workerは置かない（ヘッドレスのEdgeの`Page.getInstallabilityErrors`が0件）。アイコンは`bun run console:icons`（`scripts/gen_console_icons.ts`がTauri CLIの`tauri icon`を呼ぶ）で`apps/console/public/icons/`に書き出す。色の値をトークンから写さないよう、マニフェストに`theme_color`・`background_color`は書かない。Android版Edgeでのインストールの操作と`fullscreen`の扱いは、Microsoftの公式ドキュメントに記載が見つからず、W2-4で実機で確かめる
+  - メモ: web.devのインストール条件（名前、192・512pxのアイコン、`start_url`、`display`）を満たし、Service Workerは置かない（ヘッドレスのEdgeの`Page.getInstallabilityErrors`が0件）。アイコンは`bun run console:icons`（`scripts/gen_console_icons.ts`がTauri CLIの`tauri icon`を呼ぶ）で`apps/console/public/icons/`に書き出す。色の値をトークンから写さないよう、マニフェストに`theme_color`・`background_color`は書かない。Android版Edgeでのインストールの操作と`fullscreen`の扱いは、Microsoftの公式ドキュメントに記載が見つからず、W2-8（旧W2-4）で実機で確かめる
   - 推奨: Sonnet・high以上
   - 依存: T2-4
 - [x] T2-10 【エージェント】`ViewportFit`を作る：画面の高さを`visualViewport`の高さから下部マージンを引いた値に合わせ、ブラウザがずらした分を打ち消す。PWAとして起動していないときは、最初のタップで全画面表示にする。`console.bottomInsetPx`（初期値0）を設定ファイルと`ConsoleSettings`に足す。単体テストを書く

@@ -1,6 +1,6 @@
 # tekurobokun 実装計画（展示版）
 
-対象：`roadmap/specs/tekurobokun_SPEC_v1.md`（プランアセット v1）。展示は2026年11月14日。
+対象：`roadmap/specs/tekurobokun_SPEC_v2.md`（プランアセット v2。v1からの変更は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
 
 ## 1. 方針
 
@@ -12,7 +12,7 @@
 Phaseの一覧
 
 - Phase 1：土台（モノレポ、機体コードの引き継ぎ、プロトコルの型、トークン、i18n、checkコマンド）
-- Phase 2：文字だけの会話（バックエンド、LLM、入力ページ S01a・S01b・S01c・S01e）
+- Phase 2：文字だけの会話（バックエンド、LLM、入力ページ S01a・S01b・S01c・S01e、入力ページのPWA化と画面の高さ合わせ）
 - Phase 3：機体で話す（音声合成、口パク、感情、考え中、アイドル動作 S02a〜S02d、入力ページ S01d）
 - Phase 4：止まらない展示（切断と復旧 S01f・S02e、端末の切り替え S01g、禁止語、会話ログ）
 - Phase 5：字幕と公開の準備（字幕 S02f、自動起動、アイコン、README、CI、リリース 0.1.0）
@@ -63,6 +63,8 @@ tekurobokun/
 - `LogView`：シェル風のログ（時刻つきのプロンプト行、`finished thinking in`の行、`>`の返事、`is thinking`と点字のスピナー、`#`の案内、会話がないときの案内）。ログは消さず、下に追加して末尾へスクロールする
 - `PromptInput`：最後のプロンプト行としての入力欄、自動送信の文字の進捗バー、`[送る]`・`[消す]`。考え中・話し中は出さない
 - `FullNotice`：全面の案内（S01f：つながらない、S01g：別の端末が有効）
+- `ViewportFit`：画面の高さを`visualViewport`の高さから下部マージン（`bottomInsetPx`）を引いた値にし、ブラウザがページをずらした分（`offsetTop`）を打ち消す。`visualViewport`の`resize`・`scroll`で追従する。PWAとして起動していない（`display-mode`が全画面・スタンドアロンでない）ときは、最初のタップで全画面表示（Fullscreen API）にする
+- PWA：Webアプリマニフェスト（名前、`start_url`は`/?device=tablet`、`display`は全画面、横向き）とアイコン（マスターSVGから作るPWA用のPNGとファビコン）を`apps/console/public/`に置く。Service Workerは、インストールの条件として必要な場合だけ最小限で置く。インストールの条件とEdge（Android）での扱いは、実装時に公式ドキュメントで確かめる
 
 ### apps/robot
 
@@ -108,7 +110,7 @@ type Turn = { id: string; at: string /* ISO 8601 */; device: string; text: strin
 { type: "speech"; turnId: string; index: number; last: boolean;
   text: string; emotion: Emotion; wav: string /* base64 */ }
 
-type ConsoleSettings = { autosendMs: number; fontSizePx: number;
+type ConsoleSettings = { autosendMs: number; fontSizePx: number; bottomInsetPx: number;
                          prompt: { user: string; host: string; dir: string } };
 ```
 
@@ -150,7 +152,7 @@ interface ContentFilter {
 
 `config/*.default.json`をGitで管理し、同名の`*.local.json`があれば項目ごとに上書きする（`*.local.json`はGit管理外）。
 
-- `config/backend.default.json`：待ち受けのポート、llama-serverの接続先とモデル名、直近の往復数、VOICEVOXの接続先と話者、端末の一覧と起動時に有効な端末、自動送信の待ち時間（3000ms）、入力ページの文字の大きさ（18px）、プロンプトのユーザー名・ホスト名・ディレクトリ名、話し中のタイムアウトの余裕、ヘルスチェックの間隔
+- `config/backend.default.json`：待ち受けのポート、llama-serverの接続先とモデル名、直近の往復数、VOICEVOXの接続先と話者、端末の一覧と起動時に有効な端末、自動送信の待ち時間（3000ms）、入力ページの文字の大きさ（18px）と下部マージン（`console.bottomInsetPx`、0px）、プロンプトのユーザー名・ホスト名・ディレクトリ名、話し中のタイムアウトの余裕、ヘルスチェックの間隔
 - `config/persona.md`：人格プロンプト（ユーザーが書く）
 - `config/filter.default.json`：禁止語リストと定型の返事（ユーザーが書く）
 - `apps/robot/src/config/config.default.json`：バックエンドの接続先、目・口の基本座標（ヘボコン版の値）、アイドル動作と口パクのパラメータ
@@ -203,7 +205,7 @@ type LogEntry = {
 
 ## 8. トークンとi18n
 
-- `specs/`の`tekurobokun_tokens_v1.css`を`packages/theme/tokens.css`へ、`brand`・`icon_master`を`docs/brand/`へ、版番号を外してコピーする。一致はcheckコマンドで確かめる
+- `specs/`の`tekurobokun_tokens_v{n}.css`を`packages/theme/tokens.css`へ、`brand`・`icon_master`を`docs/brand/`へ、版番号を外してコピーする。一致はcheckコマンドで確かめる
 - コンポーネントの色・大きさ・余白は、`var(--…)`経由でだけ参照する。フェイシャルの目・口の座標はトークンではなく機体の設定値
 - 辞書はモックの`DICT.ja`から`packages/i18n/messages/ja.json`へ移す。`sample.*`（モックの見本の会話）と`keyboard.*`（SwiftKeyの描画）は移さない
 - 疑似ロケールは、`ja.json`からスクリプトで生成し、開発時だけ有効にする（`?locale=pseudo`）。公開版のロケールには含めない
@@ -225,3 +227,4 @@ type LogEntry = {
 - **スタブ**：開発機（Windows）で`apps/backend`をスタブ（`--stub`）で起動する。LLM・VOICEVOXなしで入力ページと機体を動かせる。【エージェント】の検証はこの段階で行う
 - **仮のサーバー**（Phase 1〜3）：開発機に、llama-server（Windows版、CPU）とGemma 4 E2B、VOICEVOX ENGINE（Windows版）を置き、実際のAPIで会話を通す。JSONの形式指定、返事の検証、文の分割と合成、機体での再生を、バックエンドPCの準備を待たずに確かめる
 - **本番**（Phase 4）：バックエンドPC（Ubuntu、RX480）に移し、GPU（Vulkan）での動作、モデルの比較と決定、応答時間、連続稼働を確かめる。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ
+- **タブレットへのインストール**：入力ページはHTTPのまま、タブレットのEdgeのflags（`edge://flags`のInsecure origins treated as secure）に、そのとき使うバックエンドのオリジン（`http://{IP}:8787`）を登録してから、PWAとしてインストールする。仮のサーバー（開発機）から本番（バックエンドPC）に移るとオリジンが変わるため、登録とインストールをやり直す。キーボードとのずれが残れば、`config/backend.local.json`の`console.bottomInsetPx`で調節する

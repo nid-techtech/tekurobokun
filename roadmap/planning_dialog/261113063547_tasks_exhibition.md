@@ -1,6 +1,6 @@
 # tekurobokun tasks（展示版）
 
-目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261111102341_imple_exhibition.md`。
+目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261113063547_imple_exhibition.md`。
 
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
@@ -41,7 +41,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
-引き継ぎ: T2-1〜T2-6・T2-8完了。次はW2-1から。W2-2はスタブ（`bun run console:build`→`bun run backend:stub`→`http://localhost:8787/?device=tablet`）で行い、発言に「崩れ」を含めると形式の崩れた返事になる。考え中・話し中は、キーボードを閉じないよう入力欄のフォーカスを残したまま入力行を見た目だけ隠している（実機での挙動はW2-4で確かめる）
+引き継ぎ: W2-1〜W2-3通過（修正2件は`development/261113035214_fix_phase2.md`）。W2-4が不合格だったため仕様変更（`development/261113061803_change_console_pwa_viewport.md`、プランアセット v2）。T2-9完了。次はT2-10。そのあとT2-11 → W2-6 → W2-7 → T2-12・W2-4（ユーザー）。タブレットのブラウザはEdge（Android）
 - [x] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
   - 実施: Opus・low
   - メモ: ポートは8787、WebSocketは`/ws`、配信は`apps/console/dist`。設定にはimple 6節の項目のほか、`llm.jsonSchema`・`maxTokens`・`temperature`・`timeoutMs`と`historyDisplayTurns`を足した。HealthMonitorは`/health`（llama-server）と`/version`（VOICEVOX）を問い合わせ、機体の接続の有無も持つ
@@ -71,6 +71,19 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・low
   - 推奨: Sonnet・medium以上
   - 依存: T2-4
+- [x] T2-9 【エージェント】入力ページをPWAにする：Webアプリマニフェスト（名前、`start_url`は`/?device=tablet`、`display`は全画面、横向き、アイコン）と、マスターSVGから入力ページのアイコン（PWA用のPNGとファビコン）を作り、バックエンドから配信する。インストールの条件（Service Workerの要否を含む）とEdge（Android）での扱いを、公式ドキュメントで確かめてから作る
+  - 実施: Opus・high
+  - メモ: web.devのインストール条件（名前、192・512pxのアイコン、`start_url`、`display`）を満たし、Service Workerは置かない（ヘッドレスのEdgeの`Page.getInstallabilityErrors`が0件）。アイコンは`bun run console:icons`（`scripts/gen_console_icons.ts`がTauri CLIの`tauri icon`を呼ぶ）で`apps/console/public/icons/`に書き出す。色の値をトークンから写さないよう、マニフェストに`theme_color`・`background_color`は書かない。Android版Edgeでのインストールの操作と`fullscreen`の扱いは、Microsoftの公式ドキュメントに記載が見つからず、W2-4で実機で確かめる
+  - 推奨: Sonnet・high以上
+  - 依存: T2-4
+- [ ] T2-10 【エージェント】`ViewportFit`を作る：画面の高さを`visualViewport`の高さから下部マージンを引いた値に合わせ、ブラウザがずらした分を打ち消す。PWAとして起動していないときは、最初のタップで全画面表示にする。`console.bottomInsetPx`（初期値0）を設定ファイルと`ConsoleSettings`に足す。単体テストを書く
+  - 依存: T2-4
+  - 画面: S01a, S01b, S01c, S01e
+- [ ] T2-11 【エージェント】`CONTRIBUTING.md`に、タブレットへのインストール手順（Edgeのflags、登録するオリジン、オリジンが変わったらやり直すこと）と、設定の`console.bottomInsetPx`を追記する
+  - 推奨: Sonnet・medium以上
+  - 依存: T2-9, T2-10
+- [ ] T2-12 【ユーザー】タブレットのEdgeでflagsにバックエンドのオリジンを登録し、入力ページをPWAとしてインストールする（手順はT2-11の`CONTRIBUTING.md`）
+  - 依存: T2-11
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
@@ -137,7 +150,7 @@ Phaseの推奨: Sonnet・high以上
   - 依存: T4-9
 - [ ] T5-3 【ユーザー】バックエンドPCに自動起動の設定を入れる
   - 依存: T5-2
-- [ ] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンと入力ページのファビコンを作る
+- [ ] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンを作る（入力ページのアイコンはT2-9で作る）
   - 推奨: Sonnet・medium以上
   - 依存: T1-5
 - [ ] T5-5 【エージェント】CIのワークフロー（checkコマンドを呼ぶ）を作る

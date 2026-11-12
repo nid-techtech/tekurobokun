@@ -15,6 +15,7 @@
     "backend:stub": "bun apps/backend/src/index.ts --stub",
     "console:dev": "bun run --filter @tekurobokun/console dev",
     "console:build": "bun run --filter @tekurobokun/console build",
+    "console:icons": "bun scripts/gen_console_icons.ts",
     "bench": "bun scripts/bench_dialogue.ts"
   },
   "devDependencies": {

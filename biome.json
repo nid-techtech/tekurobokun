@@ -11,6 +11,7 @@
       "**",
       "!roadmap",
       "!docs",
+      "!config/persona.md",
       "!**/src-tauri",
       "!**/dist",
       "!**/src/paraglide",

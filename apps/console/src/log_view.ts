@@ -31,6 +31,8 @@ export class LogView {
   /** promptは、プロンプト行に出す「user@host:dir %」を返す。 */
   constructor(private readonly prompt: () => string) {
     this.el = h("main", { class: "t-log", attrs: { role: "log", "aria-live": "polite" } });
+    // 入力行の出し入れや画面のキーボードの開閉でログの高さが変わっても、末尾を見せ続ける。
+    new ResizeObserver(() => this.scrollToEnd()).observe(this.el);
     this.reset([]);
   }
 

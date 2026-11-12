@@ -41,6 +41,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 2: 文字だけの会話
 Phaseの推奨: Opus・high以上
+引き継ぎ: Phase 1完了（W1-1〜W1-3通過）。次はT2-1から。T2-2でllama-serverのJSONスキーマ制約の可否を確かめる。仮のサーバーは`CONTRIBUTING.md`の手順で起動する（ポートは8080・50021）。`bun run check`の未使用キーの警告は、画面を作るPhase 3の終わりに失敗へ切り替えるか判断する
 - [ ] T2-1 【エージェント】バックエンドの骨格を作る：設定ファイルの読み込み、`Bun.serve`でのHTTP（入力ページの配信）とWebSocket、`hello`・`welcome`、接続の管理、`HealthMonitor`
   - 依存: T1-4
 - [ ] T2-2 【エージェント】`DialogueEngine`（llama-server版とスタブ）を作る：人格プロンプトと直近の往復、JSONスキーマ制約の可否の確認、返事の検証とフォールバック、考えた時間の計測。単体テストを書く

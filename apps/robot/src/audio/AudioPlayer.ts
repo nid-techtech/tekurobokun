@@ -1,74 +1,137 @@
-import type { AudioSlotInfo } from "../config/config";
+// AudioPlayer：バックエンドから届いたWAVを、届いた順に1文ずつ再生する（imple 3節）。
+// 出力の振幅（RMS）をlevel()で返し、FacialEngineが口の高さに使う。各文の再生終了を知らせる。
+// 出力デバイスは常にOS既定デバイスを使う（AudioContextの生成をこの1か所に閉じ込める）。
 
-// Web Audio APIによる音声再生（imple 4.7準拠）。
-// 振幅解析によるフェイシャル連動は本フェーズでは実装しない。
+import { decodeBase64 } from "./base64";
+
+/** 再生する1文。 */
+export type SpeechItem = {
+  turnId: string;
+  index: number;
+  last: boolean;
+  text: string;
+  wav: string;
+};
+
+/** AudioPlayerが使うWeb Audio APIの部分（テストで差し替える）。 */
+export type AudioBackend = {
+  /** 止まっていれば動かす（自動再生の制限で止まった状態から始まることがある） */
+  resume(): Promise<void>;
+  decode(bytes: ArrayBuffer): Promise<AudioBuffer>;
+  /** 再生を始める。終わったらonEndedを呼ぶ。戻り値で止める */
+  play(buffer: AudioBuffer, onEnded: () => void): () => void;
+  /** いま出ている音のRMS（0〜1） */
+  rms(): number;
+};
+
+type Queued = SpeechItem & { buffer: Promise<AudioBuffer | null> };
+
 export class AudioPlayer {
-  private readonly audioContext: AudioContext;
-  private readonly errorSound: AudioSlotInfo;
-  private readonly bufferCache = new Map<string, AudioBuffer>();
-  private readonly startHandlers: Array<(caption: string) => void> = [];
-  private readonly endHandlers: Array<() => void> = [];
+  private queue: Queued[] = [];
+  private current: { item: Queued; stop: (() => void) | null } | null = null;
+  /** stop()のたびに進める。止めたあとに読み込みが終わった再生を捨てるのに使う */
+  private generation = 0;
+  private readonly startHandlers: ((item: SpeechItem) => void)[] = [];
+  private readonly endHandlers: ((item: SpeechItem) => void)[] = [];
 
-  private currentSource: AudioBufferSourceNode | null = null;
-  private playToken = 0;
+  constructor(private readonly backend: AudioBackend = createWebAudioBackend()) {}
 
-  constructor(errorSound: AudioSlotInfo) {
-    this.errorSound = errorSound;
-    // 出力デバイスは常にOS既定デバイスを使用する。デバイス選択が将来必要になった場合に備え、
-    // デバイス解決処理（AudioContextの生成）をこの1箇所に閉じ込める（imple 4.7準拠）。
-    this.audioContext = new AudioContext();
+  /** 1文を再生の列に足す。読み込み（デコード）はすぐ始め、再生は前の文のあとに続ける。 */
+  enqueue(item: SpeechItem): void {
+    void this.backend.resume().catch(() => {});
+    const buffer = this.backend.decode(decodeBase64(item.wav)).catch((e: unknown) => {
+      console.error("[audio] decode failed:", e);
+      return null;
+    });
+    this.queue.push({ ...item, buffer });
+    if (!this.current) void this.playNext(this.generation);
   }
 
-  // 別スロットへの割り込み時は現在の再生を即座に停止し、単純に切り替える（クロスフェード等は行わない）。
-  play(slot: AudioSlotInfo | "EMPTY"): void {
-    const target = slot === "EMPTY" ? this.errorSound : slot;
-    const token = ++this.playToken;
-    this.stopCurrent();
-    void this.playSlot(target, token);
+  /** 再生中の文と列をすべて捨てる（再生終了は知らせない）。 */
+  stop(): void {
+    this.generation++;
+    this.queue = [];
+    this.current?.stop?.();
+    this.current = null;
   }
 
-  onPlaybackStart(handler: (caption: string) => void): void {
+  get playing(): boolean {
+    return this.current !== null;
+  }
+
+  /** いま出ている音の大きさ（RMS、0〜1）。再生していなければ0。 */
+  level(): number {
+    return this.current?.stop ? this.backend.rms() : 0;
+  }
+
+  onSentenceStart(handler: (item: SpeechItem) => void): void {
     this.startHandlers.push(handler);
   }
 
-  onPlaybackEnd(handler: () => void): void {
+  onSentenceEnd(handler: (item: SpeechItem) => void): void {
     this.endHandlers.push(handler);
   }
 
-  private stopCurrent(): void {
-    if (!this.currentSource) return;
-    this.currentSource.onended = null;
-    this.currentSource.stop();
-    this.currentSource = null;
+  private async playNext(generation: number): Promise<void> {
+    const item = this.queue.shift();
+    if (!item) return;
+    const current: { item: Queued; stop: (() => void) | null } = { item, stop: null };
+    this.current = current;
+
+    const buffer = await item.buffer;
+    if (generation !== this.generation) return;
+    if (!buffer) {
+      // 読めない音声は飛ばすが、再生終了は知らせる（バックエンドが話し中のまま待たないように）。
+      this.finish(current, generation);
+      return;
+    }
+    current.stop = this.backend.play(buffer, () => this.finish(current, generation));
+    for (const handler of this.startHandlers) handler(strip(item));
   }
 
-  private async playSlot(info: AudioSlotInfo, token: number): Promise<void> {
-    const buffer = await this.loadBuffer(info.filePath);
-    // 読み込み待ちの間に別の再生へ切り替わっていた場合は、この再生を開始しない。
-    if (token !== this.playToken) return;
-
-    const source = this.audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(this.audioContext.destination);
-    source.onended = () => {
-      if (this.currentSource !== source) return;
-      this.currentSource = null;
-      for (const handler of this.endHandlers) handler();
-    };
-
-    this.currentSource = source;
-    source.start();
-    for (const handler of this.startHandlers) handler(info.caption);
+  private finish(current: { item: Queued }, generation: number): void {
+    if (generation !== this.generation || this.current !== current) return;
+    this.current = null;
+    for (const handler of this.endHandlers) handler(strip(current.item));
+    void this.playNext(generation);
   }
+}
 
-  private async loadBuffer(filePath: string): Promise<AudioBuffer> {
-    const cached = this.bufferCache.get(filePath);
-    if (cached) return cached;
+function strip({ turnId, index, last, text, wav }: Queued): SpeechItem {
+  return { turnId, index, last, text, wav };
+}
 
-    const response = await fetch(filePath);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
-    this.bufferCache.set(filePath, buffer);
-    return buffer;
-  }
+/** Web Audio APIでの実装。再生の音はAnalyserNodeを通して出し、振幅を読む。 */
+export function createWebAudioBackend(): AudioBackend {
+  const context = new AudioContext();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.connect(context.destination);
+  const samples = new Float32Array(analyser.fftSize);
+
+  return {
+    resume: () => (context.state === "suspended" ? context.resume() : Promise.resolve()),
+    decode: (bytes) => context.decodeAudioData(bytes),
+    play(buffer, onEnded) {
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(analyser);
+      source.onended = () => {
+        source.disconnect();
+        onEnded();
+      };
+      source.start();
+      return () => {
+        source.onended = null;
+        source.stop();
+        source.disconnect();
+      };
+    },
+    rms() {
+      analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      for (const v of samples) sum += v * v;
+      return Math.sqrt(sum / samples.length);
+    },
+  };
 }

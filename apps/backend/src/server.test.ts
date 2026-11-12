@@ -12,6 +12,7 @@ import { DEFAULT_STUB_DATA, StubDialogueEngine } from "./dialogue/stub.ts";
 import { HealthMonitor } from "./health.ts";
 import { Server, WS_PATH } from "./server.ts";
 import { ConversationSession } from "./session.ts";
+import { StubTtsEngine } from "./tts/stub.ts";
 
 // スタブのバックエンドを立て、WebSocketで入力ページのふりをして会話を通す。
 
@@ -29,10 +30,13 @@ const devices = new InputDeviceRegistry(["tablet", "phone"], "tablet");
 const server = new Server({ port: 0, staticDir, settings, health });
 const session = new ConversationSession({
   dialogue: new StubDialogueEngine({ ...DEFAULT_STUB_DATA, delayMs: 50 }),
+  tts: new StubTtsEngine({ delayMs: 10 }),
   devices,
   health,
   emit: (m) => server.broadcast(m),
+  sendToRobot: (m) => server.sendToRobot(m),
   displayTurns: 50,
+  speakingGraceMs: 5000,
 });
 server.attach(session);
 health.onChange(() => session.broadcastStatus());
@@ -150,6 +154,51 @@ describe("Server", () => {
         !m.health.robot &&
         tablet.received.indexOf(m) > tablet.received.indexOf(up),
     );
+    tablet.ws.close();
+  });
+
+  test("機体がいると話し中になり、音声が機体にだけ届き、最後のplayback_doneで待機中", async () => {
+    const tablet = await connect({ type: "hello", role: "console", device: "tablet" });
+    const robot = await connect({ type: "hello", role: "robot" });
+    await tablet.waitFor((m) => m.type === "status" && m.health.robot);
+
+    tablet.ws.send(JSON.stringify({ type: "utterance", text: "話して" }));
+    await tablet.waitFor((m) => m.type === "status" && m.session === "speaking");
+    const last = await robot.waitFor((m) => m.type === "speech" && m.last);
+    if (last.type !== "speech") throw new Error("unreachable");
+    const speeches = robot.received.filter((m) => m.type === "speech");
+    expect(speeches.map((m) => m.type === "speech" && m.index)).toEqual(speeches.map((_, i) => i));
+    expect(tablet.received.some((m) => m.type === "speech")).toBe(false);
+
+    robot.ws.send(
+      JSON.stringify({ type: "playback_done", turnId: last.turnId, index: last.index }),
+    );
+    await tablet.waitFor(
+      (m) =>
+        m.type === "status" &&
+        m.session === "idle" &&
+        tablet.received.indexOf(m) > tablet.received.indexOf(last),
+    );
+    for (const c of [tablet, robot]) c.ws.close();
+  });
+
+  test("話し中に機体が切断したら、待機中に戻る", async () => {
+    const tablet = await connect({ type: "hello", role: "console", device: "tablet" });
+    const robot = await connect({ type: "hello", role: "robot" });
+    await tablet.waitFor((m) => m.type === "status" && m.health.robot);
+
+    tablet.ws.send(JSON.stringify({ type: "utterance", text: "話して" }));
+    const speaking = await tablet.waitFor((m) => m.type === "status" && m.session === "speaking");
+    await robot.waitFor((m) => m.type === "speech");
+    robot.ws.close();
+    await tablet.waitFor(
+      (m) =>
+        m.type === "status" &&
+        m.session === "idle" &&
+        !m.health.robot &&
+        tablet.received.indexOf(m) > tablet.received.indexOf(speaking),
+    );
+    expect(session.session).toBe("idle");
     tablet.ws.close();
   });
 });

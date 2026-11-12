@@ -89,7 +89,11 @@ export class Server {
           this.onMessage(ws, message);
         },
         close: (ws) => {
-          if (this.robots.delete(ws)) this.options.health.setRobot(this.robots.size > 0);
+          if (this.robots.delete(ws) && this.robots.size === 0) {
+            // 話し中なら先に待機中へ戻し、health.robotの変化で配信するstatusに反映させる。
+            this.session?.robotDisconnected();
+            this.options.health.setRobot(false);
+          }
           if (ws.data.role) this.log(`${ws.data.role} disconnected ${ws.data.device}`.trim());
         },
       },
@@ -106,7 +110,7 @@ export class Server {
     this.server?.publish(TOPIC_ALL, JSON.stringify(message));
   }
 
-  /** 機体にだけ送る（Phase 3の音声）。 */
+  /** 機体にだけ送る（音声）。 */
   sendToRobot(message: SpeechMessage): void {
     this.server?.publish(TOPIC_ROBOT, JSON.stringify(message));
   }
@@ -144,6 +148,8 @@ export class Server {
     if (message.type === "utterance" && ws.data.role === "console") {
       void session.handleUtterance(ws.data.device, message.text);
     }
-    // playback_doneはPhase 3で扱う。
+    if (message.type === "playback_done" && ws.data.role === "robot") {
+      session.handlePlaybackDone(message.turnId, message.index);
+    }
   }
 }

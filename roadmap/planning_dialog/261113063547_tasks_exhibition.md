@@ -92,27 +92,42 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
-- [ ] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
+引き継ぎ: T3-1〜T3-6・T3-8完了（`check`通過、機体アプリのViteビルド通過）。残りはT3-7（ユーザー）と、W3-1からの検証。スタブのバックエンドと機体アプリを実際に起動しての確認はまだ（W3-2で行う）。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
+- [x] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
+  - 実施: Opus・low
+  - メモ: `apps/backend/src/tts/`。文は句点・感嘆符・疑問符（全角・半角）と改行で分け、続く閉じかっこは前の文に付ける。長さはWAVのヘッダーから求める。APIはVOICEVOX ENGINEのREADMEで確認。スタブは文字数×120ms（0.6〜8秒）の正弦波で、音量を5Hzで揺らす
   - 依存: T2-3
-- [ ] T3-2 【エージェント】`ConversationSession`に話し中を加える：文ごとの`speech`の送信（再生中に次の文を合成）、最後の`playback_done`で待機中、機体の切断で待機中、タイムアウト。単体テストを書く
+- [x] T3-2 【エージェント】`ConversationSession`に話し中を加える：文ごとの`speech`の送信（再生中に次の文を合成）、最後の`playback_done`で待機中、機体の切断で待機中、タイムアウト。単体テストを書く
+  - 実施: Opus・low
+  - メモ: 1文を送ったら機体の再生を待たずに次の文を合成する。タイムアウトは、送った音声を届いた時刻から順に再生し終える見込みの時刻＋`speakingGraceMs`で、最後の文を送ったときに仕掛ける。機体がいない・`health.tts`が`false`・読み上げる文がないときは、返事のあとすぐ待機中。`Server`は機体がすべて切断したら`robotDisconnected`を、`playback_done`は`handlePlaybackDone`を呼ぶ
   - 依存: T3-1
-- [ ] T3-3 【エージェント】機体の`RobotLink`（接続と自動再接続、`hello`、メッセージの受け取り）を作る
+- [x] T3-3 【エージェント】機体の`RobotLink`（接続と自動再接続、`hello`、メッセージの受け取り）を作る
   - 推奨: Sonnet・high以上
+  - 実施: Opus・low
+  - メモ: `apps/robot/src/link/RobotLink.ts`。再接続の間隔は1秒から倍にして5秒まで。接続先は機体の設定`backend.url`（初期値`ws://127.0.0.1:8787/ws`）で、`apps/robot/src/config/config.local.json`（Git管理外）があれば項目ごとに上書きする。`main.ts`への配線はT3-5でまとめて行う
   - 依存: T1-3, T1-4
-- [ ] T3-4 【エージェント】機体の`AudioPlayer`を作り直す：WAVの順の再生、振幅から口の値、各文の再生終了の通知
+- [x] T3-4 【エージェント】機体の`AudioPlayer`を作り直す：WAVの順の再生、振幅から口の値、各文の再生終了の通知
+  - 実施: Opus・low
+  - メモ: 届いたらすぐデコードを始め、再生は届いた順。音は`AnalyserNode`を通して出し、`level()`でRMSを返す。口の開きは`audio/lipSync.ts`（設定`lipSync`の`floor`・`gain`・`attack`・`release`）。読めない音声は飛ばして再生終了だけ知らせる。`stop()`は列ごと捨てる。起動時のあいさつ（`hello_world.wav`）は再生しないことにした（音声スロットと同じく設定とファイルは残す）
   - 依存: T3-3
-- [ ] T3-5 【エージェント】`FacialEngine`と`IdleAnimator`を作る：`IDLE`・`SPEAKING`・`LOADING`、`emotion`の5種、まばたき・きょろきょろ（疑似乱数、設定で調整）、表情が変わらない間の描画頻度の抑制
+- [x] T3-5 【エージェント】`FacialEngine`と`IdleAnimator`を作る：`IDLE`・`SPEAKING`・`LOADING`、`emotion`の5種、まばたき・きょろきょろ（疑似乱数、設定で調整）、表情が変わらない間の描画頻度の抑制
   - 推奨: Sonnet・high以上
+  - 実施: Opus・low
+  - メモ: 図形の組み立て（`facial/shapes.ts`、目の崩し方はモックS02c・S02dの値）と、状態から顔を決める`FaceState`をp5から分け、`FacialEngine`は描くだけにした。描画は待機中10fps・話し中と考え中30fps（設定`render`）で、形が前のフレームと同じなら描き直さない。話し終えたあと感情の目を`render.emotionHoldMs`（1.5秒）残す。口はモックに合わせて角丸（`facial.mouth.cornerRadius`）。表示状態は`facial/displayState.ts`でimple 4節どおりに決め、`SLEEP`はPhase 4まで待機中と同じ顔。`RobotLink`・`AudioPlayer`・`FacialEngine`の配線は`main.ts`で、`playback_done`は文ごとに返す。話し中でなくなったら残りの音声は捨てる
   - 依存: T3-4
   - 画面: S02a, S02b, S02c, S02d
-- [ ] T3-6 【エージェント】入力ページに話し中の表示を加える
+- [x] T3-6 【エージェント】入力ページに話し中の表示を加える
   - 推奨: Sonnet・medium以上
+  - 実施: Opus・low
+  - メモ: 状態行「話し中」と入力行を隠すのはPhase 2の実装のまま。モックS01dに合わせ、話し中は最後の返事の行の末尾でカーソル（`.cursor`、`--cursor-blink`）を点滅させ、`prefers-reduced-motion`では止める
   - 依存: T3-2
   - 画面: S01d
 - [ ] T3-7 【ユーザー】開発機のVOICEVOXで話者を聞き比べて決め、`config/backend.local.json`に書く（仮でよい）
   - 依存: T1-9, T3-1
-- [ ] T3-8 【エージェント】`CONTRIBUTING.md`に、機体アプリの起動方法と設定を追記する
+- [x] T3-8 【エージェント】`CONTRIBUTING.md`に、機体アプリの起動方法と設定を追記する
   - 推奨: Sonnet・medium以上
+  - 実施: Opus・low
+  - メモ: 機体アプリの節に、スタブで会話を通す手順、別のPCのバックエンドにつなぐ`config.local.json`、設定の一覧を書いた。設定ファイルの節に、話し中の進み方と、VOICEVOX・機体がないときの振る舞いを足した
   - 依存: T3-6
 
 ## Phase 4: 止まらない展示

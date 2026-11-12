@@ -220,3 +220,24 @@ body {
     transition: none;
   }
 }
+
+/* ===== 話し中のカーソル（S01d） ===== */
+/* 返事の行の末尾で、話し終わるまで点滅する */
+.cursor {
+  display: inline-block;
+  inline-size: 0.6em;
+  block-size: 1.1em;
+  background: var(--color-accent);
+  vertical-align: text-bottom;
+  animation: cursor-blink var(--cursor-blink) steps(1) infinite;
+}
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+  }
+}

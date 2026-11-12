@@ -9,6 +9,7 @@ apps/robot/src-tauri/target/
 # 実行時のデータとローカル設定
 logs/
 config/*.local.json
+apps/robot/src/config/config.local.json
 .env
 .env.*
 

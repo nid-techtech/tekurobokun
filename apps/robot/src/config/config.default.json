@@ -1,4 +1,7 @@
 {
+  "backend": {
+    "url": "ws://127.0.0.1:8787/ws"
+  },
   "drive": {
     "forwardSpeed": 40,
     "turnSpeed": 30,
@@ -18,8 +21,33 @@
       "width": 694,
       "height": 143,
       "segments": 5,
-      "strokeWeight": 11
+      "strokeWeight": 11,
+      "cornerRadius": 14
     }
+  },
+  "lipSync": {
+    "floor": 0.01,
+    "gain": 6,
+    "attack": 0.6,
+    "release": 0.25,
+    "minRatio": 0.45,
+    "rangeRatio": 0.85
+  },
+  "idle": {
+    "blinkMinMs": 2500,
+    "blinkMaxMs": 6500,
+    "blinkDurationMs": 150,
+    "lookMinMs": 6000,
+    "lookMaxMs": 14000,
+    "lookDurationMs": 1400,
+    "lookOffsetX": 22,
+    "seed": null
+  },
+  "render": {
+    "activeFps": 30,
+    "idleFps": 10,
+    "loadingTurnMs": 1200,
+    "emotionHoldMs": 1500
   },
   "audio": {
     "slots": {

@@ -58,6 +58,7 @@ function render(): void {
   const ready = state.connected && state.settings !== null;
   input.setEnabled(ready && state.session === "idle");
   log.setThinking(ready && state.session === "thinking");
+  log.setSpeaking(ready && state.session === "speaking");
   statusLine.set(statusKind());
 }
 

@@ -1,6 +1,7 @@
-// LogView：シェル風のログ（S01a〜S01c・S01e）。
+// LogView：シェル風のログ（S01a〜S01e）。
 // 来場者の発言は時刻つきのプロンプト行、返事は「finished thinking in」の行と「>」の行。
-// 考え中は末尾に「is thinking」と点字のスピナー。ログは消さず、下に追加して末尾へスクロールする。
+// 考え中は末尾に「is thinking」と点字のスピナー。話し中は最後の返事の行の末尾でカーソルが点滅する。
+// ログは消さず、下に追加して末尾へスクロールする。
 
 import { m } from "@tekurobokun/i18n";
 import type { Reply, Turn } from "@tekurobokun/protocol";
@@ -27,6 +28,9 @@ export class LogView {
   private empty: HTMLElement | null = null;
   private thinking: HTMLElement | null = null;
   private spinnerTimer: ReturnType<typeof setInterval> | null = null;
+  /** 最後に足した返事の行（話し中のカーソルを置く） */
+  private lastOutput: HTMLElement | null = null;
+  private readonly cursor = h("span", { class: "cursor", attrs: { "aria-hidden": "true" } });
 
   /** promptは、プロンプト行に出す「user@host:dir %」を返す。 */
   constructor(private readonly prompt: () => string) {
@@ -39,6 +43,8 @@ export class LogView {
   /** 履歴で描き直す（接続のたびのwelcome）。 */
   reset(turns: Turn[]): void {
     this.setThinking(false);
+    this.cursor.remove();
+    this.lastOutput = null;
     this.groups.clear();
     this.el.replaceChildren();
     this.empty = null;
@@ -68,6 +74,13 @@ export class LogView {
   addReply(turnId: string, reply: Reply): void {
     const group = this.groups.get(turnId);
     if (!group || group.childElementCount > 1) return;
+    const output = h(
+      "div",
+      { class: "sh sh-output" },
+      h("span", { class: "output-mark", text: m["shell.output_mark"]() }),
+      document.createTextNode(" "),
+      reply.say,
+    );
     group.append(
       h(
         "div",
@@ -77,14 +90,20 @@ export class LogView {
           m["app.name"](),
         ),
       ),
-      h(
-        "div",
-        { class: "sh sh-output" },
-        h("span", { class: "output-mark", text: m["shell.output_mark"]() }),
-        document.createTextNode(" "),
-        reply.say,
-      ),
+      output,
     );
+    this.lastOutput = output;
+    this.scrollToEnd();
+  }
+
+  /** 話し中のカーソルを、最後の返事の行の末尾に出す・消す。 */
+  setSpeaking(on: boolean): void {
+    if (!on || !this.lastOutput) {
+      this.cursor.remove();
+      return;
+    }
+    if (this.cursor.parentElement === this.lastOutput) return;
+    this.lastOutput.append(this.cursor);
     this.scrollToEnd();
   }
 

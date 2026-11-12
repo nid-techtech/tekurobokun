@@ -1,47 +1,83 @@
+// FacialEngine：FaceStateが決めた顔を、p5で800×600のキャンバスに描く（imple 3節）。
+// 表情が変わらない間は描画頻度を下げ、形が前のフレームと同じなら描き直さない。
+// 色はトークン（--color-face-bg・--color-face-ink）から読む。
+
 import p5 from "p5";
-import type { FacialConfig } from "../config/config";
+import type { FacialConfig, RenderConfig } from "../config/config";
+import type { FaceState } from "./FaceState";
+import { FACIAL_CANVAS_HEIGHT, FACIAL_CANVAS_WIDTH, faceShapes, type Shape } from "./shapes";
 
-export const FACIAL_CANVAS_WIDTH = 800;
-export const FACIAL_CANVAS_HEIGHT = 600;
+export type FacialEngineOptions = {
+  facial: FacialConfig;
+  render: RenderConfig;
+  lookOffsetX: number;
+  /** 再生中の音の大きさ（RMS） */
+  level: () => number;
+};
 
-const CENTER_X = FACIAL_CANVAS_WIDTH / 2;
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
-// アニメーションなし。初期化時に1回描画するのみ（imple 4.8準拠）。
 export class FacialEngine {
-  constructor(container: HTMLElement, facialConfig: FacialConfig) {
+  private lastKey = "";
+  private fps = 0;
+
+  constructor(
+    container: HTMLElement,
+    private readonly face: FaceState,
+    options: FacialEngineOptions,
+  ) {
     new p5((s: p5) => {
+      const background = token("--color-face-bg");
+      const ink = token("--color-face-ink");
+
       s.setup = () => {
         s.createCanvas(FACIAL_CANVAS_WIDTH, FACIAL_CANVAS_HEIGHT);
-        s.noLoop();
-        s.background(255);
+        this.setFps(s, options.render.idleFps);
+      };
+
+      s.draw = () => {
+        const now = performance.now();
+        const scene = this.face.scene(now, options.level());
+        this.setFps(s, this.face.animating ? options.render.activeFps : options.render.idleFps);
+
+        // 前のフレームと同じ形なら描き直さない（キャンバスはそのまま残る）。
+        const key = `${scene.eyes}|${scene.mouthRatio.toFixed(3)}|${scene.orbitAngle.toFixed(2)}`;
+        if (key === this.lastKey) return;
+        this.lastKey = key;
+
+        s.background(background);
         s.noFill();
-        s.stroke(0);
-        drawEyes(s, facialConfig);
-        drawMouth(s, facialConfig);
+        s.stroke(ink);
+        for (const shape of faceShapes(scene, options.facial, options.lookOffsetX)) {
+          drawShape(s, shape);
+        }
       };
     }, container);
   }
-}
 
-// 二重同心円の目（塗りつぶしなし太線）
-function drawEyes(s: p5, { eyes }: FacialConfig): void {
-  s.strokeWeight(eyes.strokeWeight);
-  for (const cx of [CENTER_X - eyes.offsetX, CENTER_X + eyes.offsetX]) {
-    s.circle(cx, eyes.y, eyes.outerRadius * 2);
-    s.circle(cx, eyes.y, eyes.innerRadius * 2);
+  private setFps(s: p5, fps: number): void {
+    if (fps === this.fps) return;
+    this.fps = fps;
+    s.frameRate(fps);
   }
 }
 
-// 横長矩形を縦線でsegments分割した口（塗りつぶしなし太線）
-function drawMouth(s: p5, { mouth }: FacialConfig): void {
-  s.strokeWeight(mouth.strokeWeight);
-  const left = CENTER_X - mouth.width / 2;
-  const top = mouth.y - mouth.height / 2;
-  s.rect(left, top, mouth.width, mouth.height);
-
-  const segmentWidth = mouth.width / mouth.segments;
-  for (let i = 1; i < mouth.segments; i++) {
-    const x = left + segmentWidth * i;
-    s.line(x, top, x, top + mouth.height);
+function drawShape(s: p5, shape: Shape): void {
+  s.strokeWeight(shape.weight);
+  switch (shape.type) {
+    case "circle":
+      s.circle(shape.x, shape.y, shape.r * 2);
+      return;
+    case "arc":
+      s.arc(shape.x, shape.y, shape.r * 2, shape.r * 2, shape.start, shape.stop, s.OPEN);
+      return;
+    case "line":
+      s.line(shape.x1, shape.y1, shape.x2, shape.y2);
+      return;
+    case "rect":
+      s.rect(shape.x, shape.y, shape.w, shape.h, shape.cornerRadius);
+      return;
   }
 }

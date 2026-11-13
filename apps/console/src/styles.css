@@ -241,3 +241,36 @@ body {
     animation: none;
   }
 }
+
+/* ===== 全面の案内（S01f：つながらない、S01g：別の端末が有効） ===== */
+/* ログと入力行の代わりに、状態行の下いっぱいに出す */
+.t-log[hidden],
+.offline[hidden] {
+  display: none;
+}
+.offline {
+  display: grid;
+  place-content: center start;
+  gap: var(--space-1);
+  padding: var(--space-6);
+  text-align: start;
+}
+.offline h3 {
+  margin: 0;
+  font-size: var(--term-text-size);
+  font-weight: 700;
+  color: var(--color-danger);
+}
+.offline h3::before {
+  content: "! ";
+}
+.offline.inactive h3 {
+  color: var(--color-ink);
+}
+.offline.inactive h3::before {
+  content: "# ";
+}
+.offline p {
+  margin: 0;
+  color: var(--color-ink-muted);
+}

@@ -43,7 +43,7 @@ export class FacialEngine {
         this.setFps(s, this.face.animating ? options.render.activeFps : options.render.idleFps);
 
         // 前のフレームと同じ形なら描き直さない（キャンバスはそのまま残る）。
-        const key = `${scene.eyes}|${scene.mouthRatio.toFixed(3)}|${scene.orbitAngle.toFixed(2)}`;
+        const key = `${scene.eyes}|${scene.mouthRatio.toFixed(3)}|${scene.orbitAngle.toFixed(2)}|${(scene.offsetY ?? 0).toFixed(1)}`;
         if (key === this.lastKey) return;
         this.lastKey = key;
 

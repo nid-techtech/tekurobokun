@@ -1,5 +1,6 @@
 // ConversationSession：会話の状態、受付可否、直近の履歴、話し中の進行（imple 3節・5節）。
-// 外部のAPIは直接呼ばず、DialogueEngine・TtsEngineなどを受け取って使う。
+// 外部のAPIは直接呼ばず、DialogueEngine・TtsEngine・ContentFilterなどを受け取って使う。
+// 1回の発言ごとに、会話ログの1行をrecordへ渡す（ファイルへの追記はConversationLog）。
 //
 // 話し中：返事を文に分け、1文ずつ合成して機体へ送る。機体が再生している間に次の文を合成する。
 // 最後の文のplayback_done、機体の切断、タイムアウト、合成の失敗で待機中に戻る。
@@ -14,6 +15,8 @@ import type {
   StatusMessage,
   Turn,
 } from "@tekurobokun/protocol";
+import type { ContentFilter } from "./content_filter.ts";
+import type { LogEntry } from "./conversation_log.ts";
 import type { DialogueEngine } from "./dialogue/engine.ts";
 import { toJstIso } from "./time.ts";
 import type { Speech, TtsEngine } from "./tts/engine.ts";
@@ -37,6 +40,8 @@ const realTimers: Timers = {
 export type SessionOptions = {
   dialogue: DialogueEngine;
   tts: TtsEngine;
+  /** 禁止語の検査。なければ検査しない */
+  filter?: ContentFilter;
   devices: DeviceSource;
   health: HealthSource;
   /** 入力ページと機体の両方に配信する */
@@ -50,11 +55,32 @@ export type SessionOptions = {
   now?: () => Date;
   timers?: Timers;
   newId?: () => string;
+  /** 会話ログに1行残す（ConversationLog）。なければ残さない */
+  record?: (entry: LogEntry) => void;
   /** 受け付けなかった発言・LLMの失敗などをターミナルに出す */
   log?: (line: string) => void;
 };
 
-export type UtteranceResult = "accepted" | "empty" | "busy" | "inactive_device" | "llm_unavailable";
+export type UtteranceResult =
+  | "accepted"
+  | "empty"
+  | "busy"
+  | "inactive_device"
+  | "llm_unavailable"
+  | "tts_unavailable";
+
+/** 1回の発言の結果のうち、会話ログに残す部分。 */
+type Outcome = Omit<LogEntry, "at" | "device" | "input">;
+
+/** LLMが落ちていた・失敗したとき。 */
+const FAILED: Outcome = {
+  thinkingMs: null,
+  raw: null,
+  say: null,
+  emotion: null,
+  filtered: "none",
+  error: "llm_unavailable",
+};
 
 /** 話し中の進行。 */
 type Speaking = {
@@ -69,6 +95,8 @@ type Speaking = {
 export class ConversationSession {
   private state: SessionState = "idle";
   private turns: Turn[] = [];
+  /** LLMに渡してよい発言のid（禁止語で差し替えた入力や、ログから戻した履歴は含めない） */
+  private readonly llmTurnIds = new Set<string>();
   private speaking: Speaking | null = null;
   private readonly now: () => Date;
   private readonly newId: () => string;
@@ -109,42 +137,106 @@ export class ConversationSession {
     if (text.trim() === "") return "empty";
     if (this.state !== "idle") return "busy";
     if (!this.options.devices.isActive(device)) return "inactive_device";
-    if (!this.options.health.snapshot().llm) return "llm_unavailable";
+    // LLM・VOICEVOXのどちらかが落ちている間は受け付けない（入力ページはS01f、機体はS02e）。
+    // HealthMonitorの定期的な問い合わせで応答が戻れば、自動で受け付けに戻る。
+    const health = this.options.health.snapshot();
+    if (!health.llm) return "llm_unavailable";
+    if (!health.tts) return "tts_unavailable";
     return "accepted";
   }
 
   /**
    * 発言を受け取る。受け付けない発言は捨て、何も記録しない（imple 5節）。
+   * ただし、有効な端末から待機中に届いた発言をLLMが落ちているために受け付けなかったときは、
+   * `error: "llm_unavailable"`として会話ログに1行残す（imple 7節）。
    * 受け付けた場合は、返事を得るまで待つ（話し中に入ったら、その終わりは待たない）。
    */
   async handleUtterance(device: string, text: string): Promise<UtteranceResult> {
     const result = this.check(device, text);
     if (result !== "accepted") {
       this.log(`dropped utterance from "${device}": ${result}`);
+      if (result === "llm_unavailable") {
+        this.record({
+          at: toJstIso(this.now()),
+          device,
+          input: text.trim(),
+          ...FAILED,
+        });
+      }
       return result;
     }
 
     // LLMに渡す往復の候補。往復数はDialogueEngineが絞る。
-    const context = this.history();
+    const context = this.llmContext();
     const turn: Turn = { id: this.newId(), at: toJstIso(this.now()), device, text: text.trim() };
     this.push(turn);
     this.state = "thinking";
     this.options.emit({ type: "turn_started", turn: structuredClone(turn) });
     this.broadcastStatus();
 
-    try {
-      const { say, emotion, thinkingMs } = await this.options.dialogue.reply(context, turn.text);
+    const outcome = await this.reply(context, turn);
+    this.record({ at: turn.at, device, input: turn.text, ...outcome });
+    if (outcome.say !== null && outcome.emotion !== null) {
+      const { say, emotion } = outcome;
+      const thinkingMs = outcome.thinkingMs ?? 0;
       turn.reply = { say, emotion, thinkingMs };
       this.options.emit({ type: "turn_replied", turnId: turn.id, say, emotion, thinkingMs });
       if (this.startSpeaking(turn.id, say, emotion)) return "accepted";
-    } catch (e) {
-      this.log(`llm failed: ${e instanceof Error ? e.message : String(e)}`);
-      this.options.health.markLlmDown();
     }
 
     this.state = "idle";
     this.broadcastStatus();
     return "accepted";
+  }
+
+  /** 会話ログから戻した表示用の履歴を置く（起動時）。LLMに渡す往復には入れない（imple 7節）。 */
+  restoreHistory(turns: Turn[]): void {
+    this.turns = [];
+    this.llmTurnIds.clear();
+    for (const turn of turns) this.push(structuredClone(turn));
+  }
+
+  /**
+   * 返事を得る。入力が禁止語に当たったらLLMに渡さずに定型の返事を、
+   * LLMの返事が当たったら定型の返事に差し替えたものを返す。LLMが失敗したら、返事はnull。
+   */
+  private async reply(context: Turn[], turn: Turn): Promise<Outcome> {
+    const filter = this.options.filter;
+    const input = filter?.check(turn.text);
+    if (input?.hit && input.replacement) {
+      this.log(`filtered input from "${turn.device}"`);
+      // 禁止語を含む発言は、以後もLLMに渡さない。
+      const { say, emotion } = input.replacement;
+      return { thinkingMs: null, raw: null, say, emotion, filtered: "input", error: null };
+    }
+
+    try {
+      const { raw, say, emotion, thinkingMs } = await this.options.dialogue.reply(
+        context,
+        turn.text,
+      );
+      this.llmTurnIds.add(turn.id);
+      const output = filter?.check(say);
+      if (output?.hit && output.replacement) {
+        this.log("filtered output");
+        const replaced = output.replacement;
+        return { thinkingMs, raw, ...replaced, filtered: "output", error: null };
+      }
+      return { thinkingMs, raw, say, emotion, filtered: "none", error: null };
+    } catch (e) {
+      this.log(`llm failed: ${e instanceof Error ? e.message : String(e)}`);
+      this.options.health.markLlmDown();
+      return FAILED;
+    }
+  }
+
+  private record(entry: LogEntry): void {
+    this.options.record?.(entry);
+  }
+
+  /** LLMに渡してよい往復（このセッションでLLMが返事をした発言だけ。古い順）。 */
+  private llmContext(): Turn[] {
+    return this.turns.filter((t) => this.llmTurnIds.has(t.id)).map((t) => structuredClone(t));
   }
 
   /** 機体から1文の再生終了が届いた。最後の文なら待機中に戻る。 */
@@ -229,7 +321,8 @@ export class ConversationSession {
   private push(turn: Turn): void {
     this.turns.push(turn);
     if (this.turns.length > this.options.displayTurns) {
-      this.turns.splice(0, this.turns.length - this.options.displayTurns);
+      const removed = this.turns.splice(0, this.turns.length - this.options.displayTurns);
+      for (const t of removed) this.llmTurnIds.delete(t.id);
     }
   }
 }

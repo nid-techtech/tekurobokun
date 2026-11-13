@@ -76,6 +76,12 @@ export interface RenderConfig {
   loadingTurnMs: number;
   /** 話し終えてから、感情の目を通常の目に戻すまで */
   emotionHoldMs: number;
+  /** 眠っている顔の口の開き（話し中の口の値と同じ0〜1の尺度） */
+  sleepMouthLevel: number;
+  /** 眠っている顔が上下に揺れる幅（中心から片側） */
+  sleepBobAmplitude: number;
+  /** 眠っている顔が上下に1往復する時間 */
+  sleepBobCycleMs: number;
 }
 
 export interface AudioSlotInfo {

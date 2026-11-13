@@ -1,6 +1,6 @@
 # tekurobokun 実装計画（展示版）
 
-対象：`roadmap/specs/tekurobokun_SPEC_v4.md`（プランアセット v4。v3からの変更は`development/261114061251_change_backend_windows.md`、v2からv3は`development/261113172152_change_model_qwen3.md`、v1からv2は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
+対象：`roadmap/specs/tekurobokun_SPEC_v5.md`（プランアセット v5。v4からの変更は`development/261114070342_change_filter_words.md`、v3からv4は`development/261114061251_change_backend_windows.md`、v2からv3は`development/261113172152_change_model_qwen3.md`、v1からv2は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
 
 ## 1. 方針
 
@@ -50,7 +50,7 @@ tekurobokun/
 - `ConversationSession`：会話の状態（待機中・考え中・話し中）、受付可否、直近の履歴、話し中の進行（音声を順に送る、終了の判定）。外部のAPIを直接は呼ばない
 - `DialogueEngine`：OpenAI互換の`/v1/chat/completions`に、人格プロンプトと直近N往復を渡し、`{say, emotion}`を検証して返す。考えた時間を測る。実装は`LlamaDialogueEngine`と`StubDialogueEngine`
 - `TtsEngine`：返事を文に分け、1文ずつ音声にする。実装は`VoicevoxTtsEngine`と`StubTtsEngine`（正弦波のWAV）
-- `ContentFilter`：入力と返事の禁止語の検査。引っかかったら定型の返事に差し替える
+- `ContentFilter`：入力と返事の禁止語の検査。引っかかったら定型の返事に差し替える。照合は、全角・半角、大文字・小文字、空白の違いを無視した部分一致（カタカナとひらがなは同一視しない。カタカナの語がひらがなの普通の文に当たるため）
 - `InputDeviceRegistry`：端末の一覧と、有効な端末1台。切り替えはバックエンドPCのターミナルでのキー入力（`OperatorConsole`）からだけ受ける
 - `OperatorConsole`：バックエンドを起動したターミナルで、数字キー`1`〜`9`（端末一覧の順）で有効な端末を切り替え、現在の状態を1行で表示する
 - `HealthMonitor`：llama-serverとVOICEVOXに定期的に問い合わせ、応答の有無を保持する
@@ -154,7 +154,7 @@ interface ContentFilter {
 
 - `config/backend.default.json`：待ち受けのポート、llama-serverの接続先（`http://127.0.0.1:8080`）とモデル名（`qwen3-4b`）、直近の往復数、VOICEVOXの接続先と話者、端末の一覧と起動時に有効な端末、自動送信の待ち時間（3000ms）、入力ページの文字の大きさ（18px）と下部マージン（`console.bottomInsetPx`、0px）、プロンプトのユーザー名・ホスト名・ディレクトリ名、話し中のタイムアウトの余裕、ヘルスチェックの間隔
 - `config/persona.md`：人格プロンプト（ユーザーが書く）
-- `config/filter.default.json`：禁止語リストと定型の返事（ユーザーが書く）
+- `config/filter.default.json`：禁止語なし・仮の定型の返事（Git管理）。本番の禁止語リストと定型の返事は`config/filter.local.json`に置く（MosasoM/inappropriate-words-ja の`Sexual.txt`・`Offensive.txt`をもとにエージェントが作り、ユーザーが確かめる。出典とライセンスは`_source`の項目に書く。Git管理外のため、バックエンドPCへは手で置く）
 - `apps/robot/src/config/config.default.json`：バックエンドの接続先、目・口の基本座標（ヘボコン版の値）、アイドル動作と口パクのパラメータ
 
 ## 7. データモデル（会話ログ）

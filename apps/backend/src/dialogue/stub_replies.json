@@ -9,5 +9,8 @@
   ],
   "malformedTrigger": "崩れ",
   "malformedRaw": "えっと、返事の形を忘れてしまいました。でも表示は止まりません。",
-  "failTrigger": "落ちて"
+  "failTrigger": "落ちて",
+  "filterWords": ["きんしご"],
+  "forbiddenOutputTrigger": "言わせて",
+  "forbiddenOutputRaw": "{\"say\": \"わかりました。きんしご、と言ってみます。\", \"emotion\": \"happy\"}"
 }

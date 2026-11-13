@@ -1,5 +1,5 @@
-// フェイシャルの形（S02a〜S02d）。描く図形を、p5に依存しない値の並びとして組み立てる。
-// 目・口の基本座標は機体の設定（ヘボコン版の値）。表情ごとの目の崩し方はモックS02c・S02dの値。
+// フェイシャルの形（S02a〜S02e）。描く図形を、p5に依存しない値の並びとして組み立てる。
+// 目・口の基本座標は機体の設定（ヘボコン版の値）。表情ごとの目の崩し方はモックS02c〜S02eの値。
 
 import type { Emotion } from "@tekurobokun/protocol";
 import type { FacialConfig } from "../config/config";
@@ -8,11 +8,11 @@ export const FACIAL_CANVAS_WIDTH = 800;
 export const FACIAL_CANVAS_HEIGHT = 600;
 const CENTER_X = FACIAL_CANVAS_WIDTH / 2;
 
-/** 表示状態（imple 4節）。SLEEPの顔はPhase 4で描く。 */
+/** 表示状態（imple 4節）。SLEEPは眠っている顔（S02e）。 */
 export type DisplayState = "IDLE" | "SPEAKING" | "LOADING" | "SLEEP";
 
-/** 目の形。emotionの5種に、考え中・まばたき・きょろきょろを足したもの。 */
-export type EyeKind = Emotion | "loading" | "blink" | "look_left" | "look_right";
+/** 目の形。emotionの5種に、考え中・まばたき・きょろきょろ・眠っている（閉じた目）を足したもの。 */
+export type EyeKind = Emotion | "loading" | "blink" | "look_left" | "look_right" | "sleep";
 
 export type Shape =
   | { type: "circle"; x: number; y: number; r: number; weight: number }
@@ -29,7 +29,7 @@ export type Shape =
       weight: number;
     };
 
-/** モックS02c・S02dの目の崩し方（800×600の座標）。 */
+/** モックS02c〜S02eの目の崩し方（800×600の座標）。 */
 const EYE = {
   /** happy：弧の弦を目の中心から下げる量 */
   happyDrop: 20,
@@ -46,6 +46,9 @@ const EYE = {
   /** loading：内側の円の、目の中心からの距離と、小さくする量 */
   loadingOrbit: 26,
   loadingShrink: 26,
+  /** sleep：閉じた目の下向きの弧。両端の、目の中心からの左右の距離と、弧の半径 */
+  sleepHalfWidth: 80,
+  sleepRadius: 90,
 } as const;
 
 type Side = "left" | "right";
@@ -134,6 +137,14 @@ export function eyeShapes(
     }
     case "blink":
       return [{ type: "line", x1: x - ro, y1: y, x2: x + ro, y2: y, weight }];
+    case "sleep": {
+      // 閉じた目。両端を目の中心の高さに置き、下へふくらむ弧（円の中心は両端より上）
+      const half = EYE.sleepHalfWidth;
+      const r = EYE.sleepRadius;
+      const rise = Math.sqrt(r * r - half * half);
+      const edge = Math.atan2(rise, half);
+      return [{ type: "arc", x, y: y - rise, r, start: edge, stop: Math.PI - edge, weight }];
+    }
     case "look_left":
       return [outer, circle(x - look, y, ri)];
     case "look_right":
@@ -166,7 +177,15 @@ export type Scene = {
   /** 口の高さの割合（待機中は1） */
   mouthRatio: number;
   orbitAngle: number;
+  /** 顔全体を上下にずらす量（眠っているときの揺れ。下が正） */
+  offsetY?: number;
 };
+
+/** 図形を上下にずらす。 */
+function shiftY(shape: Shape, dy: number): Shape {
+  if (shape.type === "line") return { ...shape, y1: shape.y1 + dy, y2: shape.y2 + dy };
+  return { ...shape, y: shape.y + dy };
+}
 
 /** 顔全体の図形。 */
 export function faceShapes(scene: Scene, config: FacialConfig, lookOffsetX: number): Shape[] {
@@ -177,5 +196,6 @@ export function faceShapes(scene: Scene, config: FacialConfig, lookOffsetX: numb
     );
   }
   shapes.push(...mouthShapes(config, scene.mouthRatio));
-  return shapes;
+  const dy = scene.offsetY ?? 0;
+  return dy === 0 ? shapes : shapes.map((s) => shiftY(s, dy));
 }

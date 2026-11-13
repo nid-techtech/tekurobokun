@@ -1,11 +1,15 @@
 // 入力ページ（apps/console）。URLの`?device=`で端末名を名乗る（既定はtablet）。
 // 表示はバックエンドから届くwelcome・status・turn_started・turn_repliedだけで決める。
+// つながらない・LLMかVOICEVOXが応答しないときはS01f、別の端末が有効なときはS01gの全面の案内を出し、
+// 状況が戻れば自動で元の表示に戻る（再接続はLinkが続ける）。
 
 import "./styles.css";
 import { initLocale, m } from "@tekurobokun/i18n";
-import type { ConsoleSettings, ServerMessage, SessionState } from "@tekurobokun/protocol";
+import type { ConsoleSettings, ServerMessage, StatusMessage } from "@tekurobokun/protocol";
+import { FullNotice } from "./full_notice.ts";
 import { Link } from "./link.ts";
 import { LogView } from "./log_view.ts";
+import { noticeFor } from "./notice.ts";
 import { PromptInput } from "./prompt_input.ts";
 import { type StatusKind, StatusLine } from "./status_line.ts";
 import { browserViewportFit } from "./viewport_fit.ts";
@@ -17,10 +21,14 @@ document.title = m["app.name"]();
 
 const device = new URLSearchParams(window.location.search).get("device") || DEFAULT_DEVICE;
 
-const state: { connected: boolean; settings: ConsoleSettings | null; session: SessionState } = {
+const state: {
+  connected: boolean;
+  settings: ConsoleSettings | null;
+  status: StatusMessage | null;
+} = {
   connected: false,
   settings: null,
-  session: "idle",
+  status: null,
 };
 
 /** プロンプトの表示。設定が空の項目は辞書の値を使う。 */
@@ -39,26 +47,43 @@ viewportFit.start();
 
 const statusLine = new StatusLine();
 const log = new LogView(promptText);
+const notice = new FullNotice();
 const input = new PromptInput(promptText(), 0, {
   onSend: (text) => link.send({ type: "utterance", text }),
   onTextChange: () => render(),
 });
 
 const root = document.querySelector<HTMLElement>("#app");
-root?.append(statusLine.el, log.el, input.el);
+root?.append(statusLine.el, log.el, notice.el, input.el);
+
+function currentNotice() {
+  return noticeFor({
+    connected: state.connected,
+    welcomed: state.settings !== null,
+    status: state.status,
+    device,
+  });
+}
 
 function statusKind(): StatusKind {
-  if (!state.connected || !state.settings) return "offline";
-  if (state.session === "thinking") return "thinking";
-  if (state.session === "speaking") return "speaking";
+  if (currentNotice() === "offline") return "offline";
+  const session = state.status?.session ?? "idle";
+  if (session === "thinking") return "thinking";
+  if (session === "speaking") return "speaking";
   return input.hasText ? "listening" : "ready";
 }
 
 function render(): void {
-  const ready = state.connected && state.settings !== null;
-  input.setEnabled(ready && state.session === "idle");
-  log.setThinking(ready && state.session === "thinking");
-  log.setSpeaking(ready && state.session === "speaking");
+  const kind = currentNotice();
+  const session = state.status?.session ?? "idle";
+  const wasShown = notice.shown;
+  notice.set(kind);
+  log.el.hidden = kind !== null;
+  input.setEnabled(kind === null && session === "idle");
+  // 案内を出している間は、入力欄のフォーカスを外して画面のキーボードを閉じる（S01f・S01g）。
+  if (kind !== null && !wasShown) input.blur();
+  log.setThinking(kind === null && session === "thinking");
+  log.setSpeaking(kind === null && session === "speaking");
   statusLine.set(statusKind());
 }
 
@@ -76,7 +101,7 @@ function onMessage(message: ServerMessage): void {
       log.reset(message.history);
       break;
     case "status":
-      state.session = message.session;
+      state.status = message;
       break;
     case "turn_started":
       log.addTurn(message.turn);
@@ -99,6 +124,7 @@ const link = new Link(Link.urlFor(window.location), device, {
   onClose: () => {
     state.connected = false;
     state.settings = null;
+    state.status = null;
     render();
   },
 });
@@ -107,4 +133,5 @@ render();
 link.connect();
 
 // ログをタップしてもキーボードを閉じないよう、入力欄にフォーカスを戻す。
+// 案内から戻ったあと、キーボードが自動で開かない端末でも、ログをタップすれば開く。
 log.el.addEventListener("click", () => input.focus());

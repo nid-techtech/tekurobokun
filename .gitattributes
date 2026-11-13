@@ -1,0 +1,7 @@
+# 改行コードはLFにそろえる（Biomeの整形がLFを前提にするため）。
+# Git for Windowsの既定（core.autocrlf=true）でクローンしても、作業ツリーをLFで書き出す。
+* text=auto eol=lf
+
+# Windowsのバッチファイルだけは、CRLFでないと動かない
+*.bat text eol=crlf
+*.cmd text eol=crlf

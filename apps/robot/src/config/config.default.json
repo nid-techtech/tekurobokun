@@ -47,7 +47,10 @@
     "activeFps": 30,
     "idleFps": 10,
     "loadingTurnMs": 1200,
-    "emotionHoldMs": 1500
+    "emotionHoldMs": 1500,
+    "sleepMouthLevel": 0.05,
+    "sleepBobAmplitude": 10,
+    "sleepBobCycleMs": 6400
   },
   "audio": {
     "slots": {

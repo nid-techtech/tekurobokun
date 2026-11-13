@@ -125,6 +125,11 @@ export class PromptInput {
     this.textarea.focus({ preventScroll: true });
   }
 
+  /** フォーカスを外し、画面のキーボードを閉じる（全面の案内を出すとき）。 */
+  blur(): void {
+    this.textarea.blur();
+  }
+
   private renderHead(): void {
     this.head.replaceChildren(...promptHead(new Date(), this.prompt));
   }

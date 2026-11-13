@@ -76,6 +76,41 @@ describe("shapes（モックS02a〜S02dとの対応）", () => {
     ]);
   });
 
+  test("sleepは閉じた目：両端が目の中心の高さで、下へ90の半径でふくらむ弧（モックS02e）", () => {
+    const [arc] = eyeShapes("sleep", 184, "left", facial);
+    if (arc?.type !== "arc") throw new Error("expected an arc");
+    const end = (a: number) => [arc.x + arc.r * Math.cos(a), arc.y + arc.r * Math.sin(a)];
+    const [x1, y1] = end(arc.start);
+    const [x2, y2] = end(arc.stop);
+    expect(arc.r).toBe(90);
+    expect(x1).toBeCloseTo(264);
+    expect(x2).toBeCloseTo(104);
+    expect(y1).toBeCloseTo(149);
+    expect(y2).toBeCloseTo(149);
+    // 弧の最も低い点（真下）は、目の中心より下
+    expect(arc.start).toBeLessThan(Math.PI / 2);
+    expect(arc.stop).toBeGreaterThan(Math.PI / 2);
+    expect(arc.y + arc.r).toBeGreaterThan(149);
+  });
+
+  test("offsetYで顔全体が上下にずれる", () => {
+    const base = faceShapes({ eyes: "sleep", mouthRatio: 0.5, orbitAngle: 0 }, facial, 22);
+    const moved = faceShapes(
+      { eyes: "sleep", mouthRatio: 0.5, orbitAngle: 0, offsetY: -10 },
+      facial,
+      22,
+    );
+    expect(moved).toHaveLength(base.length);
+    for (const [i, s] of moved.entries()) {
+      const b = base[i];
+      if (s.type === "line" && b?.type === "line") {
+        expect([s.y1, s.y2]).toEqual([b.y1 - 10, b.y2 - 10]);
+      } else if (s.type !== "line" && b && b.type !== "line") {
+        expect(s.y).toBe(b.y - 10);
+      }
+    }
+  });
+
   test("話し中の口は高さだけが変わり、中心の高さは変わらない", () => {
     const small = mouthShapes(facial, 0.45)[0];
     const large = mouthShapes(facial, 1.3)[0];
@@ -187,6 +222,34 @@ describe("FaceState", () => {
     face.setState("LOADING", 100);
     face.setState("SPEAKING", 200);
     expect(face.scene(200, 0).eyes).toBe("neutral");
+  });
+
+  test("眠っている顔は閉じた目と少し開いた口で、ゆっくり上下に揺れる。prefers-reduced-motionでは止まる", () => {
+    const face = make();
+    face.setState("SLEEP", 0);
+    const top = face.scene(0, 1);
+    expect(top).toMatchObject({ eyes: "sleep", orbitAngle: 0 });
+    expect(top.mouthRatio).toBeCloseTo(
+      lipSync.minRatio + render.sleepMouthLevel * lipSync.rangeRatio,
+    );
+    expect(top.offsetY).toBeCloseTo(-render.sleepBobAmplitude);
+    expect(face.scene(render.sleepBobCycleMs / 2, 0).offsetY).toBeCloseTo(render.sleepBobAmplitude);
+    expect(face.scene(render.sleepBobCycleMs / 4, 0).offsetY).toBeCloseTo(0);
+    expect(face.animating).toBe(true);
+
+    const still = make(true);
+    still.setState("SLEEP", 0);
+    expect(still.scene(render.sleepBobCycleMs / 2, 0).offsetY).toBe(0);
+    expect(still.animating).toBe(false);
+  });
+
+  test("眠っている顔から戻ると、通常の目に戻る", () => {
+    const face = make();
+    face.setState("SLEEP", 0);
+    face.setState("IDLE", 1000);
+    const scene = face.scene(1000, 0);
+    expect(scene.eyes).not.toBe("sleep");
+    expect(scene.offsetY ?? 0).toBe(0);
   });
 
   test("待機中はまばたき・きょろきょろをし、描画頻度を下げてよい", () => {

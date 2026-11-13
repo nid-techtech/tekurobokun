@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { BroadcastMessage, Health, SpeechMessage, Turn } from "@tekurobokun/protocol";
+import { type ContentFilter, WordListFilter } from "./content_filter.ts";
+import type { LogEntry } from "./conversation_log.ts";
 import { InputDeviceRegistry } from "./devices.ts";
 import { type DialogueEngine, type DialogueResult, LlmError } from "./dialogue/engine.ts";
 import { ConversationSession, type Timers } from "./session.ts";
@@ -68,7 +70,13 @@ class ManualDialogue implements DialogueEngine {
 }
 
 function setup(
-  options: { llm?: boolean; tts?: boolean; robot?: boolean; displayTurns?: number } = {},
+  options: {
+    llm?: boolean;
+    tts?: boolean;
+    robot?: boolean;
+    displayTurns?: number;
+    filter?: ContentFilter;
+  } = {},
 ) {
   const dialogue = new ManualDialogue();
   const tts = new ManualTts();
@@ -96,6 +104,7 @@ function setup(
   let id = 0;
   const session = new ConversationSession({
     dialogue,
+    filter: options.filter,
     tts,
     devices,
     health,
@@ -172,14 +181,31 @@ describe("ConversationSession", () => {
     expect(session.history().map((t) => t.text)).toEqual(["1つ目"]);
   });
 
-  test("有効でない端末・空の発言・LLMが落ちているときは捨てる", async () => {
+  test("有効でない端末・空の発言・LLMかVOICEVOXが落ちているときは捨てる", async () => {
     const { session, emitted } = setup();
     expect(await session.handleUtterance("phone", "こんにちは")).toBe("inactive_device");
     expect(await session.handleUtterance("tablet", "   ")).toBe("empty");
-    const down = setup({ llm: false });
-    expect(await down.session.handleUtterance("tablet", "こんにちは")).toBe("llm_unavailable");
+    const llmDown = setup({ llm: false });
+    expect(await llmDown.session.handleUtterance("tablet", "こんにちは")).toBe("llm_unavailable");
+    const ttsDown = setup({ tts: false });
+    expect(await ttsDown.session.handleUtterance("tablet", "こんにちは")).toBe("tts_unavailable");
     expect(emitted).toHaveLength(0);
-    expect(down.emitted).toHaveLength(0);
+    for (const down of [llmDown, ttsDown]) {
+      expect(down.emitted).toHaveLength(0);
+      expect(down.dialogue.calls).toHaveLength(0);
+    }
+  });
+
+  test("落ちていたLLM・VOICEVOXが戻れば、また受け付ける", async () => {
+    const { session, dialogue, health } = setup({ llm: false, tts: false });
+    expect(await session.handleUtterance("tablet", "1")).toBe("llm_unavailable");
+    health.value.llm = true;
+    expect(await session.handleUtterance("tablet", "2")).toBe("tts_unavailable");
+    health.value.tts = true;
+    const done = session.handleUtterance("tablet", "3");
+    dialogue.answer("a");
+    expect(await done).toBe("accepted");
+    expect(session.history().map((t) => t.text)).toEqual(["3"]);
   });
 
   test("切り替えた端末から受け付ける", async () => {
@@ -283,10 +309,11 @@ describe("ConversationSession（話し中）", () => {
     expect(dialogue.calls).toHaveLength(1);
   });
 
-  test("機体がいない・VOICEVOXが落ちているときは、返事のあとすぐ待機中", async () => {
-    for (const options of [{ robot: false }, { robot: true, tts: false }]) {
-      const { session, dialogue, tts } = setup(options);
+  test("機体がいない・考え中にVOICEVOXが落ちたときは、返事のあとすぐ待機中", async () => {
+    for (const ttsDownWhileThinking of [false, true]) {
+      const { session, dialogue, tts, health } = setup({ robot: ttsDownWhileThinking });
       const done = session.handleUtterance("tablet", "こんにちは");
+      if (ttsDownWhileThinking) health.value.tts = false;
       dialogue.answer("やあ。");
       await done;
       expect(session.session).toBe("idle");
@@ -342,5 +369,203 @@ describe("ConversationSession（話し中）", () => {
   test("読み上げる文がない返事は、話し中に入らない", async () => {
     const { session } = await speakingSetup("   ");
     expect(session.session).toBe("idle");
+  });
+});
+
+describe("ConversationSession（禁止語）", () => {
+  const canned = { say: "その話はやめておきましょう。", emotion: "troubled" as const };
+  const filter = () => new WordListFilter({ words: ["バカ"], replies: [canned] });
+
+  test("入力が禁止語に当たったら、LLMに渡さずに定型の返事を返事とする", async () => {
+    const { session, dialogue, emitted } = setup({ filter: filter() });
+    expect(await session.handleUtterance("tablet", "バカ")).toBe("accepted");
+    expect(dialogue.calls).toHaveLength(0);
+    expect(session.session).toBe("idle");
+    expect(emitted.map((m) => m.type)).toEqual([
+      "turn_started",
+      "status",
+      "turn_replied",
+      "status",
+    ]);
+    expect(emitted[2]).toEqual({ type: "turn_replied", turnId: "t1", ...canned, thinkingMs: 0 });
+    expect(session.history()[0]?.reply).toEqual({ ...canned, thinkingMs: 0 });
+  });
+
+  test("禁止語に当たった発言は、あとの往復でもLLMに渡さない", async () => {
+    const { session, dialogue } = setup({ filter: filter() });
+    const first = session.handleUtterance("tablet", "こんにちは");
+    dialogue.answer("やあ。");
+    await first;
+    await session.handleUtterance("tablet", "バカ");
+    const third = session.handleUtterance("tablet", "元気？");
+    dialogue.answer("元気です。");
+    await third;
+    expect(dialogue.calls[1]?.history.map((t) => t.text)).toEqual(["こんにちは"]);
+    // 表示用の履歴には残る
+    expect(session.history().map((t) => t.text)).toEqual(["こんにちは", "バカ", "元気？"]);
+  });
+
+  test("LLMの返事が禁止語に当たったら、定型の返事に差し替える（考えた時間はそのまま）", async () => {
+    const { session, dialogue, emitted } = setup({ filter: filter() });
+    const done = session.handleUtterance("tablet", "何か言って");
+    dialogue.answer("バカですね。");
+    await done;
+    expect(dialogue.calls).toHaveLength(1);
+    expect(emitted.find((m) => m.type === "turn_replied")).toEqual({
+      type: "turn_replied",
+      turnId: "t1",
+      ...canned,
+      thinkingMs: 1200,
+    });
+  });
+
+  test("差し替えた返事も、機体がいれば話す", async () => {
+    const { session, tts } = setup({ filter: filter(), robot: true });
+    await session.handleUtterance("tablet", "バカ");
+    expect(session.session).toBe("speaking");
+    expect(tts.calls).toEqual([canned.say]);
+  });
+});
+
+describe("ConversationSession（会話ログ）", () => {
+  const canned = { say: "その話はやめておきましょう。", emotion: "troubled" as const };
+  function logged(options: Parameters<typeof setup>[0] = {}) {
+    const entries: LogEntry[] = [];
+    const s = setup(options);
+    const session = new ConversationSession({
+      dialogue: s.dialogue,
+      tts: s.tts,
+      filter: options.filter,
+      devices: s.devices,
+      health: s.health,
+      emit: (m) => s.emitted.push(m),
+      sendToRobot: (m) => s.speeches.push(m),
+      displayTurns: 50,
+      speakingGraceMs: 5000,
+      now: () => new Date(s.clock.ms),
+      timers: s.clock,
+      newId: () => "t1",
+      record: (e) => entries.push(e),
+    });
+    return { ...s, session, entries };
+  }
+
+  test("返事を得たら1行残す（imple 7節の手順3）", async () => {
+    const { session, dialogue, entries } = logged();
+    const done = session.handleUtterance("tablet", " こんにちは ");
+    expect(entries).toHaveLength(0);
+    dialogue.answer("やあ。");
+    await done;
+    expect(entries).toEqual([
+      {
+        at: "2026-11-14T10:02:11.000+09:00",
+        device: "tablet",
+        input: "こんにちは",
+        thinkingMs: 1200,
+        raw: "やあ。",
+        say: "やあ。",
+        emotion: "happy",
+        filtered: "none",
+        error: null,
+      },
+    ]);
+  });
+
+  test("禁止語の入力は、rawとthinkingMsをnull、sayを定型の返事で残す（手順5）", async () => {
+    const filter = new WordListFilter({ words: ["バカ"], replies: [canned] });
+    const { session, entries } = logged({ filter });
+    await session.handleUtterance("tablet", "バカ");
+    expect(entries[0]).toMatchObject({
+      input: "バカ",
+      thinkingMs: null,
+      raw: null,
+      ...canned,
+      filtered: "input",
+      error: null,
+    });
+  });
+
+  test("禁止語の返事は、rawを生の出力のまま、sayを定型の返事で残す（手順6）", async () => {
+    const filter = new WordListFilter({ words: ["バカ"], replies: [canned] });
+    const { session, dialogue, entries } = logged({ filter });
+    const done = session.handleUtterance("tablet", "何か言って");
+    dialogue.answer("バカですね。");
+    await done;
+    expect(entries[0]).toMatchObject({
+      thinkingMs: 1200,
+      raw: "バカですね。",
+      ...canned,
+      filtered: "output",
+    });
+  });
+
+  test("切り替えた端末からの発言は、その端末名で残す（手順8）", async () => {
+    const { session, dialogue, devices, entries } = logged();
+    devices.setActive("phone");
+    const done = session.handleUtterance("phone", "スマホから");
+    dialogue.answer("a");
+    await done;
+    expect(entries[0]?.device).toBe("phone");
+  });
+
+  test("LLMが落ちている状態で届いた発言、LLMの失敗は、error付きで残す（手順9）", async () => {
+    const failedFields: Omit<LogEntry, "at" | "device" | "input"> = {
+      thinkingMs: null,
+      raw: null,
+      say: null,
+      emotion: null,
+      filtered: "none",
+      error: "llm_unavailable",
+    };
+    const down = logged({ llm: false });
+    expect(await down.session.handleUtterance("tablet", "こんにちは")).toBe("llm_unavailable");
+    expect(down.entries).toEqual([
+      {
+        at: "2026-11-14T10:02:11.000+09:00",
+        device: "tablet",
+        input: "こんにちは",
+        ...failedFields,
+      },
+    ]);
+
+    const failing = logged();
+    const done = failing.session.handleUtterance("tablet", "こんにちは");
+    failing.dialogue.fail();
+    await done;
+    expect(failing.entries[0]).toMatchObject(failedFields);
+  });
+
+  test("捨てた発言（考え中・別の端末・空・VOICEVOXが落ちている）は残さない（手順4・二重操作）", async () => {
+    const { session, dialogue, entries } = logged();
+    const first = session.handleUtterance("tablet", "1つ目");
+    await session.handleUtterance("tablet", "1つ目");
+    await session.handleUtterance("phone", "別の端末");
+    dialogue.answer("a");
+    await first;
+    await session.handleUtterance("tablet", "  ");
+    expect(entries).toHaveLength(1);
+    const ttsDown = logged({ tts: false });
+    await ttsDown.session.handleUtterance("tablet", "こんにちは");
+    expect(ttsDown.entries).toHaveLength(0);
+  });
+
+  test("ログから戻した履歴は表示用だけで、LLMには渡さない（手順10）", async () => {
+    const { session, dialogue } = logged();
+    const restored: Turn[] = [
+      {
+        id: "log-1",
+        at: "2026-11-14T10:00:00.000+09:00",
+        device: "tablet",
+        text: "前回の発言",
+        reply: { say: "前回の返事", emotion: "neutral", thinkingMs: 900 },
+      },
+    ];
+    session.restoreHistory(restored);
+    expect(session.history()).toEqual(restored);
+    const done = session.handleUtterance("tablet", "こんにちは");
+    dialogue.answer("やあ。");
+    await done;
+    expect(dialogue.calls[0]?.history).toEqual([]);
+    expect(session.history().map((t) => t.text)).toEqual(["前回の発言", "こんにちは"]);
   });
 });

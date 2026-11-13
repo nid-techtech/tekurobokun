@@ -2,7 +2,7 @@
 // - IDLE：通常の目でまばたき・きょろきょろ。話し終えた直後は、しばらく感情の目を残す
 // - SPEAKING：emotionの目。口の高さは再生中の音の大きさに合わせて伸び縮みする
 // - LOADING：内側の円が外側の円の中を回る
-// - SLEEP：眠っている顔はPhase 4で描く。それまではIDLEと同じ
+// - SLEEP：眠っている顔（S02e）。目を閉じ、口を少し開け、顔全体がゆっくり上下に揺れる
 
 import type { Emotion } from "@tekurobokun/protocol";
 import { followOpenness } from "../audio/lipSync";
@@ -64,6 +64,7 @@ export class FaceState {
 
   /** 描画頻度を上げるべきか（形が毎フレーム変わりうる状態か）。 */
   get animating(): boolean {
+    if (this.state === "SLEEP") return !this.reducedMotion();
     return this.state === "SPEAKING" || this.state === "LOADING";
   }
 
@@ -84,6 +85,18 @@ export class FaceState {
           mouthRatio: lipSync.minRatio + this.openness * lipSync.rangeRatio,
           orbitAngle: 0,
         };
+      case "SLEEP": {
+        // 上端から下端へ、下端から上端へ、なめらかに折り返す（モックのease-in-outのalternate）
+        const bob = this.reducedMotion()
+          ? 0
+          : -render.sleepBobAmplitude * Math.cos((2 * Math.PI * nowMs) / render.sleepBobCycleMs);
+        return {
+          eyes: "sleep",
+          mouthRatio: lipSync.minRatio + render.sleepMouthLevel * lipSync.rangeRatio,
+          orbitAngle: 0,
+          offsetY: bob,
+        };
+      }
       default:
         return { eyes: this.idleEyes(nowMs), mouthRatio: 1, orbitAngle: 0 };
     }

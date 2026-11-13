@@ -92,7 +92,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: T3-1〜T3-11・W3-6完了。次はユーザーのW3-7・W3-8。仕様変更（`development/261114061251_change_backend_windows.md`）でバックエンドPCをWindows 11にした（Phase 4・5の項目だけが変わった）。話者は琴詠ニア＝id 74。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
+引き継ぎ: Phase 3の検証（W3-1〜W3-8）はすべて通過。次はPhase 4のT4-1から（`/clear`してから）。機体の発話をタブレットのディクテーションが拾って送り返すことがある（W3-8のメモ）。配置やマイクで対処するか、ソフトで抑える仕様変更にするかは未決。バックエンドPCはWindows 11（`development/261114061251_change_backend_windows.md`）。話者は琴詠ニア＝id 74。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
 - [x] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
   - 実施: Opus・low
   - メモ: `apps/backend/src/tts/`。文は句点・感嘆符・疑問符（全角・半角）と改行で分け、続く閉じかっこは前の文に付ける。長さはWAVのヘッダーから求める。APIはVOICEVOX ENGINEのREADMEで確認。スタブは文字数×120ms（0.6〜8秒）の正弦波で、音量を5Hzで揺らす

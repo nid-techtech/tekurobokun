@@ -92,7 +92,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: T3-1〜T3-6・T3-8完了（`check`通過、機体アプリのViteビルド通過）。残りはT3-7（ユーザー）と、W3-1からの検証。スタブのバックエンドと機体アプリを実際に起動しての確認はまだ（W3-2で行う）。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
+引き継ぎ: T3-1〜T3-8完了（`check`通過、機体アプリのViteビルド通過。話者は琴詠ニア＝id 74）。次はW3-1からの検証。スタブのバックエンドと機体アプリを実際に起動しての確認はまだ（W3-2で行う）。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
 - [x] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
   - 実施: Opus・low
   - メモ: `apps/backend/src/tts/`。文は句点・感嘆符・疑問符（全角・半角）と改行で分け、続く閉じかっこは前の文に付ける。長さはWAVのヘッダーから求める。APIはVOICEVOX ENGINEのREADMEで確認。スタブは文字数×120ms（0.6〜8秒）の正弦波で、音量を5Hzで揺らす
@@ -122,8 +122,9 @@ Phaseの推奨: Opus・high以上
   - メモ: 状態行「話し中」と入力行を隠すのはPhase 2の実装のまま。モックS01dに合わせ、話し中は最後の返事の行の末尾でカーソル（`.cursor`、`--cursor-blink`）を点滅させ、`prefers-reduced-motion`では止める
   - 依存: T3-2
   - 画面: S01d
-- [ ] T3-7 【ユーザー】開発機のVOICEVOXで話者を聞き比べて決め、`config/backend.local.json`に書く（仮でよい）
+- [x] T3-7 【ユーザー】開発機のVOICEVOXで話者を聞き比べて決め、`config/backend.local.json`に書く（仮でよい）
   - 依存: T1-9, T3-1
+  - メモ: Web版のVOICEVOXで聞き比べ、琴詠ニア（ノーマル、スタイルid 74）に決めた。`tts.speaker: 74`。クレジット表記の要否は利用規約で確認する
 - [x] T3-8 【エージェント】`CONTRIBUTING.md`に、機体アプリの起動方法と設定を追記する
   - 推奨: Sonnet・medium以上
   - 実施: Opus・low

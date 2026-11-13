@@ -189,7 +189,7 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 | ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
 | `port`                             | 待ち受けのポート（入力ページとWebSocket）                                       | `8787`                             |
 | `llm.baseUrl`                      | llama-serverの接続先（OpenAI互換API）                                           | `http://127.0.0.1:8080`            |
-| `llm.model`                        | モデル名（llama-serverの`--alias`）                                             | `gemma-4-e2b`                      |
+| `llm.model`                        | モデル名（llama-serverの`--alias`）                                             | `qwen3-4b`                         |
 | `llm.contextTurns`                 | LLMに渡す直近の往復数                                                           | `4`                                |
 | `llm.jsonSchema`                   | JSONスキーマ制約（`response_format`）を使うか                                   | `true`                             |
 | `llm.maxTokens`・`llm.temperature` | 生成の上限トークン数と温度                                                      | `256`・`0.7`                       |
@@ -233,84 +233,50 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 
 ### llama-server（llama.cpp）
 
+使うモデルはQwen3-4B、予備はGemma 4 E2Bです（どちらも4bitのGGUF、Apache-2.0）。本番のバックエンドPCでも、同じポートと`--alias`で起動します。
+
+| モデル              | ポート | `--alias`     | ファイル                   | 入手先                                                                              |
+| ------------------- | ------ | ------------- | -------------------------- | ----------------------------------------------------------------------------------- |
+| Qwen3-4B            | 8080   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF)                     |
+| Gemma 4 E2B（予備） | 8081   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` | [ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) |
+
 1. [llama.cppのReleases](https://github.com/ggml-org/llama.cpp/releases)から、`b`で始まる最新のビルドの`llama-b{番号}-bin-win-cpu-x64.zip`をダウンロードします（GPUを使う場合は`win-vulkan-x64`）
 2. `$HOME\tekurobo_servers\llama`に展開します
-3. モデル（Gemma 4 E2B、4bitのGGUF）を[ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF)からダウンロードし、`$HOME\tekurobo_servers\models`に置きます。使うファイルは`gemma-4-E2B-it-Q4_0.gguf`です（Apache-2.0）
+3. モデルを`$HOME\tekurobo_servers\models`にダウンロードします
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\tekurobo_servers\models" | Out-Null
+curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
+  "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
 curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
   "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf"
 ```
 
-起動（ポートは明示します。既定のポートは版によって変わるため）：
+起動（ポートは明示します。既定のポートは版によって変わるため）。予備のE2Bは、使うときだけ別のPowerShellで起動します。
 
 ```powershell
-& "$HOME\tekurobo_servers\llama\llama-server.exe" `
-  -m "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  --alias gemma-4-e2b --host 127.0.0.1 --port 8080 -c 4096
-```
-
-#### 比較用のモデル（Gemma 4 E4B・Qwen3-4B）
-
-モデルを比べるときは、モデルごとにポートを分けて、E2Bと並べて起動します。`--alias`は、バックエンドの`llm.model`と比較スクリプトの`model`にそのまま書く名前です。
-
-```powershell
-curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E4B-it-Q4_0.gguf" `
-  "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf"
-curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
-  "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
-```
-
-起動（それぞれ別のPowerShellで）：
-
-```powershell
-# Gemma 4 E4B（ポート8081）
-& "$HOME\tekurobo_servers\llama\llama-server.exe" `
-  -m "$HOME\tekurobo_servers\models\gemma-4-E4B-it-Q4_0.gguf" `
-  --alias gemma-4-e4b --host 127.0.0.1 --port 8081 -c 4096
-
-# Qwen3-4B（ポート8082）。思考出力はサーバーの側でも止める
+# Qwen3-4B（ポート8080）。思考出力はサーバーの側でも止める（バックエンドも enable_thinking: false を送る）
 & "$HOME\tekurobo_servers\llama\llama-server.exe" `
   -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
-  --alias qwen3-4b --host 127.0.0.1 --port 8082 -c 4096 --reasoning off
+  --alias qwen3-4b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
+
+# Gemma 4 E2B（予備、ポート8081）
+& "$HOME\tekurobo_servers\llama\llama-server.exe" `
+  -m "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
+  --alias gemma-4-e2b --host 127.0.0.1 --port 8081 -c 4096
 ```
 
-| モデル      | ポート | `--alias`     | ファイル                   |
-| ----------- | ------ | ------------- | -------------------------- |
-| Gemma 4 E2B | 8080   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` |
-| Gemma 4 E4B | 8081   | `gemma-4-e4b` | `gemma-4-E4B-it-Q4_0.gguf` |
-| Qwen3-4B    | 8082   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     |
-
-E4BとQwen3-4Bは、4bitの量子化の種類が違います（Qwen3-4Bは`Q4_0`が配られていないため`Q4_K_M`）。
-
-**バックエンドを比較用のモデルにつなぐ**：`config/backend.local.json`の`llm`に、ポートと`--alias`の名前を書き、バックエンドを再起動します（E2Bに戻すときは`llm`を消します）。
+`config/backend.default.json`の初期値はQwen3-4B（`http://127.0.0.1:8080`、`qwen3-4b`）なので、上書きなしでつながります。**予備のE2Bに切り替える**ときは、`config/backend.local.json`の`llm`に次を書き、バックエンドを再起動します（Qwen3-4Bに戻すときは`llm`を消します）。
 
 ```json
 {
-  "llm": { "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e4b" }
+  "llm": { "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e2b" }
 }
 ```
 
-```json
-{
-  "llm": { "baseUrl": "http://127.0.0.1:8082", "model": "qwen3-4b" }
-}
-```
+モデルの比較（`bun run bench`）は、初期値でQwen3-4BとE2Bの両方に問い合わせます（「モデルの比較」）。開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。
 
-**比較スクリプトで3つを比べる**：`config/bench.local.json`に3つの接続先を書き、`bun run bench`を実行します（`targets`は配列なので、まるごと置き換わります）。
-
-```json
-{
-  "targets": [
-    { "name": "gemma-4-e4b", "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e4b" },
-    { "name": "qwen3-4b", "baseUrl": "http://127.0.0.1:8082", "model": "qwen3-4b" },
-    { "name": "gemma-4-e2b", "baseUrl": "http://127.0.0.1:8080", "model": "gemma-4-e2b" }
-  ]
-}
-```
-
-開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。モデル同士を比べる目安にしてください。
+モデルは、開発機での比較（Gemma 4 E4B・Qwen3-4B・E2B）で決めました。経緯は`roadmap/development/261113172152_change_model_qwen3.md`にあります。
 
 ### VOICEVOX ENGINE 0.25.2
 
@@ -340,7 +306,7 @@ curl.exe -s http://127.0.0.1:8080/v1/models
 # 会話（OpenAI互換API）。choices[0].message.content に返事が入る
 @'
 {
-  "model": "gemma-4-e2b",
+  "model": "qwen3-4b",
   "messages": [{ "role": "user", "content": "こんにちは。一言で自己紹介してください。" }],
   "max_tokens": 128
 }
@@ -367,7 +333,7 @@ curl.exe -s -X POST "http://127.0.0.1:50021/synthesis?speaker=1" `
 Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 ```
 
-バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・50021）とモデル名（`gemma-4-e2b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
+バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・50021）とモデル名（`qwen3-4b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
 
 ## リポジトリ構成
 

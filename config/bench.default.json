@@ -1,8 +1,13 @@
 {
   "targets": [
     {
-      "name": "gemma-4-e2b",
+      "name": "qwen3-4b",
       "baseUrl": "http://127.0.0.1:8080",
+      "model": "qwen3-4b"
+    },
+    {
+      "name": "gemma-4-e2b",
+      "baseUrl": "http://127.0.0.1:8081",
       "model": "gemma-4-e2b"
     }
   ],

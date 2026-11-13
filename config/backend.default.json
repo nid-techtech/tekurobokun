@@ -2,7 +2,7 @@
   "port": 8787,
   "llm": {
     "baseUrl": "http://127.0.0.1:8080",
-    "model": "gemma-4-e2b",
+    "model": "qwen3-4b",
     "contextTurns": 4,
     "jsonSchema": true,
     "maxTokens": 256,

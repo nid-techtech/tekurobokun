@@ -1,6 +1,6 @@
 # tekurobokun tasks（展示版）
 
-目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261113063547_imple_exhibition.md`。
+目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261113173052_imple_exhibition.md`。
 
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
@@ -92,7 +92,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: T3-1〜T3-8、W3-1〜W3-3完了（話者は琴詠ニア＝id 74）。次はユーザーの実機確認W3-4・W3-5。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
+引き継ぎ: 仕様変更（`development/261113172152_change_model_qwen3.md`、使うモデルをQwen3-4Bに決定）で、T3-9〜T3-11とW3-6を足した。T3-9〜T3-11完了。次はW3-6、そのあとユーザーのW3-7・W3-8。話者は琴詠ニア＝id 74。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
 - [x] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
   - 実施: Opus・low
   - メモ: `apps/backend/src/tts/`。文は句点・感嘆符・疑問符（全角・半角）と改行で分け、続く閉じかっこは前の文に付ける。長さはWAVのヘッダーから求める。APIはVOICEVOX ENGINEのREADMEで確認。スタブは文字数×120ms（0.6〜8秒）の正弦波で、音量を5Hzで揺らす
@@ -130,6 +130,17 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・low
   - メモ: 機体アプリの節に、スタブで会話を通す手順、別のPCのバックエンドにつなぐ`config.local.json`、設定の一覧を書いた。設定ファイルの節に、話し中の進み方と、VOICEVOX・機体がないときの振る舞いを足した
   - 依存: T3-6
+- [x] T3-9 【エージェント】使うモデルをQwen3-4Bにする：`config/backend.default.json`の`llm.model`を`qwen3-4b`に、`config/bench.default.json`の接続先をQwen3-4B（8080）とE2B（8081）にする。`CONTRIBUTING.md`の「開発機の仮のサーバー」を、Qwen3-4B（8080、`--reasoning off`）を主、E2B（8081）を予備にした手順に書き直し、E4Bの手順を消す
+  - 推奨: Sonnet・medium以上
+  - 実施: Opus・low
+  - メモ: `CONTRIBUTING.md`のllama-serverの節を、モデルの表（ポート・alias・ファイル・入手先）、Qwen3-4B（8080）とE2B（8081）の起動、予備への切り替えの`backend.local.json`に書き直した。設定ファイルの表と動作確認のコマンドのモデル名も`qwen3-4b`にした
+  - 依存: T2-5, T3-8
+- [x] T3-10 【ユーザー】開発機の仮のサーバーを、Qwen3-4Bをポート8080、E2Bをポート8081で起動し直す。`config/backend.local.json`の`llm`の上書き（ポート8082）と、比較のときに作った`config/bench.local.json`を消す
+  - 依存: T3-9
+- [x] T3-11 【ユーザー】人格プロンプト（`config/persona.md`）に「どうやって動いているか」への答えを足し、`bun run bench -- --target qwen3-4b --repeat 3`で、ずれた答えが減ったかを確かめる
+  - 依存: T3-10
+  - メモ: ベンチ（`logs/bench/261113191518.md`）は30問で失敗0・形式の崩れ0、中央値2765ms。「どうやって動いてるの？」は3回とも「AIが考えて、答えを発声しています」になり、ずれは消えた。代わりに会話例の言い回しをなぞり、「何ができるの？」にも同じ答えを返す。ユーザーの判断で、このままとする
+  - メモ: 会話例を直して再測定（`logs/bench/261113193122.md`）。失敗0・崩れ0、中央値2995ms。パソコンの説明は「中にパソコン、別のパソコンで考える」でそろった
 
 ## Phase 4: 止まらない展示
 Phaseの推奨: Opus・high以上
@@ -156,11 +167,12 @@ Phaseの推奨: Opus・high以上
 - [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、バックエンドPC（Ubuntu）の準備、展示当日の起動手順、端末の切り替え方を追記する
   - 推奨: Sonnet・medium以上
   - 依存: T4-6
-- [ ] T4-10 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Gemma 4 E4B・Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）とBun 1.4を入れ、リポジトリを置き、LANでのIPを固定する
+- [ ] T4-10 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）とBun 1.4を入れ、リポジトリを置き、LANでのIPを固定する
   - 依存: T4-9
   - 準備ができ次第、前のPhaseの途中でも進めてよい（手順はT1-8の`CONTRIBUTING.md`の仮のサーバーの手順を参考にする）
-- [ ] T4-11 【ユーザー】バックエンドPCで比較スクリプトを実行し、使うモデルを決めて`config/backend.local.json`に書く
-  - 依存: T2-5, T2-6, T4-10
+- [ ] T4-11 【ユーザー】バックエンドPCで比較スクリプトを実行し、GPU（RX480）でのQwen3-4BとE2Bの考えた時間を測る（応答時間の目標を決める材料にする）
+  - 依存: T2-5, T4-10
+  - メモ: 使うモデルは仕様変更（`development/261113172152_change_model_qwen3.md`）でQwen3-4Bに決めた。ここでは速度だけを測る
 
 ## Phase 5: 字幕と公開の準備（時間があれば）
 Phaseの推奨: Sonnet・high以上

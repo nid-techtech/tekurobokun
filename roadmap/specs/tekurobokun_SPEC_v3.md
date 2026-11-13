@@ -1,6 +1,6 @@
 # tekurobokun スペックシート（展示版）
 
-TECH✩TECHのマスコット「テクロボくん」を、ローカルLLMで会話できるロボットにする。本書は、2026年11月14日のメイカーズイベントで展示する最初の版を対象とする。
+TECH☆TECHのマスコット「テクロボくん」を、ローカルLLMで会話できるロボットにする。本書は、2026年11月14日のメイカーズイベントで展示する最初の版を対象とする。
 
 前身の`nid-techtech/tekurobokun-lite`（ヘボコン版）のコードを機体側に引き継ぐ。ヘボコン版の仕様は`tekurobo_hebocon_spec_rev4.md`（旧リポジトリの`assets/`）、全体構想は`docs/reference/tekurobo_full_vision_spec.md`を参照する。
 
@@ -69,7 +69,7 @@ TECH✩TECHのマスコット「テクロボくん」を、ローカルLLMで会
 | 機体アプリ | Tauri 2 ＋ TypeScript ＋ Vite、p5.js 2系（現行安定版2.3.3） | ヘボコン版の構成をそのまま引き継ぐ |
 | バックエンド | Bun（1.4系）、`Bun.serve`のHTTP＋WebSocket | 機体と同じTypeScriptで型を共有できる。BunはWindows・Linuxの両方に対応 |
 | LLM実行 | llama.cpp の llama-server（Vulkanバックエンド、v0.7.0以降） | OpenAI互換API。RX480（Polaris）はROCmの対象外のためVulkanを使う。UbuntuのVulkanドライバーでの動作は着手時に確認する |
-| モデル | Gemma 4 E4B と Qwen3-4B を比較し、1つに決める。予備は Gemma 4 E2B | いずれもApache-2.0。E4Bは4bitで約5.5〜6GB、E2Bは約4GB。Qwen3は思考出力を無効にして使う |
+| モデル | Qwen3-4B（4bit）。予備は Gemma 4 E2B（4bit） | いずれもApache-2.0。Qwen3は思考出力を無効にして使う。開発機での比較（Gemma 4 E4Bは遅く、返事の形式が崩れる）で決めた |
 | 音声合成 | VOICEVOX ENGINE 0.25.2（Linux CPU版、ポート50021） | `/audio_query`→`/synthesis`でWAVを得る。GPUはLLMに使うためCPUで動かす |
 | 入力ページ | 素のTypeScript ＋ Vite | 既定（Vue・SvelteKit・Astro）から外す。1画面だけで、機体アプリと書き方と型を共有できるため |
 | i18n | Paraglide JS 2（Viteプラグイン） | 素のTypeScriptに対応し、キーと引数の型チェック、`Intl.PluralRules`による複数形がある。言語切り替えは`reload: false`で自前で再描画する |
@@ -189,7 +189,6 @@ LLMの出力形式は、llama.cppのJSONスキーマ制約がOpenAI互換のチ�
 
 | 項目 | 選択肢とトレードオフ |
 |---|---|
-| 使うモデル | Gemma 4 E4B（大きめで賢いが遅い）／Qwen3-4B（定番だが日本語の細部に限界）／E2B（速いが返事が単調になりやすい）。展示まで日がないため、文字だけの会話が通る段階までに、日本語の受け答えと速度を1回測って決める |
 | 応答時間の目標 | 送信から発話開始までの目標秒数。モデルと音声合成の実測後に決める |
 | VOICEVOXの話者 | キャラクターごとに声の印象とクレジット表記の規約が違う。決めたら掲示物に「VOICEVOX:キャラクター名」を入れる |
 | 人格プロンプトの中身 | 全体構想の人格設定を土台に、開発者が書く。短いほど小さいモデルでも守られやすい |

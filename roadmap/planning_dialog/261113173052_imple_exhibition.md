@@ -1,6 +1,6 @@
 # tekurobokun 実装計画（展示版）
 
-対象：`roadmap/specs/tekurobokun_SPEC_v2.md`（プランアセット v2。v1からの変更は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
+対象：`roadmap/specs/tekurobokun_SPEC_v3.md`（プランアセット v3。v2からの変更は`development/261113172152_change_model_qwen3.md`、v1からv2は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
 
 ## 1. 方針
 
@@ -152,7 +152,7 @@ interface ContentFilter {
 
 `config/*.default.json`をGitで管理し、同名の`*.local.json`があれば項目ごとに上書きする（`*.local.json`はGit管理外）。
 
-- `config/backend.default.json`：待ち受けのポート、llama-serverの接続先とモデル名、直近の往復数、VOICEVOXの接続先と話者、端末の一覧と起動時に有効な端末、自動送信の待ち時間（3000ms）、入力ページの文字の大きさ（18px）と下部マージン（`console.bottomInsetPx`、0px）、プロンプトのユーザー名・ホスト名・ディレクトリ名、話し中のタイムアウトの余裕、ヘルスチェックの間隔
+- `config/backend.default.json`：待ち受けのポート、llama-serverの接続先（`http://127.0.0.1:8080`）とモデル名（`qwen3-4b`）、直近の往復数、VOICEVOXの接続先と話者、端末の一覧と起動時に有効な端末、自動送信の待ち時間（3000ms）、入力ページの文字の大きさ（18px）と下部マージン（`console.bottomInsetPx`、0px）、プロンプトのユーザー名・ホスト名・ディレクトリ名、話し中のタイムアウトの余裕、ヘルスチェックの間隔
 - `config/persona.md`：人格プロンプト（ユーザーが書く）
 - `config/filter.default.json`：禁止語リストと定型の返事（ユーザーが書く）
 - `apps/robot/src/config/config.default.json`：バックエンドの接続先、目・口の基本座標（ヘボコン版の値）、アイドル動作と口パクのパラメータ
@@ -225,6 +225,6 @@ type LogEntry = {
 検証は3段階で行う。段階が上がっても、変わるのは`config/backend.local.json`の接続先とモデル名だけとする。
 
 - **スタブ**：開発機（Windows）で`apps/backend`をスタブ（`--stub`）で起動する。LLM・VOICEVOXなしで入力ページと機体を動かせる。【エージェント】の検証はこの段階で行う
-- **仮のサーバー**（Phase 1〜3）：開発機に、llama-server（Windows版、CPU）とGemma 4 E2B、VOICEVOX ENGINE（Windows版）を置き、実際のAPIで会話を通す。JSONの形式指定、返事の検証、文の分割と合成、機体での再生を、バックエンドPCの準備を待たずに確かめる
-- **本番**（Phase 4）：バックエンドPC（Ubuntu、RX480）に移し、GPU（Vulkan）での動作、モデルの比較と決定、応答時間、連続稼働を確かめる。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ
+- **仮のサーバー**（Phase 1〜3）：開発機に、llama-server（Windows版、CPU）とQwen3-4B（ポート8080。予備のGemma 4 E2Bはポート8081）、VOICEVOX ENGINE（Windows版）を置き、実際のAPIで会話を通す。JSONの形式指定、返事の検証、文の分割と合成、機体での再生を、バックエンドPCの準備を待たずに確かめる
+- **本番**（Phase 4）：バックエンドPC（Ubuntu、RX480）に移し、GPU（Vulkan）での動作と考えた時間、応答時間、連続稼働を確かめる。ポートとモデル名は仮のサーバーと同じにする。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ
 - **タブレットへのインストール**：入力ページはHTTPのまま、タブレットのEdgeのflags（`edge://flags`のInsecure origins treated as secure）に、そのとき使うバックエンドのオリジン（`http://{IP}:8787`）を登録してから、PWAとしてインストールする。仮のサーバー（開発機）から本番（バックエンドPC）に移るとオリジンが変わるため、登録とインストールをやり直す。キーボードとのずれが残れば、`config/backend.local.json`の`console.bottomInsetPx`で調節する

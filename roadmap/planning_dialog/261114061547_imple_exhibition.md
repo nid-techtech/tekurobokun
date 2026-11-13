@@ -1,12 +1,12 @@
 # tekurobokun 実装計画（展示版）
 
-対象：`roadmap/specs/tekurobokun_SPEC_v3.md`（プランアセット v3。v2からの変更は`development/261113172152_change_model_qwen3.md`、v1からv2は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
+対象：`roadmap/specs/tekurobokun_SPEC_v4.md`（プランアセット v4。v3からの変更は`development/261114061251_change_backend_windows.md`、v2からv3は`development/261113172152_change_model_qwen3.md`、v1からv2は`development/261113061803_change_console_pwa_viewport.md`）。展示は2026年11月14日。
 
 ## 1. 方針
 
 - 目標はPhase 4まで（展示で止まらずに会話できる状態）。Phase 5は時間があれば行う
 - 会話が通る最小の形から順に積む。各Phaseの終わりで、そのPhaseまでの機能が実機で動く
-- LLMとVOICEVOXはバックエンドPC（Ubuntu）にしかないため、`apps/backend`にスタブの実装を持たせ、開発機（Windows）だけで全体を動かして確かめられるようにする
+- LLMとVOICEVOXは本番ではバックエンドPCで動かすため、`apps/backend`にスタブの実装を持たせ、開発機（Windows）だけで全体を動かして確かめられるようにする
 - 正本：振る舞いはスペックシート、値は`packages/theme/tokens.css`（`specs/`の写し）、画面構成はモック（S01・S02の各状態）、文言は`packages/i18n`の原文の辞書（移した時点で正本）
 
 Phaseの一覧
@@ -226,5 +226,7 @@ type LogEntry = {
 
 - **スタブ**：開発機（Windows）で`apps/backend`をスタブ（`--stub`）で起動する。LLM・VOICEVOXなしで入力ページと機体を動かせる。【エージェント】の検証はこの段階で行う
 - **仮のサーバー**（Phase 1〜3）：開発機に、llama-server（Windows版、CPU）とQwen3-4B（ポート8080。予備のGemma 4 E2Bはポート8081）、VOICEVOX ENGINE（Windows版）を置き、実際のAPIで会話を通す。JSONの形式指定、返事の検証、文の分割と合成、機体での再生を、バックエンドPCの準備を待たずに確かめる
-- **本番**（Phase 4）：バックエンドPC（Ubuntu、RX480）に移し、GPU（Vulkan）での動作と考えた時間、応答時間、連続稼働を確かめる。ポートとモデル名は仮のサーバーと同じにする。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ
+- **本番**（Phase 4）：バックエンドPC（Windows 11、RX480）に移し、GPU（Vulkan）での動作と考えた時間、応答時間、連続稼働を確かめる。仮のサーバーと同じ手順で置き、llama-serverだけをVulkan版のビルドに替える。ポートとモデル名は仮のサーバーと同じにする。機体（Windows）・タブレット（Android）とは、持ち込みのルーターでつなぐ
 - **タブレットへのインストール**：入力ページはHTTPのまま、タブレットのEdgeのflags（`edge://flags`のInsecure origins treated as secure）に、そのとき使うバックエンドのオリジン（`http://{IP}:8787`）を登録してから、PWAとしてインストールする。仮のサーバー（開発機）から本番（バックエンドPC）に移るとオリジンが変わるため、登録とインストールをやり直す。キーボードとのずれが残れば、`config/backend.local.json`の`console.bottomInsetPx`で調節する
+- **自動起動**（Phase 5）：バックエンドPCを自動サインインにし、タスクスケジューラの「ログオン時」のタスクで、llama-server・VOICEVOX ENGINE・`apps/backend`を起動する。`apps/backend`は見えるターミナルのウィンドウで起動し、`OperatorConsole`の数字キーはそのウィンドウで押す。タスクの登録と取り消しは、PowerShellのスクリプト（`scripts/`）で行う。サービス（セッション0）にしないのは、画面のないセッションでは`OperatorConsole`のキー入力を受けられず、GPU（Vulkan）が使えない場合があるため
+- **展示中のWindowsの設定**：LANのネットワークを「プライベート」にし、Windows Defenderファイアウォールでポート8787の受信を許可する（llama-server・VOICEVOXは`127.0.0.1`からしか呼ばないので開けない）。スリープを無効にし、展示期間はWindows Updateを一時停止する

@@ -67,10 +67,10 @@ TECH☆TECHのマスコット「テクロボくん」を、ローカルLLMで会
 | 区分 | 採用 | 理由・確認した事実 |
 |---|---|---|
 | 機体アプリ | Tauri 2 ＋ TypeScript ＋ Vite、p5.js 2系（現行安定版2.3.3） | ヘボコン版の構成をそのまま引き継ぐ |
-| バックエンド | Bun（1.4系）、`Bun.serve`のHTTP＋WebSocket | 機体と同じTypeScriptで型を共有できる。BunはWindows・Linuxの両方に対応 |
-| LLM実行 | llama.cpp の llama-server（Vulkanバックエンド、v0.7.0以降） | OpenAI互換API。RX480（Polaris）はROCmの対象外のためVulkanを使う。UbuntuのVulkanドライバーでの動作は着手時に確認する |
+| バックエンド | Bun（1.4系）、`Bun.serve`のHTTP＋WebSocket | 機体と同じTypeScriptで型を共有できる。BunはWindowsに対応 |
+| LLM実行 | llama.cpp の llama-server（Vulkanバックエンド、v0.7.0以降） | OpenAI互換API。RX480（Polaris）はROCmの対象外のためVulkanを使う。WindowsのAMDドライバー（Adrenalin）のVulkanでの動作は着手時に確認する |
 | モデル | Qwen3-4B（4bit）。予備は Gemma 4 E2B（4bit） | いずれもApache-2.0。Qwen3は思考出力を無効にして使う。開発機での比較（Gemma 4 E4Bは遅く、返事の形式が崩れる）で決めた |
-| 音声合成 | VOICEVOX ENGINE 0.25.2（Linux CPU版、ポート50021） | `/audio_query`→`/synthesis`でWAVを得る。GPUはLLMに使うためCPUで動かす |
+| 音声合成 | VOICEVOX ENGINE 0.25.2（Windows CPU版、ポート50021） | `/audio_query`→`/synthesis`でWAVを得る。GPUはLLMに使うためCPUで動かす |
 | 入力ページ | 素のTypeScript ＋ Vite | 既定（Vue・SvelteKit・Astro）から外す。1画面だけで、機体アプリと書き方と型を共有できるため |
 | i18n | Paraglide JS 2（Viteプラグイン） | 素のTypeScriptに対応し、キーと引数の型チェック、`Intl.PluralRules`による複数形がある。言語切り替えは`reload: false`で自前で再描画する |
 | フォント | M PLUS 1 Code（入力ページ全体）、DotGothic16（機体の字幕）。いずれもSIL Open Font License | 入力ページは等幅で端末らしさを出す。オフラインで使うためファイルを同梱する |
@@ -82,7 +82,7 @@ LLMの出力形式は、llama.cppのJSONスキーマ制約がOpenAI互換のチ�
 ### 構成
 
 - **機体（Windows、Core m7）**：`apps/robot`。表示と音声再生だけを持つ薄いクライアント
-- **バックエンドPC（Ubuntu、Ryzen 5 3500・32GB・RX480）**：`apps/backend`が全体の制御を持ち、llama-server（GPU）とVOICEVOX ENGINE（CPU）を呼ぶ。入力ページ`apps/console`の配信も行う
+- **バックエンドPC（Windows 11、Ryzen 5 3500・32GB・RX480）**：`apps/backend`が全体の制御を持ち、llama-server（GPU）とVOICEVOX ENGINE（CPU）を呼ぶ。入力ページ`apps/console`の配信も行う
 - **入力端末**：ブラウザで入力ページを開くだけ
 - **通信**：機体と入力端末は、バックエンドとWebSocketでつながる。メッセージの型と取り決めは`packages/protocol`に1か所でまとめ、3つのアプリが共有する
 
@@ -172,7 +172,7 @@ LLMの出力形式は、llama.cppのJSONスキーマ制約がOpenAI互換のチ�
 - 一般公開はしない。各PCでリポジトリから準備して起動する
 - 機体アプリは`tauri build`でWindows用の実行ファイルを作る。コード署名はしない
 - 入力ページは、バックエンドが配信するものを、展示用のタブレット（Edge）にPWAとしてインストールする。HTTPSにはせず、Edgeのflagsで安全なオリジンとして扱わせる
-- バックエンドPCでは、llama-server・VOICEVOX ENGINE・`apps/backend`を自動起動にする（Ubuntu）
+- バックエンドPCでは、llama-server・VOICEVOX ENGINE・`apps/backend`をサインイン時に自動で起動する（Windows 11のタスクスケジューラ。自動サインインにする）
 - バージョンはSemVerで、初回は`0.1.0`
 
 ## 8. スコープ外

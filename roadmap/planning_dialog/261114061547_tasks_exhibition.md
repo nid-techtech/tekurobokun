@@ -1,6 +1,6 @@
 # tekurobokun tasks（展示版）
 
-目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261113173052_imple_exhibition.md`。
+目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261114061547_imple_exhibition.md`。
 
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
@@ -92,7 +92,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 3: 機体で話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: 仕様変更（`development/261113172152_change_model_qwen3.md`、使うモデルをQwen3-4Bに決定）で、T3-9〜T3-11とW3-6を足した。T3-9〜T3-11完了。次はW3-6、そのあとユーザーのW3-7・W3-8。話者は琴詠ニア＝id 74。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
+引き継ぎ: T3-1〜T3-11・W3-6完了。次はユーザーのW3-7・W3-8。仕様変更（`development/261114061251_change_backend_windows.md`）でバックエンドPCをWindows 11にした（Phase 4・5の項目だけが変わった）。話者は琴詠ニア＝id 74。眠っている顔は未実装で、`SLEEP`は待機中と同じ顔（T4-2で描く）
 - [x] T3-1 【エージェント】`TtsEngine`（VOICEVOX版とスタブ）を作る：文の分割、`/audio_query`→`/synthesis`、話者の設定。単体テストを書く
   - 実施: Opus・low
   - メモ: `apps/backend/src/tts/`。文は句点・感嘆符・疑問符（全角・半角）と改行で分け、続く閉じかっこは前の文に付ける。長さはWAVのヘッダーから求める。APIはVOICEVOX ENGINEのREADMEで確認。スタブは文字数×120ms（0.6〜8秒）の正弦波で、音量を5Hzで揺らす
@@ -164,10 +164,10 @@ Phaseの推奨: Opus・high以上
   - 依存: T4-5
 - [ ] T4-8 【ユーザー】会話ログの保存期間と、ブースに掲示する文言を決める（VOICEVOXのクレジットを含む）
   - 依存: T3-7
-- [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、バックエンドPC（Ubuntu）の準備、展示当日の起動手順、端末の切り替え方を追記する
+- [ ] T4-9 【エージェント】`CONTRIBUTING.md`に、バックエンドPC（Windows 11）の準備（仮のサーバーの手順を土台に、Vulkan版のllama-server、ファイアウォール、スリープとWindows Updateの設定）、展示当日の起動手順、端末の切り替え方を追記する。あわせて、冒頭と「開発機の仮のサーバー」の節にある「バックエンドPC（Ubuntu）」の記述を直す
   - 推奨: Sonnet・medium以上
   - 依存: T4-6
-- [ ] T4-10 【ユーザー】バックエンドPC（Ubuntu）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Linux CPU版）とBun 1.4を入れ、リポジトリを置き、LANでのIPを固定する
+- [ ] T4-10 【ユーザー】バックエンドPC（Windows 11）を準備する：llama-server（Vulkan、v0.7.0以降）をRX480で起動できるようにし、Qwen3-4B・Gemma 4 E2BのGGUF（4bit）を用意する。VOICEVOX ENGINE 0.25.2（Windows CPU版）とBun 1.4を入れ、リポジトリを置き、LANでのIPを固定する。LANのネットワークをプライベートにし、ポート8787の受信を許可する。スリープを無効にし、展示期間のWindows Updateを一時停止する
   - 依存: T4-9
   - 準備ができ次第、前のPhaseの途中でも進めてよい（手順はT1-8の`CONTRIBUTING.md`の仮のサーバーの手順を参考にする）
 - [ ] T4-11 【ユーザー】バックエンドPCで比較スクリプトを実行し、GPU（RX480）でのQwen3-4BとE2Bの考えた時間を測る（応答時間の目標を決める材料にする）
@@ -179,9 +179,9 @@ Phaseの推奨: Sonnet・high以上
 - [ ] T5-1 【エージェント】機体に`CaptionOverlay`（左上の1行の字幕、長い文は末尾側）を加える
   - 依存: T4-2
   - 画面: S02f
-- [ ] T5-2 【エージェント】バックエンドPCの自動起動の設定（llama-server・VOICEVOX ENGINE・`apps/backend`のsystemdユニット）を書く
+- [ ] T5-2 【エージェント】バックエンドPCの自動起動の設定を書く：タスクスケジューラに、llama-server・VOICEVOX ENGINE・`apps/backend`をログオン時に起動するタスクを登録するPowerShellのスクリプトと、登録を取り消すスクリプト（`scripts/`）
   - 依存: T4-9
-- [ ] T5-3 【ユーザー】バックエンドPCに自動起動の設定を入れる
+- [ ] T5-3 【ユーザー】バックエンドPCを自動サインインにし、T5-2のスクリプトでタスクを登録する
   - 依存: T5-2
 - [ ] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンを作る（入力ページのアイコンはT2-9で作る）
   - 推奨: Sonnet・medium以上

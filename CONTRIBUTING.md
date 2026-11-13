@@ -251,6 +251,67 @@ curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
   --alias gemma-4-e2b --host 127.0.0.1 --port 8080 -c 4096
 ```
 
+#### 比較用のモデル（Gemma 4 E4B・Qwen3-4B）
+
+モデルを比べるときは、モデルごとにポートを分けて、E2Bと並べて起動します。`--alias`は、バックエンドの`llm.model`と比較スクリプトの`model`にそのまま書く名前です。
+
+```powershell
+curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E4B-it-Q4_0.gguf" `
+  "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf"
+curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
+  "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
+```
+
+起動（それぞれ別のPowerShellで）：
+
+```powershell
+# Gemma 4 E4B（ポート8081）
+& "$HOME\tekurobo_servers\llama\llama-server.exe" `
+  -m "$HOME\tekurobo_servers\models\gemma-4-E4B-it-Q4_0.gguf" `
+  --alias gemma-4-e4b --host 127.0.0.1 --port 8081 -c 4096
+
+# Qwen3-4B（ポート8082）。思考出力はサーバーの側でも止める
+& "$HOME\tekurobo_servers\llama\llama-server.exe" `
+  -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
+  --alias qwen3-4b --host 127.0.0.1 --port 8082 -c 4096 --reasoning off
+```
+
+| モデル      | ポート | `--alias`     | ファイル                   |
+| ----------- | ------ | ------------- | -------------------------- |
+| Gemma 4 E2B | 8080   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` |
+| Gemma 4 E4B | 8081   | `gemma-4-e4b` | `gemma-4-E4B-it-Q4_0.gguf` |
+| Qwen3-4B    | 8082   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     |
+
+E4BとQwen3-4Bは、4bitの量子化の種類が違います（Qwen3-4Bは`Q4_0`が配られていないため`Q4_K_M`）。
+
+**バックエンドを比較用のモデルにつなぐ**：`config/backend.local.json`の`llm`に、ポートと`--alias`の名前を書き、バックエンドを再起動します（E2Bに戻すときは`llm`を消します）。
+
+```json
+{
+  "llm": { "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e4b" }
+}
+```
+
+```json
+{
+  "llm": { "baseUrl": "http://127.0.0.1:8082", "model": "qwen3-4b" }
+}
+```
+
+**比較スクリプトで3つを比べる**：`config/bench.local.json`に3つの接続先を書き、`bun run bench`を実行します（`targets`は配列なので、まるごと置き換わります）。
+
+```json
+{
+  "targets": [
+    { "name": "gemma-4-e4b", "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e4b" },
+    { "name": "qwen3-4b", "baseUrl": "http://127.0.0.1:8082", "model": "qwen3-4b" },
+    { "name": "gemma-4-e2b", "baseUrl": "http://127.0.0.1:8080", "model": "gemma-4-e2b" }
+  ]
+}
+```
+
+開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。モデル同士を比べる目安にしてください。
+
 ### VOICEVOX ENGINE 0.25.2
 
 1. [VOICEVOX ENGINEの0.25.2](https://github.com/VOICEVOX/voicevox_engine/releases/tag/0.25.2)から、`voicevox_engine-windows-cpu-0.25.2.7z.001`をダウンロードします

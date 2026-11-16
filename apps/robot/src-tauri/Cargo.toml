@@ -1,6 +1,6 @@
 [package]
 name = "tekurobokun"
-version = "0.0.0"
+version = "0.1.0"
 description = "tekurobokun robot app"
 authors = ["nid-techtech"]
 edition = "2021"

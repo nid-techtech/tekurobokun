@@ -16,6 +16,7 @@
     "console:dev": "bun run --filter @tekurobokun/console dev",
     "console:build": "bun run --filter @tekurobokun/console build",
     "console:icons": "bun scripts/gen_console_icons.ts",
+    "robot:icons": "bun scripts/gen_robot_icons.ts",
     "bench": "bun scripts/bench_dialogue.ts"
   },
   "devDependencies": {

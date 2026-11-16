@@ -1,4 +1,5 @@
 @import "@tekurobokun/theme/tokens.css";
+@import "@tekurobokun/theme/fonts.css";
 
 :root {
   color-scheme: dark;
@@ -13,6 +14,28 @@ body {
 /* 800x600固定。拡大縮小・レターボックスは発生させない（B1完了条件）。 */
 #facial-container canvas {
   display: block;
+}
+
+/* 字幕1行（S02f）。位置と大きさはconfigのcaptionから、JSがstyleに入れる。
+   row-reverseで右端を揃え、margin-right:autoで短い文は左寄せ、長い文は左側を切り捨てる。 */
+#caption-overlay {
+  position: fixed;
+  display: flex;
+  flex-direction: row-reverse;
+  overflow: hidden;
+  font-family: var(--font-caption);
+  color: var(--color-face-caption);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#caption-overlay > span {
+  flex: none;
+  margin-right: auto;
+}
+
+#caption-overlay[hidden] {
+  display: none;
 }
 
 /* B7: `/`キーでトグルするデバッグHUD。FacialEngineの描画には関与しない独立オーバーレイ */

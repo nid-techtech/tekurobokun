@@ -199,22 +199,37 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 5: 字幕と公開の準備（時間があれば）
 Phaseの推奨: Sonnet・high以上
-- [ ] T5-1 【エージェント】機体に`CaptionOverlay`（左上の1行の字幕、長い文は末尾側）を加える
+引き継ぎ: T5-1〜T5-8（T5-3を除く）完了。T5-3（自動サインインとタスクの登録）はユーザー。次はW5-1から。W5-3（字幕の実機確認）・W5-4（T5-3の確認）・W5-5〜W5-7はユーザー。スクリーンショットはREADMEに未掲載（実物から撮って`docs/images/`に置く）。ライセンスは未決（READMEは「まだ定めていない」と書いた）
+- [x] T5-1 【エージェント】機体に`CaptionOverlay`（左上の1行の字幕、長い文は末尾側）を加える
   - 依存: T4-2
   - 画面: S02f
-- [ ] T5-2 【エージェント】バックエンドPCの自動起動の設定を書く：タスクスケジューラに、llama-server・VOICEVOX ENGINE・`apps/backend`をログオン時に起動するタスクを登録するPowerShellのスクリプトと、登録を取り消すスクリプト（`scripts/`）
+  - 実施: Sonnet・high
+  - メモ: `apps/robot/src/caption/`（`captionFor`と単体テスト、`CaptionOverlay`）。1行に入らない文は、CSS（`row-reverse`＋`overflow:hidden`＋`margin-right:auto`）で左側を切り、末尾側を出す。位置と大きさは`config`の`caption`（x・y・maxWidth・fontSize・lineHeight）。考え中は`turn_started.turn.text`、話し中は`speech.text`（読み上げの開始から終了まで）。話し中でなくなったとき・切断時に字幕を消すようにした（それまでは`currentCaption`が残り得た）。実機での見え方はW5-3
+- [x] T5-2 【エージェント】バックエンドPCの自動起動の設定を書く：タスクスケジューラに、llama-server・VOICEVOX ENGINE・`apps/backend`をログオン時に起動するタスクを登録するPowerShellのスクリプトと、登録を取り消すスクリプト（`scripts/`）
   - 依存: T4-9
+  - 実施: Sonnet・high
+  - メモ: `scripts/register_backend_tasks.ps1`・`unregister_backend_tasks.ps1`（UTF-8のBOM付き。Windows PowerShell 5.1でも読める）。`\tekurobokun\`のフォルダに3タスク（ログオン時、`-NoExit`の見えるウィンドウ）。バックエンドは20秒遅らせる。管理者が要る。構文の検査とタスクの部品の組み立てまで確かめた（登録は管理者の操作のため未実行）
 - [ ] T5-3 【ユーザー】バックエンドPCを自動サインインにし、T5-2のスクリプトでタスクを登録する
   - 依存: T5-2
-- [ ] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンを作る（入力ページのアイコンはT2-9で作る）
+- [x] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンを作る（入力ページのアイコンはT2-9で作る）
   - 推奨: Sonnet・medium以上
   - 依存: T1-5
-- [ ] T5-5 【エージェント】CIのワークフロー（checkコマンドを呼ぶ）を作る
+  - 実施: Sonnet・medium
+  - メモ: `scripts/gen_robot_icons.ts`（`bun run robot:icons`）で`apps/robot/src-tauri/icons/`をマスターSVGから置き換えた。`tauri icon`が書き出すAndroid・iOS用は消す。既存はTauriの初期アイコンだった
+- [x] T5-5 【エージェント】CIのワークフロー（checkコマンドを呼ぶ）を作る
   - 依存: T4-9
-- [ ] T5-6 【エージェント】READMEとGitHubのAbout欄の文案を書く（会話を記録していること、外部に送らないこと、コード署名がないことを注意事項に含める）
+  - 実施: Sonnet・high
+  - メモ: `.github/workflows/check.yml`。`main`へのpushとプルリクエストで、windows-latestで`bun run check`。Bunは`packageManager`から。actions/checkout v7、setup-bun v2（最新を確認）。初回の実行はpush後（W5-7）
+- [x] T5-6 【エージェント】READMEとGitHubのAbout欄の文案を書く（会話を記録していること、外部に送らないこと、コード署名がないことを注意事項に含める）
   - 依存: T5-1
-- [ ] T5-7 【エージェント】`CONTRIBUTING.md`に、ビルド、アイコンの生成、リリース手順を追記する
+  - 実施: Sonnet・high
+  - メモ: `README.md`を作った。スクリーンショットは載せていない。GitHubのAbout欄の文案は、完了報告に書いた
+- [x] T5-7 【エージェント】`CONTRIBUTING.md`に、ビルド、アイコンの生成、リリース手順を追記する
   - 推奨: Sonnet・medium以上
   - 依存: T5-4, T5-5
-- [ ] T5-8 【エージェント】0.1.0のリリース準備をする（`CHANGELOG.md`、バージョン、`timeline.md`、`tauri build`の確認）。コミットメッセージとコマンドの提示で停止する
+  - 実施: Sonnet・medium
+  - メモ: `CONTRIBUTING.md`に「自動起動」「ビルド」「アイコンの生成」「リリース」を足し、字幕の設定とCI、リポジトリ構成を直した
+- [x] T5-8 【エージェント】0.1.0のリリース準備をする（`CHANGELOG.md`、バージョン、`timeline.md`、`tauri build`の確認）。コミットメッセージとコマンドの提示で停止する
   - 依存: T5-6, T5-7
+  - 実施: Sonnet・high
+  - メモ: バージョンを0.1.0にそろえた（package.json 6件、tauri.conf.json、Cargo.toml・Cargo.lock）。`CHANGELOG.md`、`timeline.md`（261116150319）。`tauri build`は通り、MSI・NSISのインストーラーができた。`bun run check`も通過

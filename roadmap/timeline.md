@@ -3,3 +3,4 @@
 - 261113173052 プランアセット v3：使うモデルをQwen3-4Bに決定（予備はGemma 4 E2B） ← development/261113172152_change_model_qwen3.md
 - 261114061638 プランアセット v4：バックエンドPCのOSをWindows 11に変更 ← development/261114061251_change_backend_windows.md
 - 261114070529 プランアセット v5：禁止語リストを公開の不適切表現リストをもとにエージェントが作る（T4-7を【エージェント】に） ← development/261114070342_change_filter_words.md
+- 261116150319 リリース準備 0.1.0（プランアセット v5）← CHANGELOG.md

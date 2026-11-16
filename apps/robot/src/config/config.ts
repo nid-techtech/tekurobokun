@@ -84,6 +84,16 @@ export interface RenderConfig {
   sleepBobCycleMs: number;
 }
 
+/** 字幕1行の位置と大きさ（キャンバス左上が原点、px）。目の上端より上に収める。 */
+export interface CaptionConfig {
+  x: number;
+  y: number;
+  /** 1行に入る幅。これを超える文は末尾側を出す */
+  maxWidth: number;
+  fontSize: number;
+  lineHeight: number;
+}
+
 export interface AudioSlotInfo {
   filePath: string;
   caption: string;
@@ -102,6 +112,7 @@ export interface AppConfig {
   lipSync: LipSyncConfig;
   idle: IdleConfig;
   render: RenderConfig;
+  caption: CaptionConfig;
   audio: AudioConfig;
 }
 

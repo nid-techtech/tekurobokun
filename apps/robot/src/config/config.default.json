@@ -52,6 +52,13 @@
     "sleepBobAmplitude": 10,
     "sleepBobCycleMs": 6400
   },
+  "caption": {
+    "x": 14,
+    "y": 4,
+    "maxWidth": 772,
+    "fontSize": 18,
+    "lineHeight": 26
+  },
   "audio": {
     "slots": {
       "1": { "filePath": "/audio/01_hello.wav", "caption": "こんにちは！今日は何をしましょうか？" },

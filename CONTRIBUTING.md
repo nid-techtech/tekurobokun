@@ -32,7 +32,7 @@ git reset --hard
 
 ## 確認とテスト
 
-変更したら、コミットの前に次を実行し、すべて通ることを確かめてください。CIも同じコマンドを使います。
+変更したら、コミットの前に次を実行し、すべて通ることを確かめてください。CI（`.github/workflows/check.yml`。`main`へのpushとプルリクエストで、Windows上で実行）も同じコマンドを使います。
 
 ```powershell
 bun run check
@@ -80,8 +80,8 @@ bun run tauri dev
 機体アプリは、バックエンドのWebSocket（設定の`backend.url`）につなぎ、切れたら自動で再接続します。表示と音声の再生だけを行い、顔はバックエンドから届く状態で決まります。
 
 - 待機中：まばたきときょろきょろをします
-- 考え中：内側の円が回ります
-- 話し中：届いた音声を順に再生し、音の大きさに合わせて口の高さが伸び縮みします。目は返事の感情の形になり、話し終えてから少しのあいだ残ります
+- 考え中：内側の円が回ります。左上に、来場者の発言が字幕で出ます
+- 話し中：左上に、いま読み上げている文が字幕で出ます（緑のDotGothic16、1行）。1行に入らない長さは、末尾側を出します。位置と大きさは設定の`caption`で変えます。届いた音声を順に再生し、音の大きさに合わせて口の高さが伸び縮みします。目は返事の感情の形になり、話し終えてから少しのあいだ残ります
 - バックエンドにつながらない、LLMかVOICEVOXが応答しないとき：眠っている顔（目を閉じ、口を少し開け、顔全体がゆっくり上下に揺れる）になり、戻れば自動で元の顔に戻ります。Windowsの設定で「アニメーション効果」をオフにしているときは揺れません
 
 **スタブで会話を通す**（開発機だけで、考え中→話し中→待機中を確かめる）
@@ -126,6 +126,9 @@ bun run tauri dev
 | `render.sleepMouthLevel`            | 眠っている顔の口の開き（話し中の口の開きと同じ0〜1の尺度）                            | `0.05`                   |
 | `render.sleepBobAmplitude`          | 眠っている顔が上下に揺れる幅（中心から片側）                                          | `10`                     |
 | `render.sleepBobCycleMs`            | 眠っている顔が上下に1往復する時間                                                     | `6400`                   |
+| `caption.x`・`caption.y`            | 字幕の左上の位置（800×600の座標。目の上端より上に収める）                             | `14`・`4`                |
+| `caption.maxWidth`                  | 字幕が1行に入る幅。超えた文は末尾側を出す                                             | `772`                    |
+| `caption.fontSize`・`lineHeight`    | 字幕の文字の大きさと行の高さ                                                          | `18`・`26`               |
 
 まばたきを`render.idleFps`の1コマより短くすると、見えないことがあります（初期値では1コマ100ms、まばたき150ms）。
 
@@ -432,13 +435,32 @@ llama-serverは、仮のサーバーの起動のコマンドに`-ngl all`（す�
 
 考えた時間は、モデルの比較（`bun run bench -- --target qwen3-4b`）で測れます。
 
+### 自動起動
+
+展示では、バックエンドPCを自動でサインインさせ、サインインのたびにllama-server・VOICEVOX ENGINE・バックエンドが起動するようにします。タスクスケジューラの「ログオン時」のタスクとして登録します。それぞれ見えるPowerShellのウィンドウで動き、バックエンドのウィンドウで端末を切り替えるキーを押せます。サービス（セッション0）にしないのは、画面のないセッションではキー入力を受けられず、GPU（Vulkan）が使えない場合があるためです。
+
+1. 「準備」を終え、「動作の確認」でサーバーが手動で動くことを確かめておきます
+2. **自動サインインにします**：`netplwiz`を開き、「ユーザーがこのコンピューターを使うには、ユーザー名とパスワードの入力が必要」のチェックを外します（出ないときは、「設定」→「アカウント」→「サインインオプション」で「Microsoftアカウントに、Windows Helloサインインを要求する」をオフにしてから開きます）
+3. **タスクを登録します**（管理者のPowerShellで、リポジトリのフォルダから）。まず`-WhatIf`で登録される内容を確かめます
+
+   ```powershell
+   .\scripts\register_backend_tasks.ps1 -WhatIf
+   .\scripts\register_backend_tasks.ps1
+   ```
+
+   サーバー一式は`$HOME\tekurobo_servers`にある前提です（変えるときは`-ServersRoot`）。モデルのファイル名は`-ModelFile`、`--alias`は`-ModelAlias`、ログオンするユーザーは`-User`で変えます。llama-serverをCPUで動かすときは`-NoGpu`を付けます（`-ngl all`を付けません）。起動に要るファイルが見つからないときは、登録せずに止まります
+4. タスクは「タスクスケジューラ」の`\tekurobokun\`のフォルダ（`llama-server`・`voicevox-engine`・`backend`）にできます。バックエンドは、ウィンドウを前に出すため、サインインの20秒後（`-BackendDelaySeconds`）に起動します。再起動して、3つのウィンドウが開き、状態の行が`llm=up tts=up`になることを確かめます
+5. 取り消すときは、管理者のPowerShellで`.\scripts\unregister_backend_tasks.ps1`を実行します（`-WhatIf`で、消えるタスクを確かめられます）。起動中のウィンドウは閉じないので、手で閉じます
+
+コードを更新したときは、先に`git pull`と`bun run console:build`をしてからバックエンドを起動し直します（自動起動はサインイン時だけで、ビルドはしません）。
+
 ## 展示当日の運用
 
 ### 起動
 
 どの順で起動しても、つながった時点で自動で動き出します（入力ページと機体アプリは、つながるまで再接続を続けます）。
 
-1. **バックエンドPC**：PowerShellを3つ開き、それぞれで次を起動します。`apps/backend`のウィンドウは、端末の切り替えに使うので、見える場所に置いておきます
+1. **バックエンドPC**：自動起動を設定してある場合（「自動起動」）は、電源を入れて自動サインインを待てば、次の3つが見えるウィンドウで起動します。そうでなければ、PowerShellを3つ開き、それぞれで次を起動します。`apps/backend`のウィンドウは、端末の切り替えに使うので、見える場所に置いておきます
    - llama-server（「動作の確認」のコマンド）
    - VOICEVOX ENGINE（`run.exe --host 127.0.0.1 --port 50021`）
    - バックエンド：リポジトリのフォルダで`bun run backend`。コードを更新したときは、先に`git pull`と`bun run console:build`をします
@@ -484,6 +506,57 @@ llama-serverは、仮のサーバーの起動のコマンドに`-ngl all`（す�
 - 学習に使う前に、発言（`input`）と返事に、名前などの個人が特定される情報が入っていないかを確かめ、手で取り除きます
 - `logs/stub/`（スタブの会話）と`logs/bench/`（モデルの比較の結果）は、会話ログではありません
 
+## ビルド
+
+機体アプリ（`apps/robot`）は、Tauriで実行ファイルを作ります。コード署名はしません。
+
+```powershell
+cd apps/robot
+bun run tauri build
+```
+
+次ができます（`apps/robot/src-tauri/target/release/`）。
+
+- `tekurobokun.exe`：実行ファイル（フォントと音声ファイルは中に入っています）
+- `bundle/`：インストーラー（NSISの`.exe`、WiXの`.msi`）。最初のビルドでは、インストーラーを作る道具を自動でダウンロードするため、ネットワークが要ります
+
+設定（`config.local.json`）はビルドに取り込まれます。接続先を変えたら、ビルドし直します（「別のPCのバックエンドにつなぐ」）。コード署名がないため、初めて起動すると、WindowsのSmartScreenが警告を出すことがあります（「詳細情報」→「実行」）。
+
+入力ページは、`bun run console:build`で`apps/console/dist`に作ります。バックエンドがこれを配信します。
+
+## アイコンの生成
+
+アイコンは、`docs/brand/tekurobokun_icon_master.svg`（`roadmap/specs/`の最新のマスターSVGの写し）から作ります。生成したファイルはリポジトリに含め、CIでは作りません。マスターSVGを新しい版にしたら、写しを置き直し（「値」と同じ）、次を実行して、変わったファイルをコミットします。
+
+```powershell
+bun run robot:icons      # 機体アプリ（apps/robot/src-tauri/icons/：icon.ico・icon.icns・各サイズのPNG）
+bun run console:icons    # 入力ページ（apps/console/public/icons/：32・192・512のPNG）
+```
+
+どちらもTauri CLIの`tauri icon`で書き出します。`robot:icons`は、Android・iOS用のフォルダを消します（デスクトップだけのため）。Apple環境向けの`.icon`は、Icon Composerで作るもので、このリポジトリでは扱いません。
+
+## リリース
+
+バージョンはセマンティックバージョニングで、初回は`0.1.0`です。次の順で行います。コミット・タグ・pushと、GitHubのリリースの公開は、人が行います。
+
+1. **バージョンをそろえる**：次のすべてを同じ値にします
+   - `package.json`の`version`（`apps/backend`・`apps/console`・`apps/robot`・`packages/i18n`・`packages/protocol`・`packages/theme`）
+   - `apps/robot/src-tauri/tauri.conf.json`の`version`
+   - `apps/robot/src-tauri/Cargo.toml`の`version`と、`Cargo.lock`の`tekurobokun`の項目
+2. **`CHANGELOG.md`を書く**：[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の形式で、利用者向けに、リリースごとの変更を書きます。プランアセットの版は書きません（対応は`roadmap/timeline.md`に書きます）
+3. **確かめる**：`bun run check`が通ること。アイコンが最新のマスターSVGから生成したものであること（「アイコンの生成」を実行して、差分が出ないこと）。READMEの特徴・使い方・動作環境が、今回の内容と合っていること
+4. **ビルドする**：「ビルド」の手順で`tauri build`が通ること
+5. **`roadmap/timeline.md`に、リリース準備の行を足す**：バージョンと、その時点のプランアセットの版を書きます
+6. **コミットして、タグを付けてpushする**：
+
+   ```powershell
+   git commit
+   git tag v0.1.0
+   git push origin main v0.1.0
+   ```
+
+7. **GitHub Releasesに、ドラフトを作る**：タグ`v0.1.0`を選び、`CHANGELOG.md`の該当の節を説明に貼ります。必要なら、ビルドしたインストーラーを添付して、公開します。このリポジトリは一般公開しない方針なので、公開の範囲は、そのときに決めます
+
 ## リポジトリ構成
 
 ```
@@ -498,7 +571,8 @@ tekurobokun/
 │  └─ theme/     tokens.cssとフォント（M PLUS 1 Code・DotGothic16。OFLのライセンス文つき）
 ├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
 ├─ logs/         会話ログとモデル比較の結果（Git管理外）
-├─ scripts/      checkコマンドとその検査、モデル比較のスクリプト
+├─ scripts/      checkコマンドとその検査、モデル比較、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
+├─ .github/      CIのワークフロー（checkコマンドを実行）
 ├─ docs/
 │  ├─ brand/     ブランドの資料とマスターSVG（roadmap/specs/の写し。編集しない）
 │  └─ reference/ 全体構想

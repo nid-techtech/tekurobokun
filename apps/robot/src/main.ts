@@ -2,6 +2,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { initLocale } from "@tekurobokun/i18n";
 import type { StatusMessage } from "@tekurobokun/protocol";
 import { AudioPlayer } from "./audio/AudioPlayer";
+import { CaptionOverlay } from "./caption/CaptionOverlay";
+import { captionFor } from "./caption/caption";
 import { config } from "./config/config";
 import { DebugHUD, type DebugSnapshot } from "./facial/DebugHUD";
 import { displayStateFor } from "./facial/displayState";
@@ -49,8 +51,24 @@ const state: { connected: boolean; status: StatusMessage | null } = {
   status: null,
 };
 
+// 字幕：考え中は来場者の発言、話し中は読み上げている文。
+const captionOverlay = new CaptionOverlay(document.body, config.caption);
+let userText: string | null = null;
+let currentCaption: string | null = null;
+
+function updateCaption(): void {
+  captionOverlay.set(
+    captionFor({
+      session: state.status?.session ?? null,
+      userText,
+      sentence: currentCaption,
+    }),
+  );
+}
+
 function updateFace(): void {
   face.setState(displayStateFor(state.connected, state.status), performance.now());
+  updateCaption();
 }
 
 const link = new RobotLink(config.backend.url, {
@@ -61,6 +79,8 @@ const link = new RobotLink(config.backend.url, {
   onClose: () => {
     state.connected = false;
     state.status = null;
+    userText = null;
+    currentCaption = null;
     audio.stop();
     updateFace();
   },
@@ -69,8 +89,15 @@ const link = new RobotLink(config.backend.url, {
       case "status":
         state.status = message;
         // 話し中でなくなったら（タイムアウト・合成の失敗など）、残りの音声は捨てる。
-        if (message.session !== "speaking") audio.stop();
+        if (message.session !== "speaking") {
+          audio.stop();
+          currentCaption = null;
+        }
         updateFace();
+        return;
+      case "turn_started":
+        userText = message.turn.text;
+        updateCaption();
         return;
       case "speech":
         if (state.status?.session !== "speaking") return;
@@ -78,18 +105,19 @@ const link = new RobotLink(config.backend.url, {
         audio.enqueue(message);
         return;
       default:
-        // welcome・turn_started・turn_repliedは、字幕（Phase 5）で使う。
+        // welcome・turn_repliedは、機体では使わない。
         return;
     }
   },
 });
 
-let currentCaption: string | null = null;
 audio.onSentenceStart((item) => {
   currentCaption = item.text;
+  updateCaption();
 });
 audio.onSentenceEnd((item) => {
   currentCaption = null;
+  updateCaption();
   link.send({ type: "playback_done", turnId: item.turnId, index: item.index });
 });
 

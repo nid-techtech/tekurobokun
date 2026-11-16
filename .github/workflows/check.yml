@@ -1,0 +1,20 @@
+# checkコマンド（型検査・lint・テスト・i18n・トークンの検査）をpushとプルリクエストで実行する。
+# 開発機と同じWindowsで動かす。Bunのバージョンは package.json の packageManager に合わせる。
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check

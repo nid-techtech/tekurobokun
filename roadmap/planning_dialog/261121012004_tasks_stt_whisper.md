@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: W7-1〜W7-3は開発機で通過。次はW7-4から**バックエンドPCのClaude Codeで**（開発機の変更をpushし、バックエンドPCでpullしてから）。W7-4の無音・雑音のWAVは、録音のセット（T7-22）にないため、作るか録る必要がある（決まり文句・`noSpeechThreshold`は未測定）。S02hの目は、モックが内側r82にr96を重ねた二重の円、実装はr96への置き換えで、W7-9で並べて確かめる。Silero VADの実際の動き（`/vad/`の読み込み、マイク）はW7-9で確かめる
+引き継ぎ: W7-1〜W7-3は開発機で通過。次はW7-4から**バックエンドPCのClaude Codeで**（開発機の変更をpushし、バックエンドPCでpullしてから）。W7-4の無音・雑音のWAVは、録音のセット（T7-22）にないため、作るか録る必要がある（決まり文句・`noSpeechThreshold`は未測定）。S02hの目は、実装（内側をr96に置き換え）に合わせると決めた。Silero VADの実際の動き（`/vad/`の読み込み、マイク）はW7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high

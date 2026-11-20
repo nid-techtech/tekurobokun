@@ -570,7 +570,7 @@ Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 | VOICEVOX ENGINE 0.25.2（CPU版）   | 50021  | 音声合成                                                                                      |
 | バックエンド（`bun run backend`） | 8787   | 入力ページと機体のWebSocket。LANに公開する。管理用APIは`127.0.0.1:8788`だけ                   |
 
-llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合います（Qwen3-8B Q4_K_M・文脈4Kと、large-v3-turbo q5_0で、見積もり合計約7.3GB）。会話中の専用GPUメモリの最大値は、Phase 7の検証で測ります。足りなければ、文脈の長さを下げるか、`-ctk q8_0 -ctv q8_0`（KVキャッシュの量子化）を足して収めます。
+llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合います。下の起動オプション（Qwen3-8B Q4_K_M・文脈4Kと、large-v3-turbo q5_0）で、専用GPUメモリは、llama-serverの読み込み後に約5.9GB、`whisper-server`を足して約6.6GB、会話を続けたときの最大で約6.7GBでした（2026年11月、21ターンで測定）。モデルや文脈の長さを変えて足りなくなったら、文脈の長さを下げるか、`-ctk q8_0 -ctv q8_0`（KVキャッシュの量子化）を足して収めます。
 
 ポート・`--alias`・フォルダの置き場所は、「開発機の仮のサーバー」と同じにします（サーバー一式は`$HOME\tekurobo_servers`）。PowerShellの管理者権限が要る手順には「（管理者）」と書いています。
 

@@ -402,12 +402,12 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 
 ### llama-server（llama.cpp）
 
-使うモデルはQwen3-4B、予備はGemma 4 E2Bです（どちらも4bitのGGUF、Apache-2.0）。本番のバックエンドPCでも、同じポートと`--alias`で起動します。
+正のモデルはQwen3-8B、副（バックアップ）はQwen3-4Bです（どちらも4bitのGGUF、Apache-2.0。2026年11月、Phase 8の比較で決めました）。本番のバックエンドPCでも、同じポートと`--alias`で起動します。1つのllama-serverには1つのモデルだけを載せ、切り替えるときは入れ替えます。
 
-| モデル              | ポート | `--alias`     | ファイル                   | 入手先                                                                              |
-| ------------------- | ------ | ------------- | -------------------------- | ----------------------------------------------------------------------------------- |
-| Qwen3-4B            | 8080   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF)                     |
-| Gemma 4 E2B（予備） | 8082   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` | [ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) |
+| モデル         | ポート | `--alias`  | ファイル               | 入手先                                                          |
+| -------------- | ------ | ---------- | ---------------------- | --------------------------------------------------------------- |
+| Qwen3-8B（正） | 8080   | `qwen3-8b` | `Qwen3-8B-Q4_K_M.gguf` | [Qwen/Qwen3-8B-GGUF](https://huggingface.co/Qwen/Qwen3-8B-GGUF) |
+| Qwen3-4B（副） | 8080   | `qwen3-4b` | `Qwen3-4B-Q4_K_M.gguf` | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF) |
 
 1. [llama.cppのReleases](https://github.com/ggml-org/llama.cpp/releases)から、`b`で始まる最新のビルドの`llama-b{番号}-bin-win-cpu-x64.zip`をダウンロードします（GPUを使う場合は`win-vulkan-x64`）
 2. `$HOME\tekurobo_servers\llama`に展開します
@@ -415,37 +415,37 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\tekurobo_servers\models" | Out-Null
+curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+  "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
 curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
   "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
-curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf"
 ```
 
-起動（ポートは明示します。既定のポートは版によって変わるため）。予備のE2Bは、使うときだけ別のPowerShellで起動します。
+起動（ポートは明示します。既定のポートは版によって変わるため）。副のQwen3-4Bは、正を止めてから、同じポートで起動します。GPUがない開発機では`-ngl all`を付けません（本番は付けます）。
 
 ```powershell
-# Qwen3-4B（ポート8080）。思考出力はサーバーの側でも止める（バックエンドも enable_thinking: false を送る）
+# Qwen3-8B（正、ポート8080）。思考出力はサーバーの側でも止める（バックエンドも enable_thinking: false を送る）
+& "$HOME\tekurobo_servers\llama\llama-server.exe" `
+  -m "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+  --alias qwen3-8b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
+
+# Qwen3-4B（副、同じポート8080。8081は`whisper-server`が使う）
 & "$HOME\tekurobo_servers\llama\llama-server.exe" `
   -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
   --alias qwen3-4b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
-
-# Gemma 4 E2B（予備、ポート8082。8081は`whisper-server`が使う）
-& "$HOME\tekurobo_servers\llama\llama-server.exe" `
-  -m "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  --alias gemma-4-e2b --host 127.0.0.1 --port 8082 -c 4096
 ```
 
-`config/backend.default.json`の初期値はQwen3-4B（`http://127.0.0.1:8080`、`qwen3-4b`）なので、上書きなしでつながります。**予備のE2Bに切り替える**ときは、`config/backend.local.json`の`llm`に次を書き、バックエンドを再起動します（Qwen3-4Bに戻すときは`llm`を消します）。
+`config/backend.default.json`の初期値は、正がQwen3-8B（`qwen3-8b`）、副がQwen3-4B（`qwen3-4b`）で、どちらも`http://127.0.0.1:8080`です。起動時に使うのは正（`llm.activeAlias`の初期値`main`）なので、上書きなしでつながります。**副に切り替える**ときは、llama-serverをQwen3-4Bで起動し直し、`config/backend.local.json`に次を書いて、バックエンドを再起動します（正に戻すときは、この行を消します）。
 
 ```json
 {
-  "llm": { "baseUrl": "http://127.0.0.1:8082", "model": "gemma-4-e2b" }
+  "llm": { "activeAlias": "sub" }
 }
 ```
 
-モデルの比較（`bun run bench`）は、初期値でQwen3-4BとE2Bの両方に問い合わせます（「モデルの比較」）。開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。
+モデルの比較（`bun run bench`）の接続先は、「モデルの比較」にあります。開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。
 
-モデルは、開発機での比較（Gemma 4 E4B・Qwen3-4B・E2B）で決めました。経緯は`roadmap/development/261113172152_change_model_qwen3.md`にあります。
+モデルは、Phase 8のバックエンドPCでの比較（Qwen3-8B・Qwen3.5-9B・Qwen3.5-4B・Qwen3-4B）で決めました。Qwen3-8Bは、形式の崩れがなく、検索の判断と応答時間（中央値約0.8秒）のバランスが良く、`whisper-server`と合わせて専用GPUメモリ約6.7GBで8GBに収まります。副のQwen3-4Bは、応答が最も速く（中央値約0.6秒）、メモリも約4.6GBで余裕があります。Qwen3.5の2つは応答が遅く（1.6〜2.5秒）、選びませんでした。Gemma 4は、v6の開発機での比較（`roadmap/development/261113172152_change_model_qwen3.md`）で外れています。
 
 ### VOICEVOX ENGINE 0.25.2
 
@@ -609,7 +609,7 @@ llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合�
    & "$HOME\tekurobo_servers\llama\llama-server.exe" --list-devices
    ```
 
-6. **LLMのモデル**：次のGGUFを`$HOME\tekurobo_servers\models`に置きます。Qwen3-8B（正）とQwen3-4B（副）が本番の候補で、Qwen3.5の2つはPhase 8の比較用です
+6. **LLMのモデル**：次のGGUFを`$HOME\tekurobo_servers\models`に置きます。Qwen3-8B（正）とQwen3-4B（副）が本番で使うモデルで、Qwen3.5の2つはPhase 8の比較にだけ使いました（選ばなかったので、置かなくてもかまいません）
 
    | モデル     | `--alias`    | ファイル                 | 大きさ  | 入手先                                                          |
    | ---------- | ------------ | ------------------------ | ------- | --------------------------------------------------------------- |

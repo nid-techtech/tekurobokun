@@ -17,9 +17,9 @@ param(
   [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
   # llama・models・voicevox を置いたフォルダ（CONTRIBUTING.mdの「開発機の仮のサーバー」）
   [string]$ServersRoot = (Join-Path $HOME 'tekurobo_servers'),
-  [string]$ModelFile = 'Qwen3-4B-Q4_K_M.gguf',
-  # llama-serverの --alias。config/backend.*.json の llm.model と同じにする
-  [string]$ModelAlias = 'qwen3-4b',
+  [string]$ModelFile = 'Qwen3-8B-Q4_K_M.gguf',
+  # llama-serverの --alias。config/backend.*.json の llm.models.main.model（副に切り替えるなら sub）と同じにする
+  [string]$ModelAlias = 'qwen3-8b',
   # ログオンするユーザー（既定：いまのユーザー）
   [string]$User = [Security.Principal.WindowsIdentity]::GetCurrent().Name,
   # バックエンドの起動をずらす秒数（バックエンドのウィンドウを最前面に出すため）

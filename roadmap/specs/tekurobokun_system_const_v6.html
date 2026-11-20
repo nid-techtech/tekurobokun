@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>テクロボくん システム構成（v6）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400;700&display=swap">
+<style>
+/* レイアウト：左から「会場 → インターネット → 自宅のバックエンドPC」と並べ、会話1回の流れだけを色で追う */
+:root {
+  --bg: #f3f4f1;
+  --surface: #fbfbf9;
+  --ink: #16181d;
+  --muted: #5d626c;
+  --rule-faint: #c9ccd1;
+  --accent: #2440c8;
+  --font: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1116; --surface: #151a21; --ink: #e6e9ee; --muted: #98a0ab; --rule-faint: #2b323c; --accent: #8ea2ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #151a21; --ink: #e6e9ee; --muted: #98a0ab; --rule-faint: #2b323c; --accent: #8ea2ff;
+  color-scheme: dark;
+}
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+.page {
+  max-width: 1280px; margin: 0 auto;
+  padding-block: 32px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1 { margin: 0; font-size: 1.75rem; font-weight: 700; text-wrap: balance; }
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+figure { margin: 0; display: grid; gap: 12px; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule-faint); }
+svg.diagram { display: block; width: 100%; min-width: 1000px; height: auto; color: var(--ink); }
+svg.diagram text { fill: currentColor; font-family: var(--font); }
+svg.diagram .muted { fill: var(--muted); }
+svg.diagram .host { fill: none; stroke: currentColor; stroke-width: 2; }
+svg.diagram .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.5; }
+svg.diagram .module { fill: var(--bg); stroke: currentColor; stroke-width: 1; }
+svg.diagram .dashed { stroke-dasharray: 6 5; }
+svg.diagram .zone { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 3 5; }
+svg.diagram .wire { fill: none; stroke: currentColor; stroke-width: 1.5; }
+svg.diagram .flow { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+svg.diagram .arrowhead-accent { fill: var(--accent); }
+svg.diagram .flow-label { fill: var(--accent); font-weight: 700; }
+svg.diagram .off { stroke: var(--muted); }
+svg.diagram .off-text { fill: var(--muted); }
+figcaption { color: var(--muted); max-width: 80ch; }
+.swatch { display: inline-block; width: 1.6em; height: 0; border-top: 3px solid var(--accent); vertical-align: middle; margin-right: 0.4em; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; }
+.notes h2 { margin: 0 0 8px; font-size: 1.05rem; border-top: 3px solid var(--ink); padding-top: 8px; }
+.notes ol, .notes ul { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
+.notes li { min-width: 0; }
+code { font-family: var(--font); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>テクロボくん システム構成（v6）</h1>
+    <p class="lede">会場には機体とconsoleだけを置き、考える処理と声を作る処理は自宅のバックエンドPCに置く。会場と自宅は、Cloudflare Tunnel（tekurobo.nid-techtech.com）を通したHTTPS・WebSocketでつなぐ。音声認識はGoogle STT、検索はTavilyをバックエンドPCから呼ぶ。</p>
+  </header>
+
+  <figure>
+    <div class="scroll">
+      <svg class="diagram" viewBox="0 0 1240 880" role="img" aria-label="会場の機体がマイクの音声を区切って Cloudflare Tunnel 経由で自宅のバックエンドPCに送る。バックエンドは Google STT で文字にし、llama-server に問い合わせ、必要なら Tavily で検索してもう一度問い合わせる。VOICEVOX で音声にして、表情・字幕・音声を機体へ返す。ランチャーがバックエンドPCのサービスを起動・監視し、会場のスタッフは Chrome Remote Desktop でランチャーを操作する。">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="arrowhead-accent" d="M0 0L10 5L0 10z"/>
+          </marker>
+          <marker id="arrow_ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- ===== 会場 ===== -->
+        <rect class="zone" x="10" y="40" width="330" height="830" rx="8"/>
+        <text x="22" y="28" font-size="13" class="muted">会場：モバイルルーター（SIM）でインターネットへ</text>
+
+        <!-- 機体 -->
+        <rect class="host" x="25" y="60" width="300" height="520" rx="6"/>
+        <text x="40" y="86" font-size="16" font-weight="700">機体</text>
+        <text x="40" y="106" font-size="12" class="muted">Windows 11・Core m7-7Y25・800×600</text>
+
+        <rect class="box" x="40" y="122" width="270" height="350" rx="4"/>
+        <text x="52" y="144" font-size="15" font-weight="700">apps/robot</text>
+        <text x="52" y="162" font-size="11" class="muted">Tauri 2.12+ ＋ TypeScript ＋ Vite</text>
+        <rect class="module" x="52" y="174" width="246" height="40"/>
+        <text x="61" y="191" font-size="12">VoiceCapture</text>
+        <text x="61" y="206" font-size="11" class="muted">マイク・無音で区切る（VAD）</text>
+        <rect class="module" x="52" y="222" width="246" height="40"/>
+        <text x="61" y="239" font-size="12">PairingScanner</text>
+        <text x="61" y="254" font-size="11" class="muted">カメラでQRを読む（登録時だけ）</text>
+        <rect class="module" x="52" y="270" width="246" height="40"/>
+        <text x="61" y="287" font-size="12">RobotLink</text>
+        <text x="61" y="302" font-size="11" class="muted">WSS・トークン・自動再接続</text>
+        <rect class="module" x="52" y="318" width="246" height="40"/>
+        <text x="61" y="335" font-size="12">FacialEngine</text>
+        <text x="61" y="350" font-size="11" class="muted">p5.js 2・目と口</text>
+        <rect class="module" x="52" y="366" width="246" height="40"/>
+        <text x="61" y="383" font-size="12">AudioPlayer</text>
+        <text x="61" y="398" font-size="11" class="muted">WAV再生・口パク・半二重</text>
+        <rect class="module" x="52" y="414" width="246" height="40"/>
+        <text x="61" y="431" font-size="12">CaptionOverlay</text>
+        <text x="61" y="446" font-size="11" class="muted">字幕1行・DotGothic16</text>
+
+        <rect class="box" x="40" y="490" width="84" height="74" rx="4"/>
+        <text x="48" y="512" font-size="12" font-weight="700">Webカメラ</text>
+        <text x="48" y="531" font-size="10" class="muted">マイク内蔵</text>
+        <text x="48" y="547" font-size="10" class="muted">（想定）</text>
+        <line class="wire" x1="82" y1="490" x2="82" y2="218" marker-end="url(#arrow_ink)"/>
+        <rect class="box" x="132" y="490" width="84" height="74" rx="4"/>
+        <text x="140" y="512" font-size="12" font-weight="700">キーボード</text>
+        <text x="140" y="531" font-size="10" class="muted">WASD：走行</text>
+        <text x="140" y="547" font-size="10" class="muted">押す間だけ</text>
+        <line class="wire" x1="174" y1="490" x2="174" y2="458" marker-end="url(#arrow_ink)"/>
+        <rect class="box" x="224" y="490" width="86" height="74" rx="4"/>
+        <text x="232" y="512" font-size="12" font-weight="700">Arduino</text>
+        <text x="232" y="531" font-size="10" class="muted">履帯・TB6612</text>
+        <text x="232" y="547" font-size="10" class="muted">"L,R" 80ms</text>
+        <line class="wire" x1="267" y1="458" x2="267" y2="486" marker-end="url(#arrow_ink)"/>
+
+        <!-- console -->
+        <rect class="host" x="25" y="600" width="300" height="255" rx="6"/>
+        <text x="40" y="626" font-size="16" font-weight="700">console</text>
+        <text x="40" y="646" font-size="12" class="muted">タブレット・スタッフのスマホ（Edge）</text>
+        <rect class="box" x="40" y="662" width="270" height="92" rx="4"/>
+        <text x="52" y="684" font-size="15" font-weight="700">apps/console（PWA）</text>
+        <text x="52" y="704" font-size="12">普段：ログの表示だけ</text>
+        <text x="52" y="722" font-size="12">切り替え時：v5の入力ページ</text>
+        <text x="52" y="740" font-size="11" class="muted">登録コードを文字で入れる</text>
+        <rect class="box" x="40" y="770" width="270" height="70" rx="4"/>
+        <text x="52" y="792" font-size="13" font-weight="700">Chrome Remote Desktop</text>
+        <text x="52" y="812" font-size="11" class="muted">スタッフのスマホから</text>
+        <text x="52" y="828" font-size="11" class="muted">自宅のランチャーを操作</text>
+
+        <!-- ===== インターネット ===== -->
+        <rect class="zone" x="360" y="40" width="250" height="830" rx="8"/>
+        <text x="372" y="28" font-size="13" class="muted">インターネット</text>
+
+        <rect class="box" x="375" y="150" width="220" height="150" rx="4"/>
+        <text x="387" y="174" font-size="15" font-weight="700">Cloudflare</text>
+        <text x="387" y="194" font-size="12">名前付きトンネル</text>
+        <text x="387" y="214" font-size="12">tekurobo.nid-techtech.com</text>
+        <text x="387" y="234" font-size="11" class="muted">HTTPS（consoleの配信）</text>
+        <text x="387" y="252" font-size="11" class="muted">WSS /ws（機体・console）</text>
+        <text x="387" y="280" font-size="11" class="muted">管理用APIは載せない</text>
+
+        <rect class="box" x="375" y="430" width="220" height="96" rx="4"/>
+        <text x="387" y="454" font-size="15" font-weight="700">Google STT</text>
+        <text x="387" y="474" font-size="12">Speech-to-Text V2</text>
+        <text x="387" y="494" font-size="11" class="muted">ja-JP・1回の認識</text>
+        <text x="387" y="512" font-size="11" class="muted">（ストリーミングは使わない）</text>
+
+        <rect class="box" x="375" y="560" width="220" height="96" rx="4"/>
+        <text x="387" y="584" font-size="15" font-weight="700">Tavily</text>
+        <text x="387" y="604" font-size="12">Search API（basic）</text>
+        <text x="387" y="624" font-size="11" class="muted">無料枠 1,000クレジット/月</text>
+        <text x="387" y="642" font-size="11" class="muted">1ターンに1回まで</text>
+
+        <!-- ===== 自宅 ===== -->
+        <rect class="zone" x="630" y="40" width="600" height="830" rx="8"/>
+        <text x="642" y="28" font-size="13" class="muted">自宅：家庭のルーター（受信ポートは開けない）</text>
+
+        <rect class="host" x="645" y="60" width="570" height="795" rx="6"/>
+        <text x="660" y="86" font-size="16" font-weight="700">バックエンドPC</text>
+        <text x="660" y="106" font-size="12" class="muted">Windows 11 ／ Ryzen 5 3500・32GB ／ Radeon RX 5700 XT 8GB</text>
+
+        <!-- launcher -->
+        <rect class="box" x="660" y="122" width="540" height="96" rx="4"/>
+        <text x="672" y="144" font-size="15" font-weight="700">apps/launcher</text>
+        <text x="810" y="144" font-size="11" class="muted">Tauri 2 ・サインイン時に自動起動</text>
+        <text x="672" y="166" font-size="12">5つのサービスの起動・停止・状態、正→副の切り替え（ハートビート）</text>
+        <text x="672" y="186" font-size="12">入力元の切り替え・マイクの一時停止・会話のリセット・登録コード（QR）</text>
+        <text x="672" y="206" font-size="11" class="muted">backend の管理用API（127.0.0.1:8788）を呼ぶ</text>
+
+        <!-- cloudflared -->
+        <rect class="box" x="660" y="234" width="150" height="66" rx="4"/>
+        <text x="672" y="256" font-size="14" font-weight="700">cloudflared</text>
+        <text x="672" y="276" font-size="11" class="muted">外向きの接続だけ</text>
+        <text x="672" y="292" font-size="11" class="muted">→ localhost:8787</text>
+
+        <!-- backend -->
+        <rect class="box" x="830" y="234" width="370" height="330" rx="4"/>
+        <text x="842" y="256" font-size="15" font-weight="700">apps/backend</text>
+        <text x="962" y="256" font-size="11" class="muted">Bun 1.4 ・ :8787 公開 ／ :8788 管理</text>
+        <rect class="module" x="842" y="268" width="170" height="44"/>
+        <text x="850" y="286" font-size="12">DeviceAuth</text>
+        <text x="850" y="303" font-size="11" class="muted">登録コード・トークン</text>
+        <rect class="module" x="1020" y="268" width="170" height="44"/>
+        <text x="1028" y="286" font-size="12">InputSourceRegistry</text>
+        <text x="1028" y="303" font-size="11" class="muted">入力元を1つに</text>
+        <rect class="module" x="842" y="320" width="170" height="44"/>
+        <text x="850" y="338" font-size="12">SpeechRecognizer</text>
+        <text x="850" y="355" font-size="11" class="muted">Google STT・スタブ</text>
+        <rect class="module" x="1020" y="320" width="170" height="44"/>
+        <text x="1028" y="338" font-size="12">ConversationSession</text>
+        <text x="1028" y="355" font-size="11" class="muted">状態・履歴・無音で区切る</text>
+        <rect class="module" x="842" y="372" width="170" height="44"/>
+        <text x="850" y="390" font-size="12">DialogueEngine</text>
+        <text x="850" y="407" font-size="11" class="muted">{say, emotion, search}</text>
+        <rect class="module" x="1020" y="372" width="170" height="44"/>
+        <text x="1028" y="390" font-size="12">WebSearcher</text>
+        <text x="1028" y="407" font-size="11" class="muted">Tavily・スタブ・回数</text>
+        <rect class="module" x="842" y="424" width="170" height="44"/>
+        <text x="850" y="442" font-size="12">ContentFilter</text>
+        <text x="850" y="459" font-size="11" class="muted">禁止語の検査</text>
+        <rect class="module" x="1020" y="424" width="170" height="44"/>
+        <text x="1028" y="442" font-size="12">TtsEngine</text>
+        <text x="1028" y="459" font-size="11" class="muted">文に分けて合成</text>
+        <rect class="module" x="842" y="476" width="170" height="44"/>
+        <text x="850" y="494" font-size="12">ConversationLog</text>
+        <text x="850" y="511" font-size="11" class="muted">日ごとのJSONL</text>
+        <rect class="module dashed" x="1020" y="476" width="170" height="44"/>
+        <text x="1028" y="494" font-size="12">packages/protocol</text>
+        <text x="1028" y="511" font-size="11" class="muted">型を4者で共有</text>
+        <text x="842" y="546" font-size="11" class="muted">HTTP：consoleを配信 ／ WebSocket：/ws</text>
+
+        <!-- llama-server -->
+        <rect class="box" x="660" y="640" width="260" height="196" rx="4"/>
+        <text x="672" y="664" font-size="15" font-weight="700">llama-server ×2（同時に1つ）</text>
+        <text x="672" y="686" font-size="12">llama.cpp（Vulkan）・:8080</text>
+        <text x="672" y="706" font-size="12">正：Qwen3-8B Q4_K_M</text>
+        <text x="672" y="726" font-size="12">副：Qwen3-4B Q4_K_M</text>
+        <text x="672" y="752" font-size="11" class="muted">正が3回応答しなければ</text>
+        <text x="672" y="770" font-size="11" class="muted">正を終了して副を起動</text>
+        <text x="672" y="796" font-size="11" class="muted">比較：Qwen3.5-9B・4B</text>
+        <text x="672" y="814" font-size="11" class="muted">（比較スクリプトで）</text>
+
+        <!-- VOICEVOX -->
+        <rect class="box" x="940" y="640" width="260" height="196" rx="4"/>
+        <text x="952" y="664" font-size="15" font-weight="700">VOICEVOX ENGINE</text>
+        <text x="952" y="686" font-size="12">0.25.2・Windows CPU版</text>
+        <text x="952" y="706" font-size="12">localhost:50021</text>
+        <text x="952" y="732" font-size="11" class="muted">/audio_query</text>
+        <text x="952" y="750" font-size="11" class="muted">→ /synthesis → WAV</text>
+
+        <!-- launcher が起動・監視 -->
+        <line class="wire dashed" x1="735" y1="218" x2="735" y2="230" marker-end="url(#arrow_ink)"/>
+        <line class="wire dashed" x1="1180" y1="218" x2="1180" y2="230" marker-end="url(#arrow_ink)"/>
+        <text x="1172" y="230" font-size="10" class="muted" text-anchor="end">起動・監視</text>
+
+        <!-- ===== 機器をまたぐ通信 ===== -->
+        <!-- robot ⇄ Cloudflare -->
+        <line class="flow" x1="298" y1="196" x2="371" y2="196" marker-end="url(#arrow)"/>
+        <text x="334" y="186" font-size="12" text-anchor="middle" class="flow-label">①⑦</text>
+        <line class="flow" x1="375" y1="290" x2="302" y2="290" marker-end="url(#arrow)"/>
+        <text x="338" y="312" font-size="12" text-anchor="middle" class="flow-label">⑥</text>
+        <!-- console ← Cloudflare -->
+        <line class="wire" x1="375" y1="268" x2="345" y2="268"/>
+        <line class="wire" x1="345" y1="268" x2="345" y2="700"/>
+        <line class="wire" x1="345" y1="700" x2="314" y2="700" marker-end="url(#arrow_ink)"/>
+        <text x="352" y="690" font-size="10" class="muted">ログ</text>
+        <!-- Cloudflare ⇄ cloudflared ⇄ backend -->
+        <line class="flow" x1="599" y1="282" x2="656" y2="282" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+        <text x="628" y="304" font-size="10" text-anchor="middle" class="muted">外向きに接続</text>
+        <line class="flow" x1="810" y1="267" x2="826" y2="267" marker-end="url(#arrow)"/>
+        <!-- CRD -->
+        <line class="wire dashed" x1="310" y1="805" x2="618" y2="805"/>
+        <line class="wire dashed" x1="618" y1="805" x2="618" y2="110"/>
+        <line class="wire dashed" x1="618" y1="110" x2="656" y2="128" marker-end="url(#arrow_ink)"/>
+        <text x="522" y="798" font-size="10" class="muted">リモート操作</text>
+
+        <!-- backend ⇄ Google STT -->
+        <line class="flow" x1="842" y1="342" x2="638" y2="342"/>
+        <line class="flow" x1="638" y1="342" x2="638" y2="470"/>
+        <line class="flow" x1="638" y1="470" x2="599" y2="470" marker-end="url(#arrow)"/>
+        <text x="652" y="400" font-size="12" class="flow-label">②</text>
+        <text x="652" y="418" font-size="11">WAV→文字</text>
+
+        <!-- backend ⇄ Tavily -->
+        <line class="flow" x1="1105" y1="416" x2="1105" y2="600"/>
+        <line class="flow" x1="1105" y1="600" x2="599" y2="600" marker-end="url(#arrow)"/>
+        <text x="1112" y="584" font-size="12" class="flow-label">④</text>
+        <text x="652" y="592" font-size="11">search があれば検索 → もう一度③</text>
+
+        <!-- backend ⇄ llama -->
+        <line class="flow" x1="880" y1="416" x2="880" y2="636" marker-end="url(#arrow)"/>
+        <text x="886" y="626" font-size="12" class="flow-label">③</text>
+
+        <!-- backend ⇄ VOICEVOX -->
+        <line class="flow" x1="1150" y1="468" x2="1150" y2="636" marker-end="url(#arrow)"/>
+        <text x="1158" y="626" font-size="12" class="flow-label">⑤</text>
+      </svg>
+    </div>
+    <figcaption><span class="swatch" aria-hidden="true"></span>色の付いた矢印が、来場者の発言1回で動く経路（①〜⑦）。黒い矢印は配信と管理、点線はリモート操作とランチャーによる起動・監視。点線の箱は、コードだけを共有するもの。走行は機体の中だけで完結し、バックエンドを通らない。</figcaption>
+  </figure>
+
+  <div class="notes">
+    <section>
+      <h2>会話1回の流れ</h2>
+      <ol>
+        <li>機体のマイクの音声を、無音で区切って1発話ずつバックエンドへ送る（WSS）。テクロボくんが話している間はマイクを止める</li>
+        <li><code>SpeechRecognizer</code> が Google STT で文字にする。禁止語を検査し、全員に「考え中」を知らせる</li>
+        <li><code>DialogueEngine</code> が llama-server に人格・履歴を送り、<code>{say, emotion, search}</code> を受け取る</li>
+        <li><code>search</code> があれば、<code>say</code>（「ちょっと調べてみるね」など）を先に話し、その間に <code>WebSearcher</code> が Tavily で検索して、結果を付けてもう一度③</li>
+        <li><code>TtsEngine</code> が返事を文に分け、1文ずつ VOICEVOX で WAV にする</li>
+        <li>機体へ表情・字幕・WAVを文ごとに、console へログの行を送る。状態は「話し中」</li>
+        <li>機体が最後の文の再生終了を返すと「待機中」に戻り、マイクを開く</li>
+      </ol>
+    </section>
+    <section>
+      <h2>つなぎ方の決まりごと</h2>
+      <ul>
+        <li>会場と自宅は Cloudflare の名前付きトンネルだけでつなぐ。自宅のルーターのポートは開けない</li>
+        <li>機体と console は、登録コード（ランチャーに出る、短命・1回限り）をトークンと交換して接続する。機体はQRをカメラで、console は文字で入れる</li>
+        <li>管理用API（登録コードの発行、入力元の切り替え、マイクの一時停止、会話のリセット）は 127.0.0.1 だけで待ち受け、トンネルに載せない</li>
+        <li>llama-server の正と副は同じポートで、同時には動かさない。backend は接続先を変えずに済む</li>
+        <li>回線や外部サービスが止まると、機体は眠っている顔、console は「つながっていません」になる</li>
+      </ul>
+    </section>
+  </div>
+</div>
+</body>
+</html>

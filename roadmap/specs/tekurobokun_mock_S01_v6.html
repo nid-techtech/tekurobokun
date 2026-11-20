@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>テクロボくん モック S01（console）</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400;500;700&family=DotGothic16&display=swap">
+<style>
+/* レイアウト：上から画面IDごとに縦に並べ、各画面は実寸の枠で描く（狭い幅では枠ごと横スクロール） */
+/* ===== tokens.css の写し ===== */
+/* tekurobokun トークン（確定。方向性C：端末） */
+/* ライト＝印字用紙、ダーク＝端末画面。フェイシャルはテーマに関係なく白地・黒線で固定 */
+:root {
+  /* 色 */
+  --color-bg: #f3f4f1;
+  --color-surface: #fbfbf9;
+  --color-ink: #16181d;
+  --color-ink-muted: #5d626c;
+  --color-rule: #16181d;
+  --color-rule-faint: #c9ccd1;
+  --color-accent: #2440c8;
+  --color-accent-ink: #ffffff;
+  --color-danger: #b4232a;
+  --color-keyboard: #d6d8dc;
+  --color-face-bg: #ffffff;
+  --color-face-ink: #000000;
+  --color-face-caption: #12873a;
+
+  /* 書体（ロケールごとに切り替える） */
+  --font-body-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-display-ja: "M PLUS 1 Code", "Osaka-Mono", "MS Gothic", monospace;
+  --font-body: var(--font-body-ja);
+  --font-display: var(--font-display-ja);
+  --font-caption: "DotGothic16", "M PLUS 1 Code", monospace; /* 機体の字幕 */
+
+  /* 文字サイズ（タブレットで1〜2m離れても読める大きさ） */
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.625rem;
+  --text-xl: 2.25rem;
+  --leading-body: 1.6;
+  --term-text-size: 1.125rem; /* 入力ページの文字の大きさ（設定で変えられる。初期値18px） */
+  --term-leading: 1.45;
+
+  /* 余白 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* 線・角丸 */
+  --stroke-thin: 1px;
+  --stroke-bold: 3px;
+  --radius-sm: 4px;
+  --radius-md: 10px;
+
+  /* モーション */
+  --motion-fast: 120ms;
+  --motion-base: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cursor-blink: 1s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #0e1116;
+    --color-surface: #151a21;
+    --color-ink: #e6e9ee;
+    --color-ink-muted: #98a0ab;
+    --color-rule: #e6e9ee;
+    --color-rule-faint: #2b323c;
+    --color-accent: #8ea2ff;
+    --color-accent-ink: #0e1116;
+    --color-danger: #ff7b80;
+    --color-keyboard: #262c35;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e1116;
+  --color-surface: #151a21;
+  --color-ink: #e6e9ee;
+  --color-ink-muted: #98a0ab;
+  --color-rule: #e6e9ee;
+  --color-rule-faint: #2b323c;
+  --color-accent: #8ea2ff;
+  --color-accent-ink: #0e1116;
+  --color-danger: #ff7b80;
+  --color-keyboard: #262c35;
+  color-scheme: dark;
+}
+/* ===== ここまで写し ===== */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: var(--space-6) var(--space-7);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: var(--space-7);
+}
+.mock-head { display: grid; gap: var(--space-3); }
+.mock-head h1 { font-family: var(--font-display); font-weight: 400; font-size: var(--text-xl); margin: 0; text-wrap: balance; }
+.note { color: var(--color-ink-muted); margin: 0; max-width: 65ch; }
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.toolbar button {
+  font: inherit; font-size: var(--text-xs);
+  background: var(--color-surface); color: var(--color-ink);
+  border: var(--stroke-thin) solid var(--color-rule); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3); cursor: pointer;
+}
+.toolbar button[aria-pressed="true"] { background: var(--color-ink); color: var(--color-bg); }
+.toolbar button:focus-visible, .ctl:focus-visible { outline: var(--stroke-bold) solid var(--color-accent); outline-offset: 2px; }
+
+section.screen { display: grid; gap: var(--space-3); min-width: 0; }
+.screen-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); border-top: var(--stroke-bold) solid var(--color-rule); padding-top: var(--space-3); }
+.screen-id { font-family: var(--font-display); font-size: var(--text-md); }
+.screen-head h2 { margin: 0; font-size: var(--text-md); }
+.scroller { overflow-x: auto; padding-bottom: var(--space-2); }
+.variants { display: flex; gap: var(--space-5); align-items: flex-start; }
+.variant { display: grid; gap: var(--space-2); flex: none; }
+.variant-label { font-size: var(--text-xs); color: var(--color-ink-muted); }
+.variant-label b { color: var(--color-ink); }
+
+/* ===== タブレット（横 1024×768 の実寸） ===== */
+.tablet {
+  width: 1280px; height: 800px; flex: none; position: relative;
+  border: 14px solid var(--color-ink); border-radius: 28px;
+  background: var(--color-surface); color: var(--color-ink);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden;
+}
+.t-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--stroke-bold) solid var(--color-rule);
+}
+.t-name { font-family: var(--font-display); font-weight: 700; font-size: var(--text-lg); letter-spacing: 0.04em; }
+.status { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-md); font-weight: 700; }
+.status::before { content: ""; width: 14px; height: 14px; border: var(--stroke-bold) solid currentColor; border-radius: 50%; }
+.status.is-busy::before { background: currentColor; }
+.status.is-thinking::before { border-style: dashed; animation: spin 1.6s linear infinite; }
+.status.is-offline { color: var(--color-danger); }
+.status.is-offline::before { border-radius: 0; transform: rotate(45deg); }
+
+.t-log { overflow: hidden; padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-3); min-height: 0; }
+.log-empty { font-size: var(--text-md); color: var(--color-ink-muted); }
+.cursor { display: inline-block; width: 0.6em; height: 1.1em; background: var(--color-accent); vertical-align: text-bottom; animation: blink var(--cursor-blink) steps(1) infinite; }
+
+.t-input { padding: var(--space-4) var(--space-5); border-top: var(--stroke-thin) solid var(--color-rule-faint); display: grid; gap: var(--space-3); }
+.field-row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-3); align-items: stretch; }
+.field {
+  border: var(--stroke-bold) solid var(--color-rule); border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4); font-size: var(--text-lg); min-height: 72px;
+  display: flex; align-items: center; background: var(--color-bg); min-width: 0; overflow-wrap: anywhere;
+}
+.field.placeholder { color: var(--color-ink-muted); }
+.field.focused { outline: var(--stroke-bold) solid var(--color-accent); outline-offset: 2px; }
+.btns { display: flex; gap: var(--space-2); }
+.ctl {
+  font: inherit; font-size: var(--text-lg); font-weight: 700; min-width: 120px;
+  border: var(--stroke-bold) solid var(--color-rule); border-radius: var(--radius-md);
+  background: var(--color-ink); color: var(--color-bg); cursor: pointer; padding: 0 var(--space-5);
+}
+.ctl.sub { background: transparent; color: var(--color-ink); min-width: 96px; font-size: var(--text-md); }
+.ctl[disabled] { background: transparent; color: var(--color-ink-muted); border-color: var(--color-rule-faint); cursor: not-allowed; }
+.ctl.hover { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
+.autosend { display: grid; gap: var(--space-1); font-size: var(--text-sm); color: var(--color-ink-muted); }
+
+/* OSのキーボード（Microsoft SwiftKey、横向きタブレット）の見た目の目安。実物の高さは設定で変わる */
+.t-kb { height: 340px; background: var(--color-keyboard); border-top: var(--stroke-thin) solid var(--color-rule-faint); display: grid; grid-template-rows: 64px 1fr; color: var(--color-ink-muted); font-family: system-ui, sans-serif; }
+.kb-dict { display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5); border-bottom: var(--stroke-thin) solid var(--color-rule-faint); font-size: var(--text-md); }
+.kb-pill { border: 2px solid currentColor; border-radius: 999px; padding: 0 var(--space-3); font-weight: 700; }
+.kb-dict span:nth-child(2) { flex: 1; }
+.kb-mic { width: 48px; height: 48px; border-radius: 50%; background: var(--color-surface); color: var(--color-ink); display: grid; place-items: center; }
+.kb-rows { display: grid; gap: 8px; padding: var(--space-3) var(--space-5); align-content: center; opacity: 0.6; }
+.kb-rows div { display: flex; gap: 8px; justify-content: center; }
+.kb-rows span { flex: 1; max-width: 96px; height: 52px; border-radius: 6px; background: var(--color-surface); }
+
+.offline { display: grid; place-content: center; gap: var(--space-3); text-align: center; padding: var(--space-6); }
+.offline h3 { margin: 0; font-size: var(--text-xl); color: var(--color-danger); }
+.offline.inactive h3 { color: var(--color-ink); }
+.offline p { margin: 0; font-size: var(--text-md); }
+
+
+/* ===== 端末の見せ方（コマンドライン）：記号・時刻・反転表示・角のない部品・文字の大きさと太さをそろえる ===== */
+.term { font-size: var(--term-text-size); line-height: var(--term-leading); }
+.term .t-name, .term .field, .term .ctl, .term .status, .term .sh, .term .autosend { font-size: var(--term-text-size); line-height: var(--term-leading); }
+.term .t-bar { background: var(--color-ink); color: var(--color-surface); border-bottom: 0; padding: var(--space-1) var(--space-4); }
+.term .t-name { font-weight: 700; letter-spacing: 0; }
+.term .status { font-weight: 400; gap: 0; }
+.term .status::before { content: "["; width: auto; height: auto; border: 0; border-radius: 0; background: none; animation: none; transform: none; }
+.term .status::after { content: "]"; }
+.term .t-log { padding: var(--space-3) var(--space-4); gap: var(--space-1); }
+/* シェル（bash・zsh）風のログ：行は左端から折り返す */
+.sh { display: block; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sh .ts { color: var(--color-ink-muted); }
+.sh .prompt { color: var(--color-accent); }
+.sh-meta { color: var(--color-ink-muted); }
+.sh-meta b { color: var(--color-accent); font-weight: 700; }
+.sh-comment { color: var(--color-ink-muted); }
+.term .t-input { border-top: 0; padding: 0 var(--space-4) var(--space-3); gap: var(--space-1); }
+.term .t-log { padding-bottom: 0; }
+.term .field-row { align-items: center; }
+.term .field { border: 0; border-radius: 0; background: transparent; padding: 0; min-height: 0; outline: 0; }
+.term .field { display: block; }
+.term .field.placeholder .placeholder-text { color: var(--color-ink-muted); }
+.term .field.placeholder { color: inherit; }
+.term .ctl { border: 0; border-radius: 0; background: transparent; color: var(--color-ink); min-width: 0; font-weight: 400; padding: 0.1em 0.2em; }
+.term .ctl::before { content: "["; } .term .ctl::after { content: "]"; }
+.term .ctl.hover, .term .ctl:not([disabled]):hover { background: var(--color-ink); color: var(--color-surface); }
+.term .ctl[disabled] { color: var(--color-ink-muted); }
+.term .bar-text { white-space: pre; color: var(--color-accent); }
+.term .offline { place-content: center start; text-align: left; padding: var(--space-6); gap: var(--space-1); }
+.term .offline h3 { font-size: var(--term-text-size); font-weight: 700; }
+.term .offline h3::before { content: "! "; }
+.term .offline.inactive h3::before { content: "# "; }
+.term .offline p { font-size: var(--term-text-size); color: var(--color-ink-muted); }
+
+/* ===== 機体のフェイシャル（800×600 の実寸、テーマに関係なく白地黒線） ===== */
+.face { width: 400px; height: 300px; flex: none; background: var(--color-face-bg); border: var(--stroke-thin) solid var(--color-rule-faint); }
+.face.full { width: 800px; height: 600px; }
+.face svg { width: 100%; height: 100%; display: block; }
+.face svg * { stroke: var(--color-face-ink); fill: none; }
+.face svg .solid { fill: var(--color-face-ink); }
+.face svg text { fill: var(--color-face-ink); stroke: none; font-family: var(--font-body); }
+.face svg .cap-bg { fill: var(--color-face-bg); stroke: var(--color-face-ink); }
+.orbit-l { transform-box: view-box; transform-origin: 184px 149px; animation: spin 1.2s linear infinite; }
+.sleep { animation: bob 3.2s ease-in-out infinite alternate; }
+.face svg .caption { fill: var(--color-face-caption); stroke: none; font-family: var(--font-caption); }
+.orbit-r { transform-box: view-box; transform-origin: 616px 149px; animation: spin 1.2s linear infinite; }
+
+/* ===== 決まったこと ===== */
+.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); }
+.decisions h2 { font-size: var(--text-md); margin: 0 0 var(--space-3); border-top: var(--stroke-bold) solid var(--color-rule); padding-top: var(--space-3); }
+.decisions ol, .decisions ul { margin: 0; padding-left: 1.4em; display: grid; gap: var(--space-2); }
+.decisions li { min-width: 0; }
+.decisions small { display: block; color: var(--color-ink-muted); }
+
+/* 考え中インジケータ（ログの行の中、読み上げ用の文言は視覚的に隠して残す） */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.think { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 1.5em; color: var(--color-accent); }
+/* スピナー：点字の8点が1つずつ欠けて回る（100msごとに文字を差し替える） */
+.think-braille b { font-family: var(--font-body); font-weight: 400; font-size: 1.4em; line-height: 1; width: 1em; text-align: center; }
+
+/* ===== v6で足した部品 ===== */
+section.screen-group { display: grid; gap: var(--space-6); min-width: 0; }
+.group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); border-top: calc(var(--stroke-bold) * 2) solid var(--color-rule); padding-top: var(--space-3); }
+.group-head .screen-id { font-size: var(--text-lg); }
+.group-head h2 { margin: 0; font-size: var(--text-lg); }
+.tag-new { font-size: var(--text-xs); border: var(--stroke-thin) solid var(--color-accent); color: var(--color-accent); padding: 0 var(--space-2); }
+
+/* consoleのログ表示専用 */
+.tablet.viewonly { grid-template-rows: auto minmax(0, 1fr) auto; }
+.lockline { padding: var(--space-2) var(--space-4) var(--space-3); color: var(--color-ink-muted); border-top: var(--stroke-thin) solid var(--color-rule-faint); }
+.sh .mic { color: var(--color-accent); }
+.pair-form { display: grid; gap: var(--space-2); padding: var(--space-6); align-content: center; }
+.pair-form .sh-comment { color: var(--color-ink-muted); }
+
+/* フェイシャルのカメラ */
+.face svg .cam { fill: var(--color-keyboard); stroke: var(--color-face-ink); }
+.face svg .cam-grid { stroke: var(--color-rule-faint); }
+.face svg .guide { stroke: var(--color-accent); fill: none; }
+.face svg .qr-dot { fill: var(--color-face-ink); stroke: none; }
+.face svg .mark { fill: var(--color-face-caption); stroke: none; font-family: var(--font-caption); }
+
+/* ランチャー（Windowsのウィンドウ。Chrome Remote Desktopで見る） */
+.win { width: 1280px; height: 800px; flex: none; display: grid; grid-template-rows: auto auto minmax(0, 1fr); border: var(--stroke-thin) solid var(--color-rule); background: var(--color-surface); color: var(--color-ink); font-size: var(--term-text-size); line-height: var(--term-leading); overflow: hidden; }
+.win-title { display: flex; justify-content: space-between; align-items: center; padding: 0 0 0 var(--space-3); height: 32px; background: var(--color-bg); border-bottom: var(--stroke-thin) solid var(--color-rule-faint); font-size: var(--text-xs); }
+.win-title .wbtns { display: flex; }
+.win-title .wbtns span { width: 46px; text-align: center; color: var(--color-ink-muted); }
+.win .t-bar { border-bottom: 0; display: flex; justify-content: space-between; gap: var(--space-4); background: var(--color-ink); color: var(--color-surface); padding: var(--space-1) var(--space-4); }
+.win .t-bar b { font-weight: 700; }
+.l-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
+.l-main { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-3) var(--space-4); min-width: 0; overflow: hidden; }
+.l-side { border-left: var(--stroke-thin) solid var(--color-rule-faint); padding: var(--space-3) var(--space-4); display: grid; align-content: start; gap: var(--space-2); }
+.l-sec { display: grid; gap: 0; }
+.l-sec > .sh-comment { margin-bottom: var(--space-1); }
+.svc { display: grid; grid-template-columns: 1.4em 6.5em minmax(0, 1fr) 6.5em 4.5em 15.5em; gap: var(--space-3); align-items: baseline; white-space: nowrap; }
+.svc .name { font-weight: 700; }
+.svc .detail { color: var(--color-ink-muted); overflow: hidden; text-overflow: ellipsis; }
+.svc .up { color: var(--color-ink-muted); }
+.svc > span:last-child { text-align: right; }
+.svc .ok { color: var(--color-ink); }
+.svc .bad { color: var(--color-danger); font-weight: 700; }
+.svc .wait { color: var(--color-accent); }
+.dot-on::before { content: "●"; } .dot-off::before { content: "○"; color: var(--color-ink-muted); } .dot-bad::before { content: "✕"; color: var(--color-danger); }
+.win .ctl { font: inherit; border: 0; border-radius: 0; background: transparent; color: var(--color-ink); padding: 0.1em 0.2em; cursor: pointer; min-width: 0; font-weight: 400; }
+.win .ctl::before { content: "["; } .win .ctl::after { content: "]"; }
+.win .ctl.hover, .win .ctl:not([disabled]):hover { background: var(--color-ink); color: var(--color-surface); }
+.win .ctl[disabled] { color: var(--color-ink-muted); cursor: not-allowed; }
+.win .ctl.primary { color: var(--color-accent); font-weight: 700; }
+.radio { display: flex; gap: var(--space-5); flex-wrap: wrap; }
+.radio span.on { font-weight: 700; }
+.banner { border: var(--stroke-bold) solid var(--color-danger); padding: var(--space-2) var(--space-3); color: var(--color-danger); display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; }
+.banner.info { border-color: var(--color-accent); color: var(--color-accent); }
+.l-sec.ev { flex: 1; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+.events { color: var(--color-ink-muted); white-space: pre; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.events span { display: block; }
+.events .err { color: var(--color-danger); }
+.qr { width: 320px; height: 320px; background: var(--color-face-bg); color: var(--color-face-ink); padding: var(--space-4); box-sizing: border-box; border: var(--stroke-thin) solid var(--color-rule); }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qr.dim { opacity: 0.25; }
+.pair-code { font-size: var(--text-xl); font-weight: 700; letter-spacing: 0.12em; }
+.bar-text { white-space: pre; color: var(--color-accent); }
+.qr-full { width: 1280px; height: 800px; flex: none; border: var(--stroke-thin) solid var(--color-rule); background: var(--color-face-bg); color: var(--color-face-ink); display: grid; grid-template-columns: 720px 1fr; align-items: center; gap: var(--space-6); padding: var(--space-6); box-sizing: border-box; font-size: var(--text-lg); }
+.qr-full .qr { width: 720px; height: 720px; border: 0; }
+.qr-full .ctl { font: inherit; border: 0; background: transparent; color: var(--color-face-ink); padding: 0.1em 0.2em; cursor: pointer; }
+.qr-full .ctl::before { content: "["; } .qr-full .ctl::after { content: "]"; }
+.qr .qr-w { fill: var(--color-face-bg); }
+.qr-full .pair-code { font-size: 3rem; }
+
+.face svg .qr-g rect { fill: var(--color-face-ink); stroke: none; }
+.face svg .qr-g .qr-w, .face svg .qr-g .qr-w-face { fill: var(--color-face-bg); }
+.decisions .todo li b { color: var(--color-accent); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes bob { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cursor, .status.is-thinking::before, .orbit-l, .orbit-r, .sleep { animation: none; }
+}
+</style>
+
+</head>
+<body>
+<div class="page">
+  <header class="mock-head">
+    <h1>テクロボくん モック S01（console）</h1>
+    <p class="note">見た目だけで、中身はありません。S01 は console（タブレット・スマホのブラウザ、実寸 1280×800）。</p>
+    <div class="toolbar" role="group" aria-label="表示の切り替え">
+      <button type="button" id="btn_theme_light" data-theme-set="light">ライト</button>
+      <button type="button" id="btn_theme_dark" data-theme-set="dark">ダーク</button>
+      <button type="button" id="btn_theme_system" data-theme-set="system" aria-pressed="true">システム</button>
+      <button type="button" id="btn_locale_ja" data-locale-set="ja" aria-pressed="true">日本語</button>
+      <button type="button" id="btn_locale_pseudo" data-locale-set="pseudo">疑似ロケール</button>
+      <button type="button" id="btn_text_16" data-text-size="1rem">文字 16px</button>
+      <button type="button" id="btn_text_18" data-text-size="1.125rem" aria-pressed="true">文字 18px（初期値）</button>
+      <button type="button" id="btn_text_20" data-text-size="1.25rem">文字 20px</button>
+      <button type="button" id="btn_text_24" data-text-size="1.5rem">文字 24px</button>
+    </div>
+  </header>
+
+  <main id="screens" style="display:grid;gap:var(--space-7)"></main>
+
+  <div class="decisions">
+    <div>
+      <h2>決まったこと</h2>
+      <ul>
+        <li>方向性はC「端末」。トークンは v5 のまま。ランチャーも同じシェル風の見せ方にする（S03）</li>
+        <li>入力の基本は機体のマイク。console は普段ログの表示専用で、ランチャーで入力元を console に切り替えたときだけ v5 の入力ページになる（S01h・S01a〜S01g）</li>
+        <li>入力元は同時に1つだけ（機体のマイク・console:tablet・console:phone）。切り替えはランチャーで行う。機体と console には切り替えの操作を置かない（S03a・S01g）</li>
+        <li>機体のマイクで聞いた発言は、ログで (mic) を付けて出す。検索した行は「searched "検索語" in 時間」で出す（S01h）</li>
+        <li>話している間はマイクを止める（半二重）（S02b）</li>
+        <li>調べ中は考え中と同じ LOADING の顔にし、字幕に「# 調べています: 検索語」を出す（S02i）</li>
+        <li>聞き取り中は目で注目を示すだけで、途中の文字は出さない。無音で区切ってから1回で文字にする（S02h）</li>
+        <li>機体の登録画面は、カメラを全面に出して QR を枠に合わせてもらう（S02g）</li>
+        <li>機体は、ランチャーに出た QR コードをカメラで読み取って登録する。console は同じコードを文字で入れて登録する。コードは短命・1回限り（S02g・S01i・S03a）</li>
+        <li>LLM・VOICEVOX が応答しないときも、console は S01f、機体は S02e を出す</li>
+        <li>ランチャーはサービス5つ（llm.main・llm.sub・tts・backend・tunnel）の起動・停止・状態を1画面で持つ。正副の LLM は同じポートで、同時には動かさない（S03a）</li>
+        <li>正が3回続けて応答しなければ、正を終了して副を起動する。正に戻すのは手動（S03c）</li>
+        <li>だれも話さない時間が一定（初期値90秒、設定で変更可）続くと、LLM に渡す履歴を自動で消す。ランチャーの［会話をリセット］でも消せる。console の表示と会話ログは消さず、区切りの行を出す（S01h・S03a）</li>
+        <li>ランチャーで機体のマイクを一時停止できる。停止中は console の状態行が「マイク停止中」になる（S03a・S01h）</li>
+        <li>ランチャーに外部サービス（音声認識 Google STT の状態、Tavily の今月の検索回数）を出す。回数はバックエンドが数える（S03a）</li>
+        <li>起動に失敗したら、理由を出して後ろのサービスを起動待ちで止める（S03d）</li>
+        <li>QR は拡大表示できる（S03e）</li>
+        <li>走行（キーボードの WASD を押している間だけ動く）では、フェイシャルの表示を変えない。走行の状態はデバッグ HUD（/）にだけ出す</li>
+        <li>言語は日本語のみ（モード1）。辞書と疑似ロケールの土台は持つ</li>
+      </ul>
+    </div>
+    
+  </div>
+</div>
+
+
+<script>
+// ===== 辞書（モックの文言はすべてここから参照する） =====
+const DICT = {
+  ja: {
+    "app.name": "TEKUROBO-KUN",
+    "status.ready": "待機中",
+    "status.listening": "入力中",
+    "status.thinking": "考え中",
+    "status.speaking": "話し中",
+    "status.offline": "つながっていません",
+    "input.placeholder": "キーボードのマイクを押して、話しかけてください",
+    "input.send_button": "送る",
+    "input.clear_button": "消す",
+    "input.autosend": "{seconds}秒後に送ります",
+    "input.inactive_title": "いまは別の端末で受け付けています",
+    "input.inactive_body": "この端末からは話しかけられません。スタッフが切り替えると使えるようになります。",
+    "shell.user": "user",
+    "shell.host": "nid-techtech",
+    "shell.dir": "~/makers",
+    "shell.prompt": "{user}@{host}:{dir} %",
+    "shell.finished": "{name} finished thinking in {duration}",
+    "shell.thinking": "{name} is thinking",
+    "shell.output_mark": ">",
+    "log.you": "あなた",
+    "log.robot": "テクロボ",
+    "log.empty": "まだ会話はありません。テクロボくんに話しかけてみましょう。",
+    "log.thinking": "考えています",
+    "error.offline_title": "テクロボくんにつながっていません",
+    "error.offline_body": "スタッフに声をかけてください。つながると自動で元に戻ります。",
+    "keyboard.label": "端末のキーボード（Microsoft SwiftKey）",
+    "keyboard.lang": "JA",
+    "keyboard.dictation": "マイクをタップしてディクテーションする",
+    "face.caption_line": "{who}> {text}",
+    "sample.you_1": "こんにちは、何ができるの？",
+    "sample.robot_1": "話しかけてもらえれば返事をします。今日は何を作りに来たんですか？",
+    "sample.you_2": "ロボットを見に来た",
+    "sample.robot_2": "それなら目の前にいます。じっくりどうぞ。",
+    "sample.you_partial": "テクロボくんの好きな食べ物は",
+    "sample.you_3": "テクロボくんの好きな食べ物は何？",
+    "sample.robot_3": "食べられないので、はんだの煙で我慢しています。",
+    "sample.you_long": "ねえねえテクロボくんってどうやって動いてるの、中にパソコンが入ってるって本当なの、それとも誰かが遠くから操作してるの",
+    "sample.robot_long": "中にパソコンが入っていて、顔と声を担当しています。考えるのは隣の机にある別のパソコンです。誰かが操作しているわけではありません。ただ、間違えることはあるので、変なことを言ったら笑ってください。"
+    ,
+    "status.listening_voice": "聞いています",
+    "status.mic_paused": "マイク停止中",
+    "launcher.mic_pause": "マイクを止める",
+    "launcher.mic_resume": "マイクを戻す",
+    "launcher.sec_external": "外部サービス",
+    "launcher.ext_stt": "音声認識 Google STT",
+    "launcher.ext_search": "検索 Tavily（今月）",
+    "launcher.ext_count": "{used} / {limit}",
+    "console.history_reset": "ここで会話を区切りました（{seconds}秒だれも話さなかったため）",
+    "launcher.ev_reset": "{time} 会話を区切った（無音 {seconds}秒）",
+    "status.hearing": "聞き取り中",
+    "status.searching": "調べ中",
+    "console.locked": "入力はテクロボくんのマイクで受け付けています。この画面は会話の表示だけです",
+    "console.heard_mark": "(mic)",
+    "shell.searched": "{name} searched \"{query}\" in {duration}",
+    "pair.console_title": "この端末は登録されていません",
+    "pair.console_body": "スタッフに、ランチャーに出ている登録コードを入れてもらってください",
+    "pair.code_label": "登録コード",
+    "pair.code_placeholder": "XXXX-XXXX",
+    "pair.register_button": "登録",
+    "pair.robot_show_qr": "QRコードをカメラに見せてください",
+    "pair.robot_ok": "つながりました",
+    "pair.robot_expired": "古いコードです。新しいコードを見せてください",
+    "face.search_line": "# 調べています: {query}",
+    "launcher.title": "TEKUROBO-KUN LAUNCHER",
+    "launcher.summary": "{up}/{all} 稼働中",
+    "launcher.input_source": "受付: {source}",
+    "launcher.public_url": "公開: {url}",
+    "launcher.sec_services": "サービス",
+    "launcher.sec_input": "入力元（受け付けるのは1つだけ）",
+    "launcher.sec_devices": "登録済みの端末",
+    "launcher.sec_events": "できごと",
+    "launcher.sec_pair": "端末の登録",
+    "launcher.svc_llm_main": "llm.main",
+    "launcher.svc_llm_sub": "llm.sub",
+    "launcher.svc_tts": "tts",
+    "launcher.svc_backend": "backend",
+    "launcher.svc_tunnel": "tunnel",
+    "launcher.state_running": "稼働中",
+    "launcher.state_standby": "待機",
+    "launcher.state_stopped": "停止",
+    "launcher.state_loading": "読み込み中",
+    "launcher.state_waiting": "起動待ち",
+    "launcher.state_failed": "失敗",
+    "launcher.state_down": "応答なし",
+    "launcher.uptime": "{time}",
+    "launcher.start_all": "すべて起動",
+    "launcher.stop_all": "すべて停止",
+    "launcher.start": "起動",
+    "launcher.stop": "停止",
+    "launcher.restart": "再起動",
+    "launcher.switch_to_sub": "副に切り替え",
+    "launcher.back_to_main": "正に戻す",
+    "launcher.show_log": "ログ",
+    "launcher.src_robot": "機体のマイク",
+    "launcher.src_tablet": "console:tablet",
+    "launcher.src_phone": "console:phone",
+    "launcher.reset_history": "会話をリセット",
+    "launcher.dev_connected": "接続中",
+    "launcher.dev_offline": "未接続",
+    "launcher.dev_since": "登録 {time}",
+    "launcher.unregister": "登録を解除",
+    "launcher.pair_remaining": "残り {seconds}秒",
+    "launcher.pair_new": "新しいコード",
+    "launcher.pair_zoom": "拡大表示",
+    "launcher.pair_close": "閉じる",
+    "launcher.pair_once": "1回だけ使えます。機体はカメラで、consoleは文字で入れます",
+    "launcher.pair_wait_backend": "backend の起動を待っています",
+    "launcher.failover_msg": "llm.main が応答しないため、llm.sub に切り替えました（{time}）",
+    "launcher.loading_msg": "起動しています。llm.main の読み込みには数十秒かかります",
+    "launcher.port_in_use": "ポート {port} が使われています",
+    "launcher.ev_heartbeat_fail": "{time} ! llm.main 応答なし（{n}/3）",
+    "launcher.ev_switched": "{time} llm.main を終了し、llm.sub を起動",
+    "launcher.ev_paired": "{time} robot を登録",
+    "launcher.ev_started": "{time} すべて起動",
+    "sample.you_search": "長岡出身の有名人を3人教えて",
+    "sample.you_partial_voice": "長岡出身の有名人を",
+    "sample.robot_search_pre": "ちょっと調べてみるね。",
+    "sample.search_query": "長岡市 出身 著名人",
+    "sample.robot_search": "調べたところ、山本五十六や河井継之助が長岡の出身です。3人目ははっきりしなかったので、言わないでおきます。"
+  }
+};
+// 疑似ロケール：文字列を約4割伸ばし、記号で囲む（プレースホルダは保つ）
+DICT.pseudo = Object.fromEntries(Object.entries(DICT.ja).map(([k, v]) => {
+  const pad = "～".repeat(Math.max(1, Math.round(v.replace(/\{\w+\}/g, "").length * 0.4)));
+  return [k, `［${v}${pad}］`];
+}));
+
+let locale = "ja";
+const t = (key, vars = {}) => (DICT[locale][key] ?? key).replace(/\{(\w+)\}/g, (_, n) => vars[n] ?? `{${n}}`);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ===== タブレットの部品 =====
+const micIcon = (size = 28) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="8" y="2.5" width="8" height="12" rx="4"/><path d="M4.5 11a7.5 7.5 0 0 0 15 0M12 18.5V22"/></svg>`;
+
+function statusChip(kind) {
+  const cls = { ready: "", listening: "is-busy", thinking: "is-thinking", speaking: "is-busy", offline: "is-offline" }[kind];
+  return `<span class="status ${cls}">${esc(t("status." + kind))}</span>`;
+}
+// ログの時刻（見た目のための仮の値。1行ごとに数秒進める）
+let clock = 0;
+const nextTs = () => { const sec = 14 * 3600 + 2 * 60 + 11 + clock; clock += 4 + (clock % 3) * 9; const p = (n) => String(n).padStart(2, "0"); return `${p(Math.floor(sec / 3600))}:${p(Math.floor(sec / 60) % 60)}:${p(sec % 60)}`; };
+const tsSpan = () => `<span class="ts">${nextTs()}</span>`;
+const promptText = () => t("shell.prompt", { user: t("shell.user"), host: t("shell.host"), dir: t("shell.dir") });
+const promptHtml = () => `${tsSpan()} <span class="prompt">${esc(promptText())}</span> `;
+// 考えた時間（バックエンドが測る値。見た目のための仮の値）
+const THINK_MS = [3850, 22331, 5402, 8117, 4096, 12708];
+let thinkIndex = 0;
+const formatDuration = (ms) => `${Math.floor(ms / 1000)}s${ms % 1000}ms`;
+function line(who, key, { cursor = false } = {}) {
+  if (who === "you") return `<div class="sh">${promptHtml()}${esc(t(key))}</div>`;
+  const ms = THINK_MS[thinkIndex++ % THINK_MS.length];
+  return `<div class="sh sh-meta">${esc(t("shell.finished", { name: "\u0000", duration: formatDuration(ms) })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)}</div>
+    <div class="sh">${esc(t("shell.output_mark"))} ${esc(t(key))}${cursor ? '<span class="cursor"></span>' : ""}</div>`;
+}
+function thinkingLine() {
+  return `<div class="sh sh-meta" role="status">${esc(t("shell.thinking", { name: "\u0000" })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)} ${thinkIndicator()}<span class="sr-only">${esc(t("log.thinking"))}</span></div>`;
+}
+function keyboard() {
+  const row = (n) => `<div>${"<span></span>".repeat(n)}</div>`;
+  return `<div class="t-kb" aria-label="${esc(t("keyboard.label"))}">
+    <div class="kb-dict"><span class="kb-pill">${esc(t("keyboard.lang"))}</span><span>${esc(t("keyboard.dictation"))}</span><span class="kb-mic">${micIcon(26)}</span></div>
+    <div class="kb-rows">${row(11)}${row(11)}${row(10)}${row(9)}</div></div>`;
+}
+function inputArea({ text = "", focused = true, countdown = null, sendDisabled = false, waitKey = null, hover = false, placeholderKey = "input.placeholder", hidden = false }) {
+  if (hidden) return `<div class="t-input"></div>`;
+  const field = text
+    ? `<div class="field sh ${focused ? "focused" : ""}">${promptHtml()}${esc(text)}<span class="cursor"></span></div>`
+    : `<div class="field sh placeholder ${focused ? "focused" : ""}">${promptHtml()}<span class="cursor"></span> <span class="placeholder-text">${esc(t(placeholderKey))}</span></div>`;
+  const textBar = (pct) => { const n = Math.round(pct / 10); return `[${"█".repeat(n)}${"░".repeat(10 - n)}]`; };
+  const auto = countdown != null
+    ? `<div class="autosend"><span>${esc(t("input.autosend", { seconds: countdown.sec }))} <span class="bar-text">${textBar(countdown.pct)}</span></span></div>` : "";
+  const wait = waitKey ? `<div class="wait-note">${esc(t(waitKey))}</div>` : "";
+  return `<div class="t-input">
+    <div class="field-row">${field}
+      <div class="btns"><button class="ctl sub" type="button" ${text ? "" : "disabled"}>${esc(t("input.clear_button"))}</button>
+      <button class="ctl ${hover ? "hover" : ""}" type="button" ${sendDisabled || !text ? "disabled" : ""}>${esc(t("input.send_button"))}</button></div>
+    </div>${auto}${wait}</div>`;
+}
+function tablet({ status, log, input, kb = true, body = null }) {
+  return `<div class="tablet term">
+    <div class="t-bar"><span class="t-name">${esc(t("app.name"))}</span>${statusChip(status)}</div>
+    ${body ?? `<div class="t-log">${log}</div>`}
+    ${body ? "<div></div>" : inputArea(input)}
+    ${kb ? keyboard() : "<div></div>"}
+  </div>`;
+}
+
+// ===== 考え中インジケータ =====
+const BRAILLE = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+function thinkIndicator() {
+  return `<span class="think think-braille" aria-hidden="true"><b data-spinner>${BRAILLE[0]}</b></span>`;
+}
+// スピナーは文字の差し替えで回す（reduced-motion では止める）
+let spinnerFrame = 0;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+setInterval(() => {
+  if (reduceMotion.matches) return;
+  spinnerFrame = (spinnerFrame + 1) % BRAILLE.length;
+  document.querySelectorAll("[data-spinner]").forEach((el) => { el.textContent = BRAILLE[spinnerFrame]; });
+}, 100);
+
+// ===== フェイシャル（800×600 座標。既存 config：目 offsetX216 y149 r111/82、口 y430 w694 h143 5分割） =====
+const E = { lx: 184, rx: 616, y: 149, ro: 111, ri: 82, sw: 10 };
+const M = { x: 53, y: 430, w: 694, h: 143, seg: 5, sw: 11 };
+
+function eyes(kind) {
+  const pair = (fn) => fn(E.lx, "l") + fn(E.rx, "r");
+  const outer = (cx) => `<circle cx="${cx}" cy="${E.y}" r="${E.ro}" stroke-width="${E.sw}"/>`;
+  switch (kind) {
+    case "happy": // 上半分の弧（目を細めて笑う）
+      return pair((cx) => `<path d="M${cx - E.ro} ${E.y + 20} A${E.ro} ${E.ro} 0 0 1 ${cx + E.ro} ${E.y + 20}" stroke-width="${E.sw}"/><path d="M${cx - E.ri} ${E.y + 20} A${E.ri} ${E.ri} 0 0 1 ${cx + E.ri} ${E.y + 20}" stroke-width="${E.sw}"/>`);
+    case "surprised": // 内側の円が小さくなる
+      return pair((cx) => outer(cx) + `<circle cx="${cx}" cy="${E.y}" r="34" stroke-width="${E.sw}"/>`);
+    case "curious": // 内側の円が右上を見る、片目だけ小さく
+      return pair((cx, s) => outer(cx) + `<circle cx="${cx + 18}" cy="${E.y - 18}" r="${s === "l" ? 70 : 52}" stroke-width="${E.sw}"/>`);
+    case "troubled": // 上まぶたの線で半分閉じる（外側の線だけ八の字）
+      return pair((cx, s) => outer(cx) + `<circle cx="${cx}" cy="${E.y + 14}" r="${E.ri - 6}" stroke-width="${E.sw}"/><line x1="${cx - E.ro - 6}" y1="${E.y - (s === "l" ? 30 : 60)}" x2="${cx + E.ro + 6}" y2="${E.y - (s === "l" ? 60 : 30)}" stroke-width="${E.sw}"/>`);
+    case "loading": // 内側の円が外側の中を回る
+      return pair((cx, s) => outer(cx) + `<g class="orbit-${s}"><circle cx="${cx}" cy="${E.y - 26}" r="${E.ri - 26}" stroke-width="${E.sw}"/></g>`);
+    case "look_left":
+      return pair((cx) => outer(cx) + `<circle cx="${cx - 22}" cy="${E.y}" r="${E.ri}" stroke-width="${E.sw}"/>`);
+    case "sleep": // 閉じた目（下向きの弧）
+      return pair((cx) => `<path d="M${cx - 80} ${E.y} A90 90 0 0 0 ${cx + 80} ${E.y}" stroke-width="${E.sw}"/>`);
+    case "blink":
+      return pair((cx) => `<line x1="${cx - E.ro}" y1="${E.y}" x2="${cx + E.ro}" y2="${E.y}" stroke-width="${E.sw}"/>`);
+    default:
+      return pair((cx) => outer(cx) + `<circle cx="${cx}" cy="${E.y}" r="${E.ri}" stroke-width="${E.sw}"/>`);
+  }
+}
+function mouth(kind = "rest", level = 0) {
+  let h = M.h, fills = "";
+  if (kind === "a") h = M.h * (0.45 + level * 0.85); // A：高さが伸び縮み
+  const top = M.y - h / 2, segW = M.w / M.seg;
+  let lines = "";
+  for (let i = 1; i < M.seg; i++) lines += `<line x1="${M.x + segW * i}" y1="${top}" x2="${M.x + segW * i}" y2="${top + h}" stroke-width="${M.sw}"/>`;
+  return `${fills}<rect x="${M.x}" y="${top}" width="${M.w}" height="${h}" rx="14" stroke-width="${M.sw}"/>${lines}`;
+}
+function face({ eye = "normal", m = "rest", level = 0, extra = "", full = false, sleep = false }) {
+  const body = `${eyes(eye)}${mouth(m, level)}`;
+  return `<div class="face ${full ? "full" : ""}"><svg viewBox="0 0 800 600" role="img" aria-label="フェイシャル">${sleep ? `<g class="sleep">${body}</g>` : body}${extra}</svg></div>`;
+}
+function caption(who, key) {
+  return `<text class="caption" x="14" y="24" font-size="18">${esc(t("face.caption_line", { who: t(who), text: t(key) }))}</text>`;
+}
+const variant = (label, html) => `<div class="variant"><div class="variant-label">${label}</div>${html}</div>`;
+// 画面の状態（枝番）：画面IDの<section data-screen>の中に入れる
+function sub(id, name, body, note = "", isNew = false) {
+  return `<div class="screen" id="screen_${id.toLowerCase()}"><div class="screen-head"><span class="screen-id">${id}</span><h2>${name}</h2></div>
+    ${note ? `<p class="note">${note}</p>` : ""}<div class="scroller"><div class="variants">${body}</div></div></div>`;
+}
+function group(id, name, subs) {
+  return `<section class="screen-group" data-screen="${id}"><div class="group-head"><span class="screen-id">${id}</span><h2>${name}</h2></div>${subs.join("")}</section>`;
+}
+
+// ===== console（v6） =====
+function heardLine(key) {
+  return `<div class="sh">${promptHtml()}<span class="mic">${esc(t("console.heard_mark"))}</span> ${esc(t(key))}</div>`;
+}
+function searchedLine(queryKey, ms) {
+  return `<div class="sh sh-meta">${esc(t("shell.searched", { name: "\u0000", query: t(queryKey), duration: formatDuration(ms) })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)}</div>`;
+}
+function robotLine(key, ms) {
+  return `<div class="sh sh-meta">${esc(t("shell.finished", { name: "\u0000", duration: formatDuration(ms) })).replace("\u0000", `<b>${esc(t("app.name"))}</b>`)}</div>
+    <div class="sh">${esc(t("shell.output_mark"))} ${esc(t(key))}</div>`;
+}
+function viewOnly(status, log) {
+  return `<div class="tablet term viewonly">
+    <div class="t-bar"><span class="t-name">${esc(t("app.name"))}</span><span class="status">${esc(t("status." + status))}</span></div>
+    <div class="t-log">${log}</div>
+    <div class="lockline sh-comment"># ${esc(t("console.locked"))}</div></div>`;
+}
+function pairConsole() {
+  return `<div class="tablet term">
+    <div class="t-bar"><span class="t-name">${esc(t("app.name"))}</span><span class="status">${esc(t("status.offline"))}</span></div>
+    <div class="pair-form"><div class="sh" style="font-weight:700"># ${esc(t("pair.console_title"))}</div>
+      <div class="sh sh-comment"># ${esc(t("pair.console_body"))}</div></div>
+    <div class="t-input"><div class="field-row"><div class="field sh focused">${esc(t("pair.code_label"))} % <span class="cursor"></span> <span class="placeholder-text" style="color:var(--color-ink-muted)">${esc(t("pair.code_placeholder"))}</span></div>
+      <div class="btns"><button class="ctl" type="button" disabled>${esc(t("pair.register_button"))}</button></div></div></div>
+    ${keyboard()}</div>`;
+}
+
+// ===== QR（見た目だけの模様。中身はない） =====
+function fakeQr(seed = 7, n = 29) {
+  let s = seed, out = "";
+  const rnd = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const inF = (x, y) => (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (!inF(x, y) && rnd() > 0.52) out += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  const fp = (x, y) => `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" class="qr-w"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`;
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">${out}${fp(0, 0)}${fp(n - 7, 0)}${fp(0, n - 7)}</svg>`;
+}
+
+// ===== フェイシャル（v6） =====
+function camBox(x, y, w, h, withQr) {
+  let grid = "";
+  for (let i = 1; i < 4; i++) grid += `<line class="cam-grid" x1="${x + (w / 4) * i}" y1="${y}" x2="${x + (w / 4) * i}" y2="${y + h}" stroke-width="1"/>`;
+  const g = Math.min(w, h) * 0.6, gx = x + (w - g) / 2, gy = y + (h - g) / 2;
+  const qr = withQr ? `<g class="qr-g" transform="translate(${gx + g * 0.12} ${gy + g * 0.12}) scale(${(g * 0.76) / 29})"><rect width="29" height="29" class="qr-w"/>${fakeQr(11).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</g>` : "";
+  return `<rect class="cam" x="${x}" y="${y}" width="${w}" height="${h}" stroke-width="2"/>${grid}${qr}<rect class="guide" x="${gx}" y="${gy}" width="${g}" height="${g}" stroke-width="6" stroke-dasharray="24 12"/>`;
+}
+const capText = (text, y = 24) => `<text class="caption" x="14" y="${y}" font-size="18">${esc(text)}</text>`;
+function facePairB(msgKey, withQr = true) {
+  return `<div class="face"><svg viewBox="0 0 800 600" role="img" aria-label="カメラ">${camBox(0, 40, 800, 560, withQr)}${capText(t(msgKey))}</svg></div>`;
+}
+
+// ===== ランチャー =====
+function svcRow({ dot, nameKey, detail, port, state, stateCls, up = "", actions }) {
+  return `<div class="svc"><span class="${dot}"></span><span class="name">${esc(t(nameKey))}</span><span class="detail">${esc(detail)}${port ? ` :${port}` : ""}</span>
+    <span class="${stateCls}">[${esc(t("launcher.state_" + state))}]</span><span class="up">${esc(up)}</span><span>${actions.map((a) => `<button class="ctl ${a.cls ?? ""}" type="button" ${a.disabled ? "disabled" : ""}>${esc(t(a.key))}</button>`).join("")}</span></div>`;
+}
+const A = (key, extra = {}) => ({ key, ...extra });
+function services(mode) {
+  const run = (k) => ({ dot: "dot-on", state: "running", stateCls: "ok", ...k });
+  const rows = {
+    normal: [
+      run({ nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, up: "2h13m", actions: [A("launcher.stop"), A("launcher.restart"), A("launcher.switch_to_sub")] }),
+      { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "2h13m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, up: "2h12m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", up: "2h12m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+    ],
+    loading: [
+      { dot: "dot-on", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "loading", stateCls: "wait", up: "0m21s", actions: [A("launcher.stop")] },
+      { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "0m18s", actions: [A("launcher.stop"), A("launcher.restart")] }),
+      { dot: "dot-off", nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
+      { dot: "dot-off", nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
+    ],
+    failover: [
+      { dot: "dot-bad", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "down", stateCls: "bad", actions: [A("launcher.show_log"), A("launcher.back_to_main")] },
+      run({ nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, up: "0m42s", actions: [A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "3h02m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, up: "3h01m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", up: "3h01m", actions: [A("launcher.stop"), A("launcher.restart")] }),
+    ],
+    failed: [
+      { dot: "dot-on", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "loading", stateCls: "wait", up: "0m09s", actions: [A("launcher.stop")] },
+      { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      { dot: "dot-bad", nameKey: "launcher.svc_tts", detail: t("launcher.port_in_use", { port: 50021 }), port: null, state: "failed", stateCls: "bad", actions: [A("launcher.show_log"), A("launcher.start")] },
+      { dot: "dot-off", nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
+      { dot: "dot-off", nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
+    ],
+  }[mode];
+  return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_services"))}</div>${rows.map(svcRow).join("")}
+    <div style="margin-top:var(--space-2)"><button class="ctl primary" type="button" ${mode === "normal" || mode === "failover" ? "disabled" : ""}>${esc(t("launcher.start_all"))}</button><button class="ctl" type="button">${esc(t("launcher.stop_all"))}</button></div></div>`;
+}
+function inputSources(active = "robot") {
+  const r = (k, id) => `<span class="${active === id ? "on" : ""}">(${active === id ? "●" : " "}) ${esc(t(k))}</span>`;
+  return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_input"))}</div><div class="radio">${r("launcher.src_robot", "robot")}${r("launcher.src_tablet", "tablet")}${r("launcher.src_phone", "phone")}</div>
+    <div><button class="ctl" type="button">${esc(t("launcher.mic_pause"))}</button><button class="ctl" type="button">${esc(t("launcher.reset_history"))}</button></div></div>`;
+}
+function externals(sttOk = true) {
+  return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_external"))}</div>
+    <div class="svc"><span class="${sttOk ? "dot-on" : "dot-off"}"></span><span class="name">stt</span><span class="detail">${esc(t("launcher.ext_stt"))}</span><span class="${sttOk ? "ok" : "up"}">[${esc(t(sttOk ? "launcher.state_running" : "launcher.state_waiting"))}]</span><span></span><span></span></div>
+    <div class="svc"><span class="dot-on"></span><span class="name">search</span><span class="detail">${esc(t("launcher.ext_search"))}</span><span class="ok">${esc(t("launcher.ext_count", { used: 312, limit: 1000 }))}</span><span></span><span></span></div></div>`;
+}
+function devices(robotOnline = true) {
+  const d = (name, on, time) => `<div class="svc" ><span class="${on ? "dot-on" : "dot-off"}"></span><span class="name">${name}</span><span class="detail">${esc(t("launcher.dev_since", { time }))}</span><span class="${on ? "ok" : "up"}">[${esc(t(on ? "launcher.dev_connected" : "launcher.dev_offline"))}]</span><span></span><span><button class="ctl" type="button">${esc(t("launcher.unregister"))}</button></span></div>`;
+  return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_devices"))}</div>${d("robot", robotOnline, "11/20 13:02")}${d("tablet", true, "11/20 13:05")}${d("phone", false, "11/14 09:40")}</div>`;
+}
+function events(lines) {
+  return `<div class="l-sec ev"><div class="sh-comment"># ${esc(t("launcher.sec_events"))}</div><div class="events">${lines.map((l) => (l.startsWith("!") ? `<span class="err">${esc(l.slice(1))}</span>` : `<span>${esc(l)}</span>`)).join("")}</div></div>`;
+}
+function pairPanel(state = "ready") {
+  const ready = state === "ready";
+  const n = 10, filled = Math.round((42 / 60) * n);
+  return `<div class="sh-comment"># ${esc(t("launcher.sec_pair"))}</div>
+    <div class="qr ${ready ? "" : "dim"}">${fakeQr(3)}</div>
+    ${ready ? `<div class="pair-code">K7QM-4X2P</div>
+    <div>${esc(t("launcher.pair_remaining", { seconds: 42 }))} <span class="bar-text">[${"█".repeat(filled)}${"░".repeat(n - filled)}]</span></div>
+    <div class="sh-comment" style="color:var(--color-ink-muted)"># ${esc(t("launcher.pair_once"))}</div>
+    <div><button class="ctl" type="button">${esc(t("launcher.pair_new"))}</button><button class="ctl primary" type="button">${esc(t("launcher.pair_zoom"))}</button></div>`
+    : `<div style="color:var(--color-ink-muted)"># ${esc(t("launcher.pair_wait_backend"))}</div>`}`;
+}
+function launcher({ mode = "normal", banner = "", ev = [], source = "robot", up = 5 }) {
+  const srcName = t({ robot: "launcher.src_robot", tablet: "launcher.src_tablet", phone: "launcher.src_phone" }[source]);
+  return `<div class="win">
+    <div class="win-title"><span>${esc(t("launcher.title"))}</span><span class="wbtns"><span>─</span><span>□</span><span>✕</span></span></div>
+    <div class="t-bar"><span><b>${esc(t("launcher.title"))}</b>  [${esc(t("launcher.summary", { up, all: 5 }))}]</span><span>${esc(t("launcher.input_source", { source: srcName }))}  ${esc(t("launcher.public_url", { url: "tekurobo.nid-techtech.com" }))}</span></div>
+    <div class="l-body"><div class="l-main">${banner}${services(mode)}${inputSources(source)}${externals(mode !== "loading" && mode !== "failed")}${devices(mode !== "loading" && mode !== "failed")}${events(ev)}</div>
+      <div class="l-side">${pairPanel(mode === "loading" || mode === "failed" ? "wait" : "ready")}</div></div></div>`;
+}
+
+// ===== 画面の組み立て =====
+function render() {
+  const hist = () => { clock = 0; thinkIndex = 0; return line("you", "sample.you_1") + line("robot", "sample.robot_1") + line("you", "sample.you_2") + line("robot", "sample.robot_2"); };
+  const voiceHist = () => { clock = 0; return heardLine("sample.you_1") + robotLine("sample.robot_1", 2104) + heardLine("sample.you_2") + robotLine("sample.robot_2", 1873); };
+  const evNormal = [t("launcher.ev_started", { time: "13:01:40" }), t("launcher.ev_paired", { time: "13:02:58" }), t("launcher.ev_reset", { time: "14:01:12", seconds: 90 })];
+  const html = [
+    group("S01", "console（タブレット・スマホのブラウザ）", [
+      sub("S01h", "ログ表示専用（入力はロック）",
+        variant("<b>普段の表示</b>：機体のマイクで聞いた発言は (mic) 付き。検索した行と、会話を区切った行も出る。キーボードは出さない", viewOnly("listening_voice", voiceHist() + `<div class="sh sh-comment"># ${esc(t("console.history_reset", { seconds: 90 }))}</div>` + heardLine("sample.you_search") + robotLine("sample.robot_search_pre", 1650) + searchedLine("sample.search_query", 1204) + robotLine("sample.robot_search", 2310))) +
+        variant("<b>考え中</b>", viewOnly("thinking", voiceHist() + heardLine("sample.you_3") + thinkingLine())) +
+        variant("<b>マイク停止中</b>：ランチャーで止めている間。機体は待機の顔のまま聞かない", viewOnly("mic_paused", voiceHist())),
+        "入力元が「機体のマイク」の間はこの表示。ランチャーで入力元を console に切り替えると、下の S01a〜S01g（v5と同じ入力ページ）になる。", true),
+      sub("S01i", "未登録の端末（登録コードを入れる）",
+        variant("登録コードはランチャーに出る（S03a）。入れて［登録］を押すと、以後は自動でつながる", pairConsole()), "", true),
+      sub("S01a", "入力ページ：待機（会話なし）※入力元が console のとき",
+        variant("横向き 1280×800", tablet({ status: "ready", log: (clock = 0, `<div class="sh sh-comment"># ${esc(t("log.empty"))}</div>`), input: {} })),
+        "入力行（プロンプト）にフォーカスが当たり、SwiftKey が出ている状態。来場者はキーボードのマイクを押して話す。"),
+      sub("S01b", "入力ページ：話している途中（自動送信あり）",
+        variant("<b>話し終えた直後</b>：入力が止まると送信までの残り時間を表示", tablet({ status: "listening", log: hist(), input: { text: t("sample.you_3"), countdown: { sec: 3, pct: 20 } } })) +
+        variant("<b>送るボタン</b>：hover・押下時の見た目。3秒待たずに送れる", tablet({ status: "listening", log: hist(), input: { text: t("sample.you_partial"), hover: true } })),
+        "入力が3秒止まると自動で送る。待ち時間は設定で変えられる。"),
+      sub("S01c", "入力ページ：テクロボくんが考え中",
+        variant("送った行の下に「is thinking」と点字のスピナーが出る。プロンプトは出ない", tablet({ status: "thinking", log: hist() + line("you", "sample.you_3") + thinkingLine(), input: { hidden: true } }))),
+      sub("S01d", "入力ページ：テクロボくんが話し中",
+        variant("考えた時間と返事が出て、話し終わるまでカーソルが点滅する", tablet({ status: "speaking", log: hist() + line("you", "sample.you_3") + line("robot", "sample.robot_3", { cursor: true }), input: { hidden: true } }))),
+      sub("S01e", "入力ページ：長い文と長い会話",
+        variant("ログは消さずに残し、古い行は上へ流れる", tablet({ status: "ready", log: hist() + line("you", "sample.you_long") + line("robot", "sample.robot_long"), input: {} }))),
+      sub("S01f", "バックエンドにつながらない（LLM・VOICEVOXが応答しないときも）",
+        variant("自動で再接続を試み続け、戻ったら元の表示に戻る", tablet({ status: "offline", kb: false, body: `<div class="offline"><h3>${esc(t("error.offline_title"))}</h3><p>${esc(t("error.offline_body"))}</p></div>` }))),
+      sub("S01g", "別の端末が有効になっている",
+        variant("入力元がほかの console のとき。切り替えはランチャーで行う（S03a）", tablet({ status: "ready", kb: false, body: `<div class="offline inactive"><h3>${esc(t("input.inactive_title"))}</h3><p>${esc(t("input.inactive_body"))}</p></div>` }))),
+    ]),
+    group("S02", "機体のフェイシャル（800×600。S02a以外は半分に縮小）", [
+      sub("S02a", "待機（実寸 800×600）", variant("この状態でまばたき・きょろきょろをする。マイクは開いている", face({ full: true }))),
+      sub("S02b", "話し中の口（音声の大きさに連動）",
+        variant("<b>小</b>", face({ m: "a", level: 0.2 })) + variant("<b>中</b>", face({ m: "a", level: 0.55 })) + variant("<b>大</b>", face({ m: "a", level: 0.9 })),
+        "話している間はマイクを止める（半二重）。"),
+      sub("S02c", "感情（emotion）",
+        variant("<b>neutral</b>", face({})) + variant("<b>happy</b>", face({ eye: "happy" })) + variant("<b>surprised</b>", face({ eye: "surprised" })) + variant("<b>curious</b>", face({ eye: "curious" })) + variant("<b>troubled</b>", face({ eye: "troubled" }))),
+      sub("S02d", "考え中（LOADING）とアイドル動作",
+        variant("<b>LOADING</b>", face({ eye: "loading" })) + variant("<b>まばたき</b>", face({ eye: "blink" })) + variant("<b>きょろきょろ</b>", face({ eye: "look_left" }))),
+      sub("S02e", "眠っている（つながらない・LLMかVOICEVOXが応答しない）",
+        variant("目を閉じ、口を少し開け、ゆっくり上下に揺れる", face({ eye: "sleep", m: "a", level: 0.05, sleep: true }))),
+      sub("S02f", "字幕",
+        variant("<b>考え中</b>：来場者の発言", face({ eye: "loading", extra: caption("log.you", "sample.you_3") })) +
+        variant("<b>話し中</b>：テクロボくんの発言", face({ m: "a", level: 0.6, extra: caption("log.robot", "sample.robot_3") }))),
+      sub("S02g", "未登録（QRコードを読み取る）",
+        variant("<b>読み取り待ち</b>：カメラを全面に出し、QRを枠に合わせてもらう", facePairB("pair.robot_show_qr")) +
+        variant("<b>読み取れた</b>：笑った顔で知らせ、待機（S02a）へ", face({ eye: "happy", extra: capText(t("pair.robot_ok")) })) +
+        variant("<b>古いコード</b>：期限切れ・使用済みのコードだったとき", facePairB("pair.robot_expired", false)),
+        "トークンがない・無効になったときだけこの表示になる。登録が済めば以後は自動でつながる。", true),
+      sub("S02h", "聞き取り中（来場者が話している）",
+        variant("内側の円を少し大きくして注目を示す。文字は出さない（聞き取った文は考え中の字幕 S02f で出る）", face({ extra: `<circle cx="184" cy="149" r="96" stroke-width="10"/><circle cx="616" cy="149" r="96" stroke-width="10"/>` })),
+        "声を検出してから、無音で区切るまでの間。区切ったら S02d（考え中）へ。", true),
+      sub("S02i", "調べ中（検索している）",
+        variant("考え中（S02d）と同じ LOADING の顔で、字幕に検索語を出す", face({ eye: "loading", extra: capText(t("face.search_line", { query: t("sample.search_query") })) })),
+        "先に「ちょっと調べてみるね」と話し（S02b）、話し終えたらこの表示。検索の結果で返事を考える間も続く。", true),
+    ]),
+    group("S03", "ランチャー（バックエンドPCのウィンドウ。会場からはChrome Remote Desktopで見る）", [
+      sub("S03a", "通常（すべて稼働中）",
+        variant("正（llm.main）が動き、副（llm.sub）は待機。右に端末の登録コード", launcher({ ev: evNormal })), "", true),
+      sub("S03b", "起動中",
+        variant("［すべて起動］の直後。順に立ち上げ、backend が動くまで登録コードは出さない", launcher({ mode: "loading", up: 1, banner: `<div class="banner info"><span>${esc(t("launcher.loading_msg"))}</span></div>`, ev: [t("launcher.ev_started", { time: "13:40:02" })] })), "", true),
+      sub("S03c", "副への切り替え後",
+        variant("ハートビートが3回続けて失敗したら、正を終了して副を同じポートで起動する。正に戻すのは手動", launcher({ mode: "failover", up: 4, banner: `<div class="banner"><span>! ${esc(t("launcher.failover_msg", { time: "15:41:07" }))}</span><button class="ctl" type="button">${esc(t("launcher.back_to_main"))}</button></div>`, ev: ["!" + t("launcher.ev_heartbeat_fail", { time: "15:40:55", n: 1 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:00", n: 2 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:05", n: 3 }), t("launcher.ev_switched", { time: "15:41:07" })] })), "", true),
+      sub("S03d", "起動に失敗した",
+        variant("失敗したサービスと理由を出し、後ろのサービスは起動待ちのまま止める", launcher({ mode: "failed", up: 0, ev: [t("launcher.ev_started", { time: "13:40:02" }), "!13:40:04 ! tts " + t("launcher.port_in_use", { port: 50021 })] })), "", true),
+      sub("S03e", "登録コードの拡大表示",
+        variant("スマホの小さい画面越しでも読めるように、QRと文字のコードだけを大きく出す", `<div class="qr-full"><div class="qr">${fakeQr(3)}</div><div style="display:grid;gap:var(--space-4)"><div class="pair-code">K7QM-4X2P</div><div>${esc(t("launcher.pair_remaining", { seconds: 42 }))}</div><div><button class="ctl" type="button">${esc(t("launcher.pair_close"))}</button></div></div></div>`), "", true),
+    ]),
+  ];
+  document.getElementById("screens").innerHTML = html.filter((g) => g.includes('data-screen="S01"')).join("");
+}
+
+// ===== 切り替え =====
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => {
+  const v = b.dataset.themeSet;
+  if (v === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+}));
+document.querySelectorAll("[data-locale-set]").forEach((b) => b.addEventListener("click", () => {
+  locale = b.dataset.localeSet;
+  document.documentElement.lang = locale === "ja" ? "ja" : "ja-x-pseudo";
+  document.querySelectorAll("[data-locale-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+}));
+document.querySelectorAll("[data-text-size]").forEach((b) => b.addEventListener("click", () => {
+  document.documentElement.style.setProperty("--term-text-size", b.dataset.textSize);
+  document.querySelectorAll("[data-text-size]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+}));
+document.documentElement.lang = "ja";
+render();
+</script>
+
+</body>
+</html>

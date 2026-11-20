@@ -1,6 +1,6 @@
-# tekurobokun tasks（展示版）
+# tekurobokun tasks（会場と自宅に分けた版）
 
-目標はPhase 4まで。Phase 5は時間があれば行う。設計は`261114070529_imple_exhibition.md`。
+目標は0.2.0（Phase 12）まで。Phase 1〜5はv5（展示版）で完了済み。設計は`261120154509_imple_venue_home.md`（v5までの設計は`archived/261114070529_imple_exhibition.md`）。実機の検証はPhase 11にまとめる（`development/261120153038_change_venue_home_split.md`の「実機を要する検証の配置」）。
 
 ## Phase 1: 土台
 Phaseの推奨: Opus・high以上
@@ -199,7 +199,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 5: 字幕と公開の準備（時間があれば）
 Phaseの推奨: Sonnet・high以上
-引き継ぎ: T5-1〜T5-8（T5-3を除く）完了。T5-3（自動サインインとタスクの登録）はユーザー。次はW5-1から。W5-3（字幕の実機確認）・W5-4（T5-3の確認）・W5-5〜W5-7はユーザー。スクリーンショットはREADMEに未掲載（実物から撮って`docs/images/`に置く）。ライセンスは未決（READMEは「まだ定めていない」と書いた）
+引き継ぎ: v6への仕様変更で、T5-3はT11-5に統合し、walkのW5-3・W5-5はPhase 11へ移し、W5-4・W5-6は統合した。残りはW5-7（CI。ユーザー）だけ。通ったら`/clear`してPhase 6のT6-1から。スクリーンショットはREADMEに未掲載。ライセンスは未決
 - [x] T5-1 【エージェント】機体に`CaptionOverlay`（左上の1行の字幕、長い文は末尾側）を加える
   - 依存: T4-2
   - 画面: S02f
@@ -209,8 +209,7 @@ Phaseの推奨: Sonnet・high以上
   - 依存: T4-9
   - 実施: Sonnet・high
   - メモ: `scripts/register_backend_tasks.ps1`・`unregister_backend_tasks.ps1`（UTF-8のBOM付き。Windows PowerShell 5.1でも読める）。`\tekurobokun\`のフォルダに3タスク（ログオン時、`-NoExit`の見えるウィンドウ）。バックエンドは20秒遅らせる。管理者が要る。構文の検査とタスクの部品の組み立てまで確かめた（登録は管理者の操作のため未実行）
-- [ ] T5-3 【ユーザー】バックエンドPCを自動サインインにし、T5-2のスクリプトでタスクを登録する
-  - 依存: T5-2
+- T5-3 → T11-5に統合（v6で自動起動をランチャーに置き換えたため）
 - [x] T5-4 【エージェント】マスターSVGから、機体アプリのアイコンを作る（入力ページのアイコンはT2-9で作る）
   - 推奨: Sonnet・medium以上
   - 依存: T1-5
@@ -233,3 +232,132 @@ Phaseの推奨: Sonnet・high以上
   - 依存: T5-6, T5-7
   - 実施: Sonnet・high
   - メモ: バージョンを0.1.0にそろえた（package.json 6件、tauri.conf.json、Cargo.toml・Cargo.lock）。`CHANGELOG.md`、`timeline.md`（261116150319）。`tauri build`は通り、MSI・NSISのインストーラーができた。`bun run check`も通過
+
+## Phase 6: 登録とトークン
+Phaseの推奨: Opus・high以上
+- [ ] T6-1 【エージェント】`packages/protocol`に、v6のメッセージと管理用APIの型・検証関数を足す（imple 4節。`SessionState`・`Health`・`Turn`の変更、`pair`・`listening`・`voice`・`auth_required`・`paired`・`pair_failed`・`turn_search_started`・`turn_search_done`・`history_cleared`、管理用APIの要求・応答・できごと）。単体テストを足し、3つのアプリの型の参照を新しい型に合わせる（動作はv5のまま保つ）
+  - 依存: T1-4
+- [ ] T6-2 【エージェント】backendの設定にv6の項目を足す（imple 6節。`host`、`publicUrl`、`admin.port`、`inputSources`（`devices`を置き換え）、`pairing`、`stt`・`search`・`llm.models`・`dialogue`・`session`の雛形）。`.gitignore`に`data/`を足す
+  - 依存: T6-1
+- [ ] T6-3 【エージェント】`DeviceAuth`を作る：登録コード（8文字・読み違えやすい文字を除く・60秒・1回限り・同時に1つ）、トークンの発行とハッシュでの保存（`data/devices.json`）、無効化、接続元ごとの失敗の制限（`CF-Connecting-IP`）。時計と乱数を差し替えられるようにして単体テストを書く
+  - 依存: T6-2
+- [ ] T6-4 【エージェント】`AdminApi`（`127.0.0.1:8788`。状態、登録コードの発行、端末の一覧と無効化、`/admin/events`）と、開発用のCLI（`bun run admin`の`status`・`pair`・`exchange`・`devices`・`revoke`）を作る。`pair`のQRのSVGは`zxing-wasm/writer`で書き出す（使えるかを確かめ、使えなければ代わりを選んで実施メモに書く）。`OperatorConsole`の`p`で登録コードを表示する
+  - 依存: T6-3
+- [ ] T6-5 【エージェント】`Server`をトークンでの接続にする：公開用ポートの待ち受け先を設定から読む、`hello`のトークンの検証、未登録の接続には`auth_required`を送って`hello`・`pair`以外を捨てる、`pair`の処理、無効化した端末の接続を切る
+  - 依存: T6-4
+- [ ] T6-6 【エージェント】consoleに登録を加える：`Link`のトークン付きの`hello`とトークンの保存、`auth_required`でS01i、`PairForm`（登録コードの入力行）。S01iの文言（`pair.console_*`ほか）を辞書へ移す
+  - 依存: T6-5
+  - 画面: S01i
+- [ ] T6-7 【エージェント】機体アプリのTauriを2.12以降に上げ、`on_permission_request`でカメラとマイクの要求だけを許可する（版とAPIは、インストール済みの版と公式ドキュメントで確かめる）
+  - 依存: T1-3
+- [ ] T6-8 【エージェント】機体に登録を加える：`RobotLink`のトークンとURLの保存とトークン付きの接続（開発用に`config.local.json`の`backend.url`・`backend.token`）、`PairingScanner`（`zxing-wasm/reader`を同梱、カメラの全面表示と枠、成功・古いコードの表示）。S02gの文言（`pair.robot_*`）を辞書へ移す。生成したQRの画像を読む単体テストを書く
+  - 依存: T6-5, T6-7
+  - 画面: S02g
+- [ ] T6-9 【エージェント】`CONTRIBUTING.md`に、登録の仕組み、開発用の管理CLI、開発機での登録の手順（カメラのない場合を含む）、`data/`を書く
+  - 推奨: Sonnet・medium以上
+  - 依存: T6-6, T6-8
+
+## Phase 7: 機体のマイクで話す
+Phaseの推奨: Opus・high以上
+- [ ] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
+  - 依存: T6-5
+- [ ] T7-2 【エージェント】`SpeechRecognizer`を作る：`StubSpeechRecognizer`（WAVの長さに応じた決まった文。短すぎれば空）と`GoogleSpeechRecognizer`（V2 `Recognize`、ja-JP、サービスアカウントの鍵からのアクセストークン、時間切れ）、`health.stt`への反映。ja-JPに対応するモデルとリージョンをLocations APIで一覧にするスクリプト（`scripts/stt_locations.ts`）。APIの形は公式ドキュメントで確かめる
+  - 依存: T6-2
+- [ ] T7-3 【エージェント】`ConversationSession`に聞き取り中と音声の発話を加える：`listening`の状態、`voice`の受け付けの判定（入力元・状態・マイクの一時停止）、STT→禁止語→1回目、空なら`idle`、STTの失敗。会話ログの項目（`kind`・`source`・`via`・`stt`・`error: "stt_unavailable"`。v5の行も読めること）
+  - 依存: T7-1, T7-2
+- [ ] T7-4 【エージェント】機体に`VoiceCapture`を作る：`VoiceDetector`（`SileroDetector`は`@ricky0123/vad-web`のモデルとWASMを同梱、`LevelDetector`）、聞く条件（待機中・入力元・マイクの一時停止・再生中と余裕の時間）、`listening`・`voice`の送信、16kHzモノラルのWAV、最大の長さでの打ち切り。聞き取り中の顔（S02h）と、その文言を辞書へ移す
+  - 依存: T7-3
+  - 画面: S02h
+- [ ] T7-5 【エージェント】consoleに、ログの表示専用（S01h）を加える：入力元による表示の切り替え（自分なら入力ページ、他のconsoleならS01g、`robot`ならS01h）、`(mic)`の印、状態行の「聞いています」「マイク停止中」、S01f・S02eの判定に`health.stt`を足す。その文言を辞書へ移す
+  - 依存: T7-3
+  - 画面: S01h, S01f
+- [ ] T7-6 【ユーザー】Google Cloudのプロジェクトを作り、Speech-to-Text APIを有効にして、サービスアカウントの鍵を作る（リポジトリの外に置き、パスを`config/backend.local.json`に書く）。予算のアラートを設定し、無料枠を超えたときに課金されるか止まるかを確かめる。`scripts/stt_locations.ts`の結果から、モデル・リージョン・データロギングの有無を決める
+  - 依存: T7-2
+- [ ] T7-7 【エージェント】`CONTRIBUTING.md`に、STTの設定（鍵の置き場所、モデルの確かめ方）と、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く
+  - 推奨: Sonnet・medium以上
+  - 依存: T7-4, T7-5
+
+## Phase 8: 調べて答える・話を広げる
+Phaseの推奨: Opus・high以上
+- [ ] T8-1 【エージェント】`WebSearcher`を作る：`StubWebSearcher`（決まった抜粋。失敗も再現できる）と`TavilyWebSearcher`（RESTを直接呼ぶ。`search_depth: basic`、件数、時間切れ、無料枠の使い切りを含む失敗の区別）、今月の回数（`data/usage.json`、月はJST）、管理用APIの`status`の`searchCount`。APIの形は公式ドキュメントで確かめる
+  - 依存: T6-2
+- [ ] T8-2 【エージェント】`DialogueEngine`を広げる：1回目のスキーマに`search`、`replyWithResults`（結果の抜粋つきの2回目、検索の失敗時の指示）、モデルの別名ごとの設定と`PUT /admin/llm-model`、人格プロンプトの組み立て（`config/persona_self.md`→`config/persona.md`。`persona_self.md`は見出しだけの雛形を置く）
+  - 依存: T7-3
+- [ ] T8-3 【エージェント】`ConversationSession`に調べ中を加える：前置きの`say`の合成と並行の検索、前置きの再生と検索の両方を待って2回目、1ターンに1回、`turn_search_started`・`turn_search_done`、ログの項目（`search`・`rawFirst`・`model`）、LLMの時間切れで`/admin/events`に`llm_timeout`
+  - 依存: T8-1, T8-2
+- [ ] T8-4 【エージェント】質問のループを防ぐ指示（直近の返事が続けて質問で終わったら指示を足す、ログの`antiLoop`）と、履歴の区切り（だれも話さない時間での自動の区切り、管理用APIの`reset`、`history_cleared`、ログの`ClearEntry`、起動時の読み込み）を加える
+  - 依存: T8-3
+- [ ] T8-5 【エージェント】機体の調べ中（S02i。前置きの再生後はLOADINGで字幕に検索語）と、consoleの検索の行・区切りの行・状態行の「調べています」（S01hと入力ページの両方）を加える。その文言を辞書へ移す
+  - 依存: T8-4
+  - 画面: S02i, S01h
+- [ ] T8-6 【エージェント】比較スクリプト（`scripts/bench_dialogue.ts`）を広げる：Qwen3-8B・Qwen3.5-9B・Qwen3.5-4Bの枠、`search`を出すべき質問・出すべきでない質問の判定、複数ターンの台本（質問で終わった割合、同じ型の質問が続いた回数）、自己認識を問う質問の一覧。開発機にないモデルは飛ばせるようにする
+  - 推奨: Sonnet・high以上
+  - 依存: T8-2
+- [ ] T8-7 【ユーザー】Tavilyに登録してAPIキーを`config/backend.local.json`に書き、無料枠（月1,000クレジット）を超えたときに止まるか課金されるかを確かめる
+  - 依存: T8-1
+- [ ] T8-8 【ユーザー】`config/persona_self.md`に自己認識の事実を、`config/persona.md`に質問の頻度の方針と検索の判断の指示を書く。開発機（CPUのQwen3-4B）で比較スクリプトの台本を流しながら直す
+  - 依存: T8-6
+- [ ] T8-9 【エージェント】`CONTRIBUTING.md`に、検索の設定（APIキー、件数、回数の確かめ方）、人格プロンプトの2つのファイル、比較スクリプトの使い方を書く
+  - 推奨: Sonnet・medium以上
+  - 依存: T8-5, T8-6
+
+## Phase 9: 走らせる
+Phaseの推奨: Opus・high以上
+- [ ] T9-1 【エージェント】ヘボコン版のArduinoのスケッチ（`../tekurobokun-lite/arduino_sketch/`）を、中身を変えずに`apps/robot/arduino/`へコピーする
+  - 推奨: Sonnet・low以上
+  - 依存: T1-3
+- [ ] T9-2 【エージェント】`InputRouter`にkeyup・ウィンドウのblur・自動リピートの無視を加え、`DriveStateMachine`を押している間だけ動く方式に作り直す（押されているキーの集合、最後に押したキーを優先、離したらまだ押しているキーに戻る）。単体テストを書く
+  - 依存: T1-3
+- [ ] T9-3 【エージェント】`DriveController`と`DriveOutput`（`SerialDriveOutput`・`RecordingDriveOutput`）を作り、`SerialLink`（Rust）を配線する：コマンドの設定、周期送信（80ms）、ポートの自動選択、書き込みの失敗での切断の検知、blur・切断・停止で`0,0`を送って周期送信を止める。機体の設定に`drive.enabled`（既定`false`）・`port`・速さを足す
+  - 依存: T9-2
+- [ ] T9-4 【エージェント】走行中のマイクの停止（止まってから`drive.micResumeMs`で戻す）と、デバッグHUDの走行の状態・シリアルの接続状態を加える
+  - 依存: T9-3, T7-4
+- [ ] T9-5 【エージェント】`CONTRIBUTING.md`に、走行の設定（`drive.enabled`の既定が`false`である理由、速さ、ポート）、Arduinoのスケッチの場所と受信タイムアウト、開発機での確かめ方（`RecordingDriveOutput`）を書く
+  - 推奨: Sonnet・medium以上
+  - 依存: T9-1, T9-4
+
+## Phase 10: ランチャー
+Phaseの推奨: Opus・high以上
+- [ ] T10-1 【エージェント】`apps/launcher`の土台を作る：Tauri 2.12以降＋素のTypeScript＋Vite、識別子`com.nid-techtech.tekurobokun-launcher`、`tokens.css`、i18n（S03の`launcher.*`の文言を辞書へ移す）、マスターSVGからのアイコン（生成スクリプトを広げる）、ワークスペースとcheckコマンドへの組み込み
+  - 依存: T6-7
+- [ ] T10-2 【エージェント】`ServiceSupervisor`（Rust）を作る：5つのサービスの起動・停止・再起動、Job Objectでのまとめ、起動前のポートの確認、出力のファイル保存（`logs/launcher/`）、状態と稼働時間、依存の順の［すべて起動］と、失敗時に後ろを起動待ちで止める処理。設定の雛形`config/launcher.default.json`
+  - 依存: T10-1
+- [ ] T10-3 【エージェント】`AdminClient`を作る：管理用APIの呼び出しと、`/admin/events`の購読（切れたら再接続）
+  - 依存: T10-1, T8-4
+- [ ] T10-4 【エージェント】`HealthWatcher`を作る：正のLLMのハートビートと`llm_timeout`を失敗として数え、続けて3回で、正の終了→ポートとプロセスの解放を待つ→一定時間待つ→副を同じポートで起動→`PUT /admin/llm-model`で`sub`を伝える。正に戻すのは手動
+  - 依存: T10-2, T10-3
+- [ ] T10-5 【エージェント】ランチャーの画面を作る：サービスの行、入力元のラジオ、マイクの一時停止と再開、会話のリセット、外部サービスの行と検索回数、端末の行と登録の解除、登録コードの面（`zxing-wasm/writer`のQR・文字・残り時間・新しいコード・拡大表示）、できごとの一覧、警告の帯
+  - 依存: T10-4
+  - 画面: S03a, S03b, S03c, S03d, S03e
+- [ ] T10-6 【エージェント】サインイン時の自動起動（公式のautostartプラグイン）と「起動したら全部立ち上げる」の設定を加える。タスクスケジューラのスクリプト（`scripts/register_backend_tasks.ps1`・`unregister_backend_tasks.ps1`）と、`CONTRIBUTING.md`のその記述を消す
+  - 依存: T10-5
+- [ ] T10-7 【エージェント】`CONTRIBUTING.md`に、ランチャーの開発・ビルド・設定（`launcher.json`の場所と項目）を書く
+  - 推奨: Sonnet・medium以上
+  - 依存: T10-6
+
+## Phase 11: 実機での検証と本番の準備
+Phaseの推奨: Sonnet・high以上
+引き継ぎ: 実機（機体、Arduinoと履帯、タブレット・スマホ、バックエンドPC、名前付きトンネルと会場の回線）がそろってから着手する
+- [ ] T11-1 【エージェント】`CONTRIBUTING.md`に本番の手順を書く：名前付きトンネル、Google STT・Tavilyの鍵の置き場所、正副のモデルとllama-serverの起動オプション、ランチャーのビルドとインストールと自動起動、Windowsの設定（自動サインイン、スリープ、Windows Update、ポート8787の受信の許可をやめる）、PWAの入れ直し、Chrome Remote Desktop（PINと2段階認証）、Arduinoへの書き込み
+  - 依存: T10-7
+- [ ] T11-2 【ユーザー】バックエンドPCにRX 5700 XTを付け、AMDのドライバー、Vulkan版のllama-server、Qwen3-8B Q4_K_M・Qwen3-4B Q4_K_M・Qwen3.5-9B Q4_K_M・Qwen3.5-4Bを置く
+  - 依存: T11-1
+- [ ] T11-3 【ユーザー】バックエンドPCで比較スクリプトをGPUで流し、正のモデルと文脈の長さ（`-c`）を決めて、ランチャーと`config/backend.local.json`に書く
+  - 依存: T11-2, T8-6
+- [ ] T11-4 【ユーザー】公開ホスト名を決め（サークルの他の用途と衝突しないか）、cloudflaredの名前付きトンネルを作る
+  - 依存: T11-1
+- [ ] T11-5 【ユーザー】バックエンドPCを準備する：自動サインイン、ランチャーのインストールと自動起動と「全部立ち上げる」、`config/*.local.json`と鍵、Chrome Remote Desktop、スリープの無効、v5で足したポート8787の受信の許可を消す
+  - 依存: T11-3, T11-4
+- [ ] T11-6 【ユーザー】機体と端末を準備する：Arduinoのスケッチの書き込み（必要なら）、機体アプリのビルドとインストール、機体のカメラでQRを読んで登録、タブレット・スマホでPWAを入れ直して登録
+  - 依存: T11-5
+- [ ] T11-7 【ユーザー】実機で、マイクの機材、無音検出の方式とパラメータ、走行の速さを決め、機体の`config.local.json`に書く
+  - 依存: T11-6
+
+## Phase 12: 公開の準備（0.2.0）
+Phaseの推奨: Sonnet・high以上
+- [ ] T12-1 【ユーザー】掲示とREADMEの注意事項の文言（声をGoogleに、検索語をTavilyに送ること）を決める
+  - 依存: T11-7
+- [ ] T12-2 【エージェント】READMEとGitHubのAbout欄の文案を書き直す（会場と自宅の構成、外部に送るもの、会話の記録、走行の運用の注意（来場者がキーボードに触れない位置に置く）、コード署名がないこと）。`CONTRIBUTING.md`の古い記述を直す
+  - 依存: T12-1
+- [ ] T12-3 【エージェント】0.2.0のリリース準備をする（`CHANGELOG.md`、バージョン（ランチャーを含む）、`timeline.md`、機体アプリとランチャーの`tauri build`の確認）。コミットメッセージとコマンドの提示で停止する
+  - 依存: T12-2

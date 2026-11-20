@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: T7-20まで完了（バックエンドPCでVulkan版・各サービス・`admin status`を確認）。次はT7-21【ユーザー】だが、先にバックエンドPCで管理者権限の準備の11（ネットワークをプライベートに、ポート8787の受信規則）・12（スリープ）を行う（CONTRIBUTING）。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
+引き継ぎ: T7-22まで完了（バックエンドPCでVulkan版・各サービス・`admin status`を確認し、機体を登録し、録音のセットを`data/stt_bench/`に置いた）。次はT7-23【エージェント】（バックエンドPCでClaude Codeを開いて行う）。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high
@@ -336,9 +336,9 @@ Phaseの推奨: Opus・high以上
   - メモ: バックエンドPC（IP `192.168.11.25`）で、`setup_whisper.ps1`によるv1.9.5のVulkan版のビルドとモデル3つの取得が通り、`whisper-server`はGPU（RX 5700 XT、Vulkan0）で動き、SAPIの音声で作った日本語のWAVが約3.7秒（初回）で文字になった。llama-serverはb8884（Vulkan）が置いてあり、Qwen3-8B・Qwen3-4B・Qwen3.5-9B・Qwen3.5-4Bの4つが全層GPUに載って返事が返ることを確かめた（Downloadsの3つを`models\`へコピー。Qwen3-4Bは既存）。Qwen3-8B＋`whisper-server`で専用GPUメモリ約6.6GB（推論前）。VOICEVOXは0.26.1が置いてあったため、`voicevox_0.26.1`に名前を変え、0.25.2をCPU版で置き直した（`/version`が`"0.25.2"`、話者74あり）。`config/backend.local.json`（`host: 0.0.0.0`・`publicUrl: http://192.168.11.25:8787`・`stt.bench`の実行ファイルとモデルのフォルダ）と`config/bench.local.json`（4モデルの接続先）を書いた。CONTRIBUTINGの手順どおりに起動し、`bun run admin status`で`llm`・`tts`・`stt`が`up`（`robot`は機体がつながるまで`disconnected`）、`http://192.168.11.25:8787/?device=tablet`が200で開くことを確かめた。直した食い違い：VOICEVOXの7zは`windows-cpu`フォルダに展開される（CONTRIBUTING）、LLMのモデルの表（Qwen3.5の2つを足した）、`bench`の接続先（`qwen3-8b`が既定になく、`bench.local.json`が要る）、`setup_whisper.ps1`のコメントの`\t`が改行文字になっていた。**未実施（管理者権限が要る）**：ネットワークのプロファイルが「パブリック」のまま、ポート8787の受信規則がなく、スリープも未確認のため、T7-21の前に準備の11・12を実行する（LANの別端末からの到達は未確認）
   - 推奨: Sonnet・high以上
   - 依存: T7-19
-- [ ] T7-21 【ユーザー】機体の実機を準備する：機体アプリのビルドとインストール、バックエンドPCの`bun run admin pair`のQRを機体のカメラで読んで登録する（T11-6の一部）
+- [x] T7-21 【ユーザー】機体の実機を準備する：機体アプリのビルドとインストール、バックエンドPCの`bun run admin pair`のQRを機体のカメラで読んで登録する（T11-6の一部）
   - 依存: T7-20
-- [ ] T7-22 【ユーザー】録音のセットを作る：機体のマイクで、来場者が言いそうな発話（自分の声。正解の文つき）と、無音・生活音や雑音だけの録音を、16kHzモノラルのWAVで`data/stt_bench/`（バックエンドPC）に置く（録音の道具は問わない）
+- [x] T7-22 【ユーザー】録音のセットを作る：機体のマイクで、来場者が言いそうな発話（自分の声。正解の文つき）と、無音・生活音や雑音だけの録音を、16kHzモノラルのWAVで`data/stt_bench/`（バックエンドPC）に置く（録音の道具は問わない）
   - 依存: T7-21
 - [ ] T7-23 【エージェント】（バックエンドPCで）比較スクリプトを流し、モデルごとの誤り率・時間・専用GPUメモリ・捨てた数と、決まり文句として捨てるべき誤認識の例を報告する。llama-server（Qwen3-8B）を載せた状態でも時間とメモリを測る
   - 推奨: Sonnet・medium以上

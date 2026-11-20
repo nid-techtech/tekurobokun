@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: T7-24まで完了（モデルは`large-v3-turbo-q5_0`、決まり文句としきい値は初期値のまま。比較の結果は`logs/bench/261121054159_stt.md`。無音・雑音の録音がなく、決まり文句としきい値は未測定）。次はT7-25【ユーザー】（機体の実機でマイクの機材と無音検出の方式・パラメータを決める）。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
+引き継ぎ: Phase 7のtasksはすべて完了（音声認識は`large-v3-turbo-q5_0`、決まり文句としきい値は初期値のまま。比較の結果は`logs/bench/261121054159_stt.md`。無音・雑音の録音がなく、決まり文句としきい値は未測定。マイクはWebカメラ内蔵、検出は`silero`）。次はwalkのW7-1（checkコマンド）から。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high
@@ -348,8 +348,9 @@ Phaseの推奨: Opus・high以上
 - [x] T7-24 【ユーザー】T7-23の結果から、音声認識のモデル、捨てる決まり文句の一覧、音声なしのしきい値を決め、`config/backend.local.json`に書く（エージェントに書かせてもよい）
   - 依存: T7-23
   - メモ: モデルは`large-v3-turbo-q5_0`に決めた（誤り率2.3%・GPUメモリ+664MB。q8_0と誤り率が同じでメモリが小さい）。決まり文句の一覧と`noSpeechThreshold`（0.6）は、無音・雑音の録音で測れていないため、調整せず初期値のまま。モデルは`whisper-server`の起動引数（CONTRIBUTINGの手で起動する手順がすでにq5_0）で決まり、`stt.whisper`にモデルの項目はないため、`backend.local.json`に書くものはなかった。無音・雑音の録音で決まり文句が出たら、W7-4以降で見直す
-- [ ] T7-25 【ユーザー】機体の実機で、マイクの機材と、無音検出の方式とパラメータを決め、機体の`config.local.json`に書く（T11-7の一部）
+- [x] T7-25 【ユーザー】機体の実機で、マイクの機材と、無音検出の方式とパラメータを決め、機体の`config.local.json`に書く（T11-7の一部）
   - 依存: T7-24
+  - メモ: マイクはWebカメラ（Microsoft LiveCam 720p）に内蔵のもの。検出の方式は`silero`（初期値のまま）。パラメータ（`silenceMs`・`minSpeechMs`・`preSpeechPadMs`・`halfDuplexGraceMs`・`maxUtteranceMs`）は初期値のままで、`config.local.json`に書く項目はない。Silero VADの実際の動き（`/vad/`の読み込みとマイク）は未確認で、W7-9で確かめる。調整が要ればそこで行う
 
 ## Phase 8: 調べて答える・話を広げる
 Phaseの推奨: Opus・high以上

@@ -32,6 +32,10 @@ describe("loadBackendConfig", () => {
     // いまの別名のモデルの値で解決する
     expect(config.llm.activeAlias).toBe("main");
     expect(config.llm.model).toBe(config.llm.models.main.model);
+    expect(config.stt.provider).toBe("whisper");
+    expect(config.stt.whisper.url).toBe("http://127.0.0.1:8081");
+    expect(config.stt.whisper.language).toBe("ja");
+    expect(config.stt.whisper.hallucinations.length).toBeGreaterThan(0);
   });
 
   test("local.jsonで項目ごとに上書きする", async () => {
@@ -77,8 +81,24 @@ describe("parseBackendConfig", () => {
       parseBackendConfig({ ...raw, llm: { ...(raw.llm as object), activeAlias: "third" } }),
     ).toThrow("llm.activeAlias");
     expect(() => parseBackendConfig({ ...raw, host: "" })).toThrow("host");
-    expect(() =>
-      parseBackendConfig({ ...raw, stt: { ...(raw.stt as object), provider: "whisper" } }),
-    ).toThrow("stt.provider");
+    const stt = raw.stt as Record<string, unknown>;
+    const whisper = stt.whisper as Record<string, unknown>;
+    const withWhisper = (w: Record<string, unknown>) => ({
+      ...raw,
+      stt: { ...stt, whisper: { ...whisper, ...w } },
+    });
+    expect(() => parseBackendConfig({ ...raw, stt: { ...stt, provider: "google" } })).toThrow(
+      "stt.provider",
+    );
+    expect(() => parseBackendConfig(withWhisper({ url: "127.0.0.1:8081" }))).toThrow(
+      "stt.whisper.url",
+    );
+    expect(() => parseBackendConfig(withWhisper({ language: "" }))).toThrow("stt.whisper.language");
+    expect(() => parseBackendConfig(withWhisper({ hallucinations: ["a", ""] }))).toThrow(
+      "stt.whisper.hallucinations",
+    );
+    expect(() => parseBackendConfig(withWhisper({ noSpeechThreshold: 1.5 }))).toThrow(
+      "stt.whisper.noSpeechThreshold",
+    );
   });
 });

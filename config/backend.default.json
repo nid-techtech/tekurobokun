@@ -39,14 +39,19 @@
     "lockMs": 300000
   },
   "stt": {
-    "provider": "google",
+    "provider": "whisper",
     "timeoutMs": 10000,
-    "google": {
-      "projectId": "",
-      "location": "",
-      "model": "",
-      "keyFile": "",
-      "dataLogging": false
+    "whisper": {
+      "url": "http://127.0.0.1:8081",
+      "language": "ja",
+      "hallucinations": [
+        "ご視聴ありがとうございました",
+        "ご視聴ありがとうございます",
+        "最後までご視聴いただきありがとうございました",
+        "チャンネル登録お願いします",
+        "チャンネル登録よろしくお願いします"
+      ],
+      "noSpeechThreshold": 0.6
     }
   },
   "search": {

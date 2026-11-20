@@ -15,10 +15,9 @@ import { InputSourceRegistry } from "./input_sources.ts";
 import { OperatorConsole } from "./operator.ts";
 import { Server } from "./server.ts";
 import { ConversationSession } from "./session.ts";
-import { type SpeechRecognizer, unavailableRecognizer } from "./stt/engine.ts";
-import { GoogleSpeechRecognizer, missingGoogleSettings } from "./stt/google.ts";
-import { GoogleAccessToken, keyFileLoader } from "./stt/google_auth.ts";
+import type { SpeechRecognizer } from "./stt/engine.ts";
 import { StubSpeechRecognizer } from "./stt/stub.ts";
+import { WhisperSpeechRecognizer } from "./stt/whisper.ts";
 import { StubAvailability } from "./stub_availability.ts";
 import { toJstIso } from "./time.ts";
 import type { TtsEngine } from "./tts/engine.ts";
@@ -30,17 +29,14 @@ const log = (line: string) => console.log(`[backend] ${line}`);
 
 const config = await loadBackendConfig();
 
-/** 設定のSTT。Googleの設定が足りなければ、つねに失敗するもの（health.sttはfalse）。 */
+/** 設定のSTT（whisper-serverかスタブ）。 */
 function createSpeechRecognizer(): SpeechRecognizer {
   if (config.stt.provider === "stub") return new StubSpeechRecognizer();
-  const missing = missingGoogleSettings(config.stt);
-  if (missing.length > 0) {
-    log(`warning: stt is not configured (${missing.join(", ")}); the robot mic is unavailable`);
-    return unavailableRecognizer(`not configured: ${missing.join(", ")}`);
-  }
-  const { keyFile } = config.stt.google;
-  const token = new GoogleAccessToken({ loadKey: keyFileLoader(keyFile) });
-  return new GoogleSpeechRecognizer({ config: config.stt, token });
+  return new WhisperSpeechRecognizer({
+    whisper: config.stt.whisper,
+    timeoutMs: config.stt.timeoutMs,
+    log,
+  });
 }
 
 let dialogue: DialogueEngine;
@@ -203,7 +199,7 @@ log(
   `stt ${
     stub || config.stt.provider === "stub"
       ? "stub"
-      : `google ${config.stt.google.location}/${config.stt.google.model} (data logging ${config.stt.google.dataLogging ? "on" : "off"} in the project)`
+      : `whisper ${config.stt.whisper.url} (${config.stt.whisper.language}, no speech > ${config.stt.whisper.noSpeechThreshold}, ${config.stt.whisper.hallucinations.length} hallucinations)`
   }`,
 );
 log(`filter: ${filterConfig.words.length} words, ${filterConfig.replies.length} replies`);

@@ -1,4 +1,4 @@
-// StubSpeechRecognizer：Google STTなしの開発用（imple 10節）。
+// StubSpeechRecognizer：whisper-serverなしの開発用（imple 10節）。
 // WAVの長さに応じて、決まった文の一覧から1つを返す。短すぎる（声がない）ときは空の文字を返す。
 // 文の一覧はstub_utterances.json（日本語の文字をコードに直書きしないため）。
 

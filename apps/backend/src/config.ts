@@ -33,15 +33,17 @@ export type LlmConfig = LlmModelConfig & {
 };
 
 export type SttConfig = {
-  provider: "google" | "stub";
+  provider: "whisper" | "stub";
   timeoutMs: number;
-  google: {
-    projectId: string;
-    location: string;
-    model: string;
-    /** サービスアカウントの鍵のパス（リポジトリの外に置く） */
-    keyFile: string;
-    dataLogging: boolean;
+  whisper: {
+    /** whisper-serverの接続先（末尾の / なし）。`/inference`と`/health`を呼ぶ */
+    url: string;
+    /** 話す言語（whisperの言語コード。翻訳はしない） */
+    language: string;
+    /** 結果の全体がこのどれかと一致したら捨てる決まり文句 */
+    hallucinations: string[];
+    /** すべての区切りで音声なしの確率がこれを超えたら捨てる（0〜1） */
+    noSpeechThreshold: number;
   };
 };
 
@@ -197,16 +199,25 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
       lockMs: n("pairing.lockMs"),
     },
     stt: {
-      provider: pick(raw, "stt.provider", oneOf(["google", "stub"]), "google or stub") as
-        | "google"
+      provider: pick(raw, "stt.provider", oneOf(["whisper", "stub"]), "whisper or stub") as
+        | "whisper"
         | "stub",
       timeoutMs: n("stt.timeoutMs"),
-      google: {
-        projectId: s("stt.google.projectId"),
-        location: s("stt.google.location"),
-        model: s("stt.google.model"),
-        keyFile: s("stt.google.keyFile"),
-        dataLogging: b("stt.google.dataLogging"),
+      whisper: {
+        url: url("stt.whisper.url"),
+        language: pick(raw, "stt.whisper.language", isNonEmpty, "a non-empty string") as string,
+        hallucinations: pick(
+          raw,
+          "stt.whisper.hallucinations",
+          (x) => Array.isArray(x) && x.every(isNonEmpty),
+          "an array of non-empty strings",
+        ) as string[],
+        noSpeechThreshold: pick(
+          raw,
+          "stt.whisper.noSpeechThreshold",
+          (x) => isNonNeg(x) && (x as number) <= 1,
+          "a number from 0 to 1",
+        ) as number,
       },
     },
     search: {

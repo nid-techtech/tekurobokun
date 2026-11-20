@@ -45,6 +45,17 @@ export type SttConfig = {
     /** すべての区切りで音声なしの確率がこれを超えたら捨てる（0〜1） */
     noSpeechThreshold: number;
   };
+  /** 音声認識の比較（scripts/bench_stt.ts）の設定。モデルのファイルは、マシンごとに`*.local.json`で書く */
+  bench: {
+    /** whisper-serverの実行ファイルのパス（空なら、比較スクリプトに--exeで渡す） */
+    executable: string;
+    /** モデルのファイルを探すフォルダ（空なら、`file`をそのまま使う） */
+    modelsDir: string;
+    /** whisper-serverの起動に足す引数（-m・--host・--port・-lは比較スクリプトが付ける） */
+    extraArgs: string[];
+    /** 比較するモデル。fileはmodelsDirからの相対（絶対でもよい） */
+    models: { name: string; file: string }[];
+  };
 };
 
 export type SearchConfig = {
@@ -218,6 +229,25 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
           (x) => isNonNeg(x) && (x as number) <= 1,
           "a number from 0 to 1",
         ) as number,
+      },
+      bench: {
+        executable: s("stt.bench.executable"),
+        modelsDir: s("stt.bench.modelsDir"),
+        extraArgs: pick(
+          raw,
+          "stt.bench.extraArgs",
+          (x) => Array.isArray(x) && x.every(isStr),
+          "an array of strings",
+        ) as string[],
+        models: pick(
+          raw,
+          "stt.bench.models",
+          (x) =>
+            Array.isArray(x) &&
+            x.every((m) => isObj(m) && isNonEmpty(m.name) && isNonEmpty(m.file)) &&
+            new Set(x.map((m: Obj) => m.name)).size === x.length,
+          "an array of {name, file} with unique non-empty names",
+        ) as { name: string; file: string }[],
       },
     },
     search: {

@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: v7への仕様変更で、Google STTを`whisper-server`に替え、実機の検証を各Phaseへ移した。次は開発機でT7-8から。T7-19の前で停止し、ユーザーのpush・pullのあと、T7-20からはバックエンドPCで行う。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
+引き継ぎ: 開発機の【エージェント】の項目（T7-8〜T7-10、T7-18）は完了。次はT7-19【ユーザー】（バックエンドPCの準備と、開発機の作業のコミット・push・バックエンドPCでのpull）。T7-20からはバックエンドPCで行う。Vulkan版のビルドと本番の手順（CONTRIBUTING）は未確認で、T7-20で確かめる。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high
@@ -307,10 +307,14 @@ Phaseの推奨: Opus・high以上
   - 依存: T7-3
   - 実施: Opus・high
   - メモ: `apps/backend/src/stt/whisper.ts`。v1.9.5の`examples/server/server.cpp`で確かめ、`/inference`へ`file`・`language`・`translate=false`・`response_format=verbose_json`・`no_speech_thold`・`no_language_probabilities=true`を送り、応答の`text`と`segments[].no_speech_prob`を使う。`health.stt`は`GET /health`（読み込み済みで200、読み込み中は503）。捨てる理由は`empty`（前後の空白・句読点・記号を除いて空）・`no_speech`（すべての区切りで確率がしきい値を超える）・`hallucination`（NFKCで揃え空白・句読点・記号を除いて全体が一致）。比較スクリプト用に`transcribe`（捨てる前の文と理由）と`discardCounts`を持つ。`unavailableRecognizer`は使わなくなったため消した。`config/backend.local.json`（Git管理外）の`stt`は`provider: "google"`の既定値の写しだったため消した。CONTRIBUTINGの設定の表のGoogleの記述はT7-18で直す
-- [ ] T7-9 【エージェント】`scripts/setup_whisper.ps1`を作る：版を固定してwhisper.cppのソースを取り、`-DGGML_VULKAN=ON`でビルドする（開発機ではVulkanなしのCPU版も選べる）。比較するモデル（large-v3-turbo q5_0・q8_0、日本語向けのもの）を取得する。置き場所はリポジトリの外で、llama.cppとは別のフォルダ。開発機でCPU版をビルドし、`whisper-server`がポート8081で起動することを確かめる
+- [x] T7-9 【エージェント】`scripts/setup_whisper.ps1`を作る：版を固定してwhisper.cppのソースを取り、`-DGGML_VULKAN=ON`でビルドする（開発機ではVulkanなしのCPU版も選べる）。比較するモデル（large-v3-turbo q5_0・q8_0、日本語向けのもの）を取得する。置き場所はリポジトリの外で、llama.cppとは別のフォルダ。開発機でCPU版をビルドし、`whisper-server`がポート8081で起動することを確かめる
+  - 実施: Sonnet・high
+  - メモ: `scripts/setup_whisper.ps1`（UTF-8のBOM付き）。既定の置き場所は`$HOME\tekurobo_servers\whisper.cpp`（`src`・`build-{cpu,vulkan}`・`bin\{cpu,vulkan}`・`models`）。v1.9.5を`git clone --depth 1 --branch`で取り、静的リンク（`-DBUILD_SHARED_LIBS=OFF`）で`whisper-server`だけをビルドして`bin\`へ置く。CMakeはPATHか、vswhereで探したVisual Studio付属のもの。`-Backend vulkan`はVULKAN_SDKがなければ止まる。モデルはlarge-v3-turbo q5_0・q8_0とkotoba-whisper-v2.0 q5_0（日本語向け。取得元はHugging Faceで、ファイルの存在とサイズを確認）。開発機でCPU版をビルドし、q5_0で`whisper-server`がポート8081で起動して`/health`が200になり、`/inference`で日本語が文字になることまで確かめた（Vulkan版のビルドはバックエンドPCのT7-20）。開発機にはGemma 4 E2Bの予備が8081でぶつかるため、E2Bの予備のポートを8082に直した（CONTRIBUTING・`bench.default.json`）
   - 推奨: Sonnet・high以上
   - 依存: T7-8
-- [ ] T7-10 【エージェント】音声認識の比較スクリプト（`scripts/bench_stt.ts`）を作る：録音のセット（`data/stt_bench/`の16kHzモノラルのWAVと正解の文。無音・雑音だけの録音を含められる）を、設定の`stt.bench`のモデルごとに`whisper-server`を起動し直して流し、認識結果・正解との文字の誤り率・かかった時間・捨てた数（理由別）を一覧にする。誤り率の計算に単体テストを書く
+- [x] T7-10 【エージェント】音声認識の比較スクリプト（`scripts/bench_stt.ts`）を作る：録音のセット（`data/stt_bench/`の16kHzモノラルのWAVと正解の文。無音・雑音だけの録音を含められる）を、設定の`stt.bench`のモデルごとに`whisper-server`を起動し直して流し、認識結果・正解との文字の誤り率・かかった時間・捨てた数（理由別）を一覧にする。誤り率の計算に単体テストを書く
+  - 実施: Sonnet・high
+  - メモ: `scripts/bench_stt.ts`（`bun run bench:stt`）。計算は`scripts/lib/stt_bench.ts`（NFKCで揃え空白・句読点・記号を除く文字の編集距離、誤り率＝誤りの合計÷正解の文字数の合計、モデルごとの集計）で、単体テストつき。設定`stt.bench`（`executable`・`modelsDir`・`extraArgs`・`models`）を足した（実行ファイルとフォルダは`--exe`・`--models-dir`でも渡せる）。モデルごとに`whisper-server`を`stt.whisper.url`のポートで起動し、最初の1回を測らず、`WhisperSpeechRecognizer.transcribe`で流す。1回の上限は`--timeout-ms`（初期値60000。本番の`stt.timeoutMs`とは別）、`--gpu-memory`で専用GPUメモリ（Windowsの性能カウンター）の増分も測る。結果は`logs/bench/{日時}_stt.md`（要約、無音・雑音の録音に出た文＝決まり文句の候補、録音ごと）。SAPIの日本語音声で作った録音3件（発話2・無音1）をCPU版で流し、誤り率・捨てた理由・無音の幻覚（「ご視聴ありがとうございました」を`hallucination`で捨てた）まで一覧になることを確かめた（CPUでは1回約25秒）
   - 推奨: Sonnet・high以上
   - 依存: T7-8
 - T7-11 → T7-19へ移動
@@ -320,7 +324,9 @@ Phaseの推奨: Opus・high以上
 - T7-15 → T7-25へ移動
 - T7-16 → T7-20へ移動
 - T7-17 → T7-23へ移動
-- [ ] T7-18 【エージェント】`CONTRIBUTING.md`に、音声認識の設定（`whisper-server`の準備と`setup_whisper.ps1`、モデルの置き場所、ポート、決まり文句としきい値）、比較スクリプト（録音のセットの作り方を含む）、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直す（GPUのドライバー、Vulkan SDKとVisual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、各サービスを手で起動する順（`llm.main` → `stt`、VOICEVOX → backend）、`host`・`publicUrl`をLANにして機体とconsoleを登録する手順、開発機とバックエンドPCの間のGitでの受け渡し）。Google STTの記述を消す（T11-1の一部を統合）
+- [x] T7-18 【エージェント】`CONTRIBUTING.md`に、音声認識の設定（`whisper-server`の準備と`setup_whisper.ps1`、モデルの置き場所、ポート、決まり文句としきい値）、比較スクリプト（録音のセットの作り方を含む）、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直す（GPUのドライバー、Vulkan SDKとVisual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、各サービスを手で起動する順（`llm.main` → `stt`、VOICEVOX → backend）、`host`・`publicUrl`をLANにして機体とconsoleを登録する手順、開発機とバックエンドPCの間のGitでの受け渡し）。Google STTの記述を消す（T11-1の一部を統合）
+  - 実施: Sonnet・high
+  - メモ: `CONTRIBUTING.md`に、「音声認識の比較」「whisper-server（whisper.cpp）」（`setup_whisper.ps1`、置き場所、モデル、ポート、決まり文句としきい値、開発機のCPUが遅いこと）、動作確認のコマンド、機体アプリの「音声入力」（検出の方式、区切り、半二重）と`voice`の設定の表、設定の表の`stt`を足し、Google STTの記述はなかったため消す作業はなかった。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直した（GPUドライバー、Vulkan SDK、Visual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、手で起動する順、`host`・`publicUrl`、機体とconsoleの登録、開発機とバックエンドPCの間のGit）。「自動起動」「展示当日の運用」はv5のままで、Phase 10・11で書き直す旨を書いた。Vulkan SDK・Visual Studio・Vulkan版の手順は、開発機で実行できないため未確認（T7-20で確かめる）
   - 推奨: Sonnet・medium以上
   - 依存: T7-4, T7-5, T7-9, T7-10
 - [ ] T7-19 【ユーザー】バックエンドPCを準備する（手で行うもの）：RX 5700 XTとAMDのドライバー、Vulkan SDK、Visual Studio（C++のビルドツール）、Git・Bun・Claude Code、リポジトリのclone。開発機の作業をコミット・pushし、バックエンドPCでpullする（T11-2の一部を統合）

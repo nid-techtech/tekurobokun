@@ -36,6 +36,7 @@ describe("loadBackendConfig", () => {
     expect(config.stt.whisper.url).toBe("http://127.0.0.1:8081");
     expect(config.stt.whisper.language).toBe("ja");
     expect(config.stt.whisper.hallucinations.length).toBeGreaterThan(0);
+    expect(config.stt.bench.models.map((m) => m.name)).toContain("large-v3-turbo-q5_0");
   });
 
   test("local.jsonで項目ごとに上書きする", async () => {
@@ -100,5 +101,25 @@ describe("parseBackendConfig", () => {
     expect(() => parseBackendConfig(withWhisper({ noSpeechThreshold: 1.5 }))).toThrow(
       "stt.whisper.noSpeechThreshold",
     );
+    const bench = stt.bench as Record<string, unknown>;
+    const withBench = (b: Record<string, unknown>) => ({
+      ...raw,
+      stt: { ...stt, bench: { ...bench, ...b } },
+    });
+    expect(() => parseBackendConfig(withBench({ executable: 1 }))).toThrow("stt.bench.executable");
+    expect(() => parseBackendConfig(withBench({ extraArgs: [1] }))).toThrow("stt.bench.extraArgs");
+    expect(() => parseBackendConfig(withBench({ models: [{ name: "a", file: "" }] }))).toThrow(
+      "stt.bench.models",
+    );
+    expect(() =>
+      parseBackendConfig(
+        withBench({
+          models: [
+            { name: "a", file: "x.bin" },
+            { name: "a", file: "y.bin" },
+          ],
+        }),
+      ),
+    ).toThrow("stt.bench.models");
   });
 });

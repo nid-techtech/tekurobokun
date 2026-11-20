@@ -8,9 +8,9 @@
 - **Bun** 1.4系（パッケージ管理・バックエンドの実行・テスト）
 - **Rust**（安定版）と、Tauri 2の前提（Microsoft C++ Build Tools、WebView2）。機体アプリ（`apps/robot`）のビルドに使います
 - **Git**
-- 会話を実際のAPIで確かめるときは、後述の「仮のサーバー」（llama-serverとVOICEVOX ENGINE）
+- 会話を実際のAPIで確かめるときは、後述の「仮のサーバー」（llama-server・`whisper-server`・VOICEVOX ENGINE）
 
-本番では、バックエンドPC（Windows 11、GPUはRX480）でllama-serverとVOICEVOX ENGINEを動かします。手順は「バックエンドPC（本番）」にあります。展示当日の起動と、端末の切り替え方は「展示当日の運用」にあります。
+本番では、自宅のバックエンドPC（Windows 11、GPUはRX 5700 XT）でllama-server・`whisper-server`・VOICEVOX ENGINEを動かします。手順は「バックエンドPC（本番）」にあります。v5（0.1.0）の展示当日の起動と、端末の切り替え方は「展示当日の運用」にあります。
 
 ## セットアップ
 
@@ -101,7 +101,7 @@ bun run tauri dev
 
 #### 機体アプリの設定
 
-設定は`apps/robot/src/config/config.default.json`（Gitで管理）にあり、`config.local.json`に書いた項目だけを上書きします（上書きのしかたはバックエンドの設定ファイルと同じ）。`drive`と`audio`は、この版では使わない走行と音声スロットの設定です。
+設定は`apps/robot/src/config/config.default.json`（Gitで管理）にあり、`config.local.json`に書いた項目だけを上書きします（上書きのしかたはバックエンドの設定ファイルと同じ）。`drive`と`audio`は、この版では使わない走行と音声スロットの設定です。`voice`は機体のマイクの設定です（「音声入力」）。
 
 | 項目                                | 内容                                                                                  | 初期値               |
 | ----------------------------------- | ------------------------------------------------------------------------------------- | -------------------- |
@@ -127,8 +127,24 @@ bun run tauri dev
 | `caption.x`・`caption.y`            | 字幕の左上の位置（800×600の座標。目の上端より上に収める）                             | `14`・`4`            |
 | `caption.maxWidth`                  | 字幕が1行に入る幅。超えた文は末尾側を出す                                             | `772`                |
 | `caption.fontSize`・`lineHeight`    | 字幕の文字の大きさと行の高さ                                                          | `18`・`26`           |
+| `voice.detector`                    | 声の検出の方式（`silero`・`level`。「音声入力」）                                     | `silero`             |
+| `voice.silenceMs`                   | 発話の終わりとみなす無音の長さ                                                        | `800`                |
+| `voice.maxUtteranceMs`              | 1発話の最大の長さ（超えたらそこで区切って送る）                                       | `15000`              |
+| `voice.halfDuplexGraceMs`           | 音声の再生が終わってから、聞き始めるまでの余裕（半二重）                              | `500`                |
+| `voice.levelThreshold`              | 音量のしきい値（`level`のとき。RMS、0〜1）                                            | `0.02`               |
+| `voice.minSpeechMs`                 | これより短い音は声とみなさない                                                        | `300`                |
+| `voice.preSpeechPadMs`              | 声の始まりより前に含める長さ（語頭が切れないように）                                  | `300`                |
 
 まばたきを`render.idleFps`の1コマより短くすると、見えないことがあります（初期値では1コマ100ms、まばたき150ms）。
+
+#### 音声入力
+
+機体は、マイクを1回だけ開いたままにし、声を検出した区間を16kHzモノラルのWAVにして、バックエンドへ`voice`で送ります（バックエンドが`whisper-server`で文字にします）。マイクの許可は、機体アプリ（Tauri）がカメラ・マイクの要求だけを許可します。
+
+- **検出の方式**（`voice.detector`）：`silero`はSilero VAD（`@ricky0123/vad-web`）で、雑音に強い一方、CPUを使います。モデルとWASMはビルドに同梱し、`/vad/`から読みます。`level`は音量（RMS）が`voice.levelThreshold`を超えたかだけを見る軽い方式で、静かな場所向けです。機体のPC（Core m7）での負荷は、タスクマネージャーで見て決めます
+- **区切り**：声が`voice.minSpeechMs`より短ければ捨て、声のあと`voice.silenceMs`の無音で発話の終わりとし、`voice.maxUtteranceMs`を超えたらそこで区切って送ります。語頭が切れないよう、声の始まりより`voice.preSpeechPadMs`前から含めます
+- **半二重**：機体のスピーカーの音を自分で拾わないため、返事を再生している間は聞きません。再生が終わってから`voice.halfDuplexGraceMs`たつまで、聞き始めません。聞くのは、機体が登録済みで、入力元が`robot`、マイクが一時停止でなく、LLM・VOICEVOX・音声認識がすべて応答していて、会話が待機中のときだけです（`apps/robot/src/voice/listenGate.ts`）。声を検出すると`listening`を送り、目が大きくなります（S02h）。`voice`を送ったあと、バックエンドから結果（考え中や待機中）が届くまでは聞きません
+- マイクの一時停止と入力元の切り替えは、バックエンドのターミナルのキー（`m`、数字キー）か管理CLI（`bun run admin mic`・`source`）で行います
 
 ### バックエンドと入力ページ
 
@@ -166,7 +182,7 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 
 開発サーバーは`/ws`をバックエンド（既定は`http://127.0.0.1:8787`）へ中継します。バックエンドのポートを変えたときは、環境変数`BACKEND_URL`で中継先を指定します。疑似ロケールは開発サーバーでだけ使えます（`?locale=pseudo`）。
 
-**端末名と入力元**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。端末名は`config/backend.*.json`の`inputSources.consoles`にあるものだけ登録できます。入力を受け付けるのは、有効な入力元1つだけです。起動時は`inputSources.active`（初期値は機体のマイクの`robot`）が有効で、バックエンドを起動したターミナルの数字キーで切り替えます（`1`が`robot`、`2`以降が`inputSources.consoles`の順）。スタッフのスマホは`?device=phone`で開きます。入力元が自分でない入力ページには「いまは別の端末で受け付けています」の全面の案内が出ます（入力元が`robot`のときの表示はPhase 7で足します）。
+**端末名と入力元**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。端末名は`config/backend.*.json`の`inputSources.consoles`にあるものだけ登録できます。入力を受け付けるのは、有効な入力元1つだけです。起動時は`inputSources.active`（初期値は機体のマイクの`robot`）が有効で、バックエンドを起動したターミナルの数字キーで切り替えます（`1`が`robot`、`2`以降が`inputSources.consoles`の順）。スタッフのスマホは`?device=phone`で開きます。入力元が自分でない入力ページには「いまは別の端末で受け付けています」の全面の案内が出ます（入力元が`robot`のときは、入力ページはログの表示専用になり、入力行を隠して「聞いています」などを出します）。
 
 **全面の案内**：バックエンドにつながらないとき、LLMかVOICEVOXが応答しないときは、入力ページに「テクロボくんにつながっていません」の全面の案内が出て、キーボードが閉じます。つながれば自動で元の表示に戻ります。キーボードが自動で開かない端末では、ログの部分をタップすると開きます。
 
@@ -281,7 +297,13 @@ bun run admin revoke {id}                # 登録を解除する
 | `inputSources.active`                                   | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                  | `robot`                              |
 | `pairing.codeTtlMs`                                     | 登録コードの有効時間                                                                          | `60000`                              |
 | `pairing.maxFailures`・`failureWindowMs`・`lockMs`      | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない        | `5`・`60000`・`300000`               |
-| `stt`・`search`                                         | 音声認識（Google）と検索（Tavily）の設定の雛形。Phase 7・8で使い始める                        | 空                                   |
+| `stt.provider`                                          | 音声認識の実装（`whisper`・`stub`）。スタブは`--stub`で選ばれる                               | `whisper`                            |
+| `stt.timeoutMs`                                         | 音声認識の応答を待つ上限                                                                      | `10000`                              |
+| `stt.whisper.url`・`language`                           | `whisper-server`の接続先（`/inference`と`/health`）と、話す言語（翻訳はしない）               | `http://127.0.0.1:8081`・`ja`        |
+| `stt.whisper.hallucinations`                            | 結果の全体がこのどれかと一致したら、空の発話として捨てる決まり文句（「音声認識」の節）        | 「ご視聴ありがとうございました」など |
+| `stt.whisper.noSpeechThreshold`                         | すべての区切りで「音声なしの確率」がこれを超えたら、空の発話として捨てる（0〜1）              | `0.6`                                |
+| `stt.bench`                                             | 音声認識の比較の設定（実行ファイル・モデルのフォルダ・モデルの一覧。「音声認識の比較」）      | モデル3つ（パスは空）                |
+| `search`                                                | 検索（Tavily）の設定の雛形。Phase 8で使い始める                                               | 空                                   |
 | `dialogue.questionLoopThreshold`・`session.idleResetMs` | 質問のループを防ぐ指示と、履歴の区切り（Phase 8で使い始める）                                 | `2`・`90000`                         |
 | `console.autosendMs`                                    | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                 | `3000`                               |
 | `console.fontSizePx`                                    | 入力ページの文字の大きさ                                                                      | `18`                                 |
@@ -326,9 +348,47 @@ bun run bench -- --repeat 3           # 質問のセットを3回くり返す
 
 接続先と質問は`config/bench.default.json`にあり、`config/bench.local.json`で上書きできます。接続先ごとに`baseUrl`・`model`のほか、`jsonSchema`・`maxTokens`・`temperature`を変えられます（書かない項目は`config/backend.*.json`の`llm`の値）。結果は`logs/bench/{日時}.md`に書き出します。
 
+### 音声認識の比較
+
+録音のセットを、モデルごとに`whisper-server`を起動し直して流し、認識結果・正解との文字の誤り率・かかった時間・捨てた数（理由別）を一覧にします（`scripts/bench_stt.ts`）。バックエンドは起動しません。
+
+**録音のセットを作る**：`data/stt_bench/`（Git管理外）に、16kHzモノラルのWAV（`名前.wav`）と、正解の文（`名前.txt`、UTF-8）を、同じ名前で置きます。
+
+- 来場者が言いそうな発話（`こんにちは`、`きみは誰？`など）は、正解の文を`名前.txt`に書きます。機体のマイクで録ると、本番に近い条件で比べられます（録音の道具は問いません。16kHzモノラルでなければ、`ffmpeg -i in.m4a -ar 16000 -ac 1 out.wav`などで変換します）
+- 無音・生活音・雑音だけの録音は、**空の`名前.txt`**を置きます（何も出さないのが正しい録音）。`.txt`がない録音は、警告して飛ばします
+- 正解の文字数が少ない録音ばかりにならないよう、短い発話と長い発話の両方を入れます。誤り率は、録音ごとの率の平均ではなく、誤りの合計を正解の文字数の合計で割ります
+
+**設定**：実行ファイルとモデルのフォルダは、マシンごとに違うため、`config/backend.local.json`に書きます（引数の`--exe`・`--models-dir`でも渡せます）。比べるモデルは`stt.bench.models`にあり、初期値は`setup_whisper.ps1`が取得する3つです（配列はまるごと置き換わるので、変えるときは全部書きます）。
+
+```json
+{
+  "stt": {
+    "bench": {
+      "executable": "C:\Users\{ユーザー}\tekurobo_servers\whisper.cpp\bin\vulkan\whisper-server.exe",
+      "modelsDir": "C:\Users\{ユーザー}\tekurobo_servers\whisper.cpp\models"
+    }
+  }
+}
+```
+
+**実行**
+
+```powershell
+bun run bench:stt                                  # stt.bench.models のすべて
+bun run bench:stt -- --model large-v3-turbo-q5_0   # 1つのモデルだけ
+bun run bench:stt -- --gpu-memory                  # 専用GPUメモリの増え方も測る（Windows）
+bun run bench:stt -- --timeout-ms 120000           # 1回の認識を待つ上限（初期値60000）
+```
+
+- `whisper-server`の接続先とポートは`stt.whisper.url`のとおりです（すでに動いていたら、止めてから実行するよう求めて終わります）。起動オプションを足すときは、`stt.bench.extraArgs`に書きます（`-m`・`--host`・`--port`・`-l`はスクリプトが付けます）
+- 捨てる決まり文句としきい値は、本番と同じ`stt.whisper`の値です。最初の1回は準備（GPUの初期化など）のため、測りません
+- 結果は`logs/bench/{日時}_stt.md`に書きます。要約の表に、モデルごとの誤り率・時間（中央値・平均・最大）・捨てた数（`empty` / `no_speech` / `hallucination`）・「無音で文が出た」（無音の録音で、捨てられずに文が出た数）・「発話を捨てた」（発話を誤って捨てた数）・読み込みの時間を出し、続けて、無音・雑音の録音にモデルが出した文（決まり文句の候補）と、録音ごとの結果を出します
+- GPUメモリは、Windowsの性能カウンター（`GPU Adapter Memory`の`Dedicated Usage`）の、大きい方のアダプターの値で、モデルを読み込む前との差です。llama-serverなど、ほかのGPUの使用が動いていると、その増減も混ざります
+- サーバーのログは`logs/bench/whisper_server_{モデル名}.log`に残ります
+
 ## 開発機の仮のサーバー
 
-LLMと音声合成は、本番ではバックエンドPC（Windows 11）で動かします。その準備を待たずに実際のAPIで会話を確かめるため、開発機（Windows）に同じサーバーを置きます。CPUで動かす想定です（開発機のGPUが使えれば、それでもかまいません）。バックエンドPCにも、この手順でサーバーを置きます。違いは「バックエンドPC（本番）」にあります。
+LLM・音声認識・音声合成は、本番ではバックエンドPC（Windows 11）で動かします。その準備を待たずに実際のAPIで会話を確かめるため、開発機（Windows）に同じサーバーを置きます。CPUで動かす想定です（開発機のGPUが使えれば、それでもかまいません）。バックエンドPCにも、この手順でサーバーを置きます。違いは「バックエンドPC（本番）」にあります。
 
 以下では、サーバー一式を`$HOME\tekurobo_servers`に置きます。リポジトリの外に置いてください。
 
@@ -343,7 +403,7 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 | モデル              | ポート | `--alias`     | ファイル                   | 入手先                                                                              |
 | ------------------- | ------ | ------------- | -------------------------- | ----------------------------------------------------------------------------------- |
 | Qwen3-4B            | 8080   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF)                     |
-| Gemma 4 E2B（予備） | 8081   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` | [ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) |
+| Gemma 4 E2B（予備） | 8082   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` | [ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) |
 
 1. [llama.cppのReleases](https://github.com/ggml-org/llama.cpp/releases)から、`b`で始まる最新のビルドの`llama-b{番号}-bin-win-cpu-x64.zip`をダウンロードします（GPUを使う場合は`win-vulkan-x64`）
 2. `$HOME\tekurobo_servers\llama`に展開します
@@ -365,17 +425,17 @@ curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
   -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
   --alias qwen3-4b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
 
-# Gemma 4 E2B（予備、ポート8081）
+# Gemma 4 E2B（予備、ポート8082。8081は`whisper-server`が使う）
 & "$HOME\tekurobo_servers\llama\llama-server.exe" `
   -m "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  --alias gemma-4-e2b --host 127.0.0.1 --port 8081 -c 4096
+  --alias gemma-4-e2b --host 127.0.0.1 --port 8082 -c 4096
 ```
 
 `config/backend.default.json`の初期値はQwen3-4B（`http://127.0.0.1:8080`、`qwen3-4b`）なので、上書きなしでつながります。**予備のE2Bに切り替える**ときは、`config/backend.local.json`の`llm`に次を書き、バックエンドを再起動します（Qwen3-4Bに戻すときは`llm`を消します）。
 
 ```json
 {
-  "llm": { "baseUrl": "http://127.0.0.1:8081", "model": "gemma-4-e2b" }
+  "llm": { "baseUrl": "http://127.0.0.1:8082", "model": "gemma-4-e2b" }
 }
 ```
 
@@ -394,6 +454,52 @@ curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
 ```
 
 VOICEVOXの利用規約により、VOICEVOXを利用したことがわかるクレジット表記が必要です。キャラクターごとの利用規約もあります。展示の話者は琴詠ニア（ノーマル、スタイルid `74`。`config/backend.local.json`の`tts.speaker`）で、展示パネルに「音声：VOICEVOX 琴詠ニア」と書いています。話者を変えたら、パネルの表記も変えてください。
+
+### whisper-server（whisper.cpp）
+
+音声認識は、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-server`で行います。バックエンドが、機体から届いた発話のWAVを`/inference`へ送り、文字にします（言語は日本語に固定し、翻訳しません）。版はv1.9.5に固定しています（上げるときは、`apps/backend/src/stt/whisper.ts`の項目名と応答の形を、その版のソースで確かめ直します）。置き場所はリポジトリの外で、llama.cppとは別のフォルダです（ggmlのDLLを混ぜないため）。
+
+`scripts/setup_whisper.ps1`が、ソースの取得・ビルド・モデルの取得をまとめて行います。Git、CMake（PATHになければ、Visual Studioに付いてくるものを使います）、Visual StudioのC++のビルドツールが要ります。
+
+```powershell
+.\scripts\setup_whisper.ps1 -Backend cpu    # 開発機：Vulkanなしのビルドと、既定のモデルの取得
+.\scripts\setup_whisper.ps1                 # バックエンドPC：Vulkan版（Vulkan SDKが要る）
+.\scripts\setup_whisper.ps1 -SkipModels     # ビルドだけ
+.\scripts\setup_whisper.ps1 -SkipBuild -Models large-v3-turbo-q5_0   # モデルだけ
+```
+
+| 場所（既定は`$HOME\tekurobo_servers\whisper.cpp`。`-Root`で変える） | 内容                                                     |
+| ------------------------------------------------------------------- | -------------------------------------------------------- |
+| `src\`                                                              | ソース（`-Version`のタグ）                               |
+| `build-{cpu,vulkan}\`                                               | ビルドの作業フォルダ                                     |
+| `bin\{cpu,vulkan}\whisper-server.exe`                               | 実行ファイル（静的リンクで、単独で動く）                 |
+| `models\`                                                           | モデル（途中で切れたら、同じコマンドで続きから取れます） |
+
+取得できるモデル（`-Models`に名前を渡す。既定は上の3つ）：
+
+| 名前                       | ファイル                            | 大きさ  | 取得元                                                                                                            |
+| -------------------------- | ----------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `large-v3-turbo-q5_0`      | `ggml-large-v3-turbo-q5_0.bin`      | 約574MB | [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)                                             |
+| `large-v3-turbo-q8_0`      | `ggml-large-v3-turbo-q8_0.bin`      | 約874MB | 同上                                                                                                              |
+| `kotoba-whisper-v2.0-q5_0` | `ggml-kotoba-whisper-v2.0-q5_0.bin` | 約538MB | [kotoba-tech/kotoba-whisper-v2.0-ggml](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)（日本語向け） |
+
+どのモデルを使うかは、音声認識の比較（「音声認識の比較」）で決めます。
+
+起動（ポートは8081。`stt.whisper.url`の初期値と同じです）：
+
+```powershell
+& "$HOME\tekurobo_servers\whisper.cpp\bin\cpu\whisper-server.exe" `
+  -m "$HOME\tekurobo_servers\whisper.cpp\models\ggml-large-v3-turbo-q5_0.bin" `
+  --host 127.0.0.1 --port 8081 -l ja
+```
+
+Vulkan版（バックエンドPC）は、同じ引数で`bin\vulkan\whisper-server.exe`を起動します（GPUで動きます。GPUを使わせないときは`-ng`）。
+
+- **開発機のCPUでは遅い**：large-v3-turboは、開発機（16スレッド、既定の4スレッド）で、3秒の発話に約25秒かかりました。バックエンドの`stt.timeoutMs`（初期値10秒）を超えて失敗します。開発機で会話の流れを確かめるときは、スタブ（`bun run backend:stub`）を使うか、`config/backend.local.json`で`stt.timeoutMs`を伸ばします
+- **決まり文句**：Whisperは、無音や雑音だけの音声に、学習データの癖で「ご視聴ありがとうございました」のような文を出すことがあります（開発機で3秒の無音を流すと実際に出ました）。バックエンドは、結果の全体が`stt.whisper.hallucinations`のどれかと一致したら、空の発話として捨てます。空白・句読点・記号と全角・半角の違いは無視しますが、**部分一致にはしません**（本当にそう言った発話の一部を捨てないため）。一覧に足すときは、比較スクリプトの「決まり文句の候補」を見ます（配列はまるごと置き換わるので、`backend.local.json`には全部書きます）
+- **音声なしのしきい値**：`stt.whisper.noSpeechThreshold`（初期値`0.6`）。`whisper-server`が返す区切りごとの`no_speech_prob`が、**すべての区切り**でこれを超えたら、空の発話として捨てます。下げるほど雑音をよく捨てますが、小さな声の発話も捨てやすくなります
+- 捨てた結果は、会話ログには残さず、バックエンドの標準出力に出します：`stt: discarded (hallucination) "…" [empty 0, no_speech 1, hallucination 2]`
+- 空の発話になったときは、機体は聞き取り中から待機中に戻り、何も記録しません。`whisper-server`が応答しないとき（`/health`が200でない）は、`health.stt`が`false`になります。入力元が`robot`のときは、入力ページは全面の案内、機体は眠っている顔になります（入力元がconsoleのときは、音声認識の応答を見ません）
 
 ### 動作確認のコマンド
 
@@ -420,6 +526,17 @@ curl.exe -s http://127.0.0.1:8080/v1/chat/completions `
   -H "Content-Type: application/json" --data-binary "@$env:TEMP\chat.json"
 ```
 
+**whisper-server**
+
+```powershell
+# 準備ができていれば {"status":"ok"} が返る（モデルの読み込み中は503）
+curl.exe -s http://127.0.0.1:8081/health
+
+# 文字にする。16kHzモノラルのWAVを渡し、応答の text に文が入る（バックエンドと同じ項目）
+curl.exe -s http://127.0.0.1:8081/inference `
+  -F "file=@voice.wav" -F "language=ja" -F "translate=false" -F "response_format=verbose_json"
+```
+
 **VOICEVOX ENGINE**
 
 ```powershell
@@ -438,69 +555,164 @@ curl.exe -s -X POST "http://127.0.0.1:50021/synthesis?speaker=1" `
 Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 ```
 
-バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・50021）とモデル名（`qwen3-4b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
+バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・8081・50021）とモデル名（`qwen3-4b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
 
 ## バックエンドPC（本番）
 
-> この節と「展示当日の運用」は、v5（0.1.0）の手順です。v6（会場と自宅に分けた版）の本番の手順は、Phase 11で書き直します。
+> 「自動起動」と「展示当日の運用」は、v5（0.1.0）の手順（会場でLLM・VOICEVOX・バックエンドを動かす構成）で、音声認識（`whisper-server`）を含みません。ランチャーに置き換わるPhase 10・11で書き直します。この節は、自宅のLANで動かす手順です。
 
-本番のバックエンドPC（Windows 11、Ryzen 5 3500、RX480）には、「開発機の仮のサーバー」と同じ手順でサーバーを置きます。違いは、llama-serverをVulkan版のビルドにしてGPUで動かすことと、LANから入力ページにつなげるための設定です。ポート・`--alias`・フォルダの置き場所は、仮のサーバーと同じにします。PowerShellの管理者権限が要る手順には「（管理者）」と書いています。
+自宅のバックエンドPC（Windows 11、Ryzen 5 3500、RX 5700 XT 8GB）に、次の4つを置いて動かします。機体・タブレット・スマホは、同じLANからつなぎます。
+
+| 動かすもの                        | ポート | 備考                                                                                          |
+| --------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| llama-server（Vulkan版）          | 8080   | 正のモデル`qwen3-8b`（`llm.main`）。副のモデル`qwen3-4b`（`llm.sub`）は同じポートで入れ替える |
+| `whisper-server`（Vulkan版）      | 8081   | 音声認識（`stt`）                                                                             |
+| VOICEVOX ENGINE 0.25.2（CPU版）   | 50021  | 音声合成                                                                                      |
+| バックエンド（`bun run backend`） | 8787   | 入力ページと機体のWebSocket。LANに公開する。管理用APIは`127.0.0.1:8788`だけ                   |
+
+llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合います（Qwen3-8B Q4_K_M・文脈4Kと、large-v3-turbo q5_0で、見積もり合計約7.3GB）。会話中の専用GPUメモリの最大値は、Phase 7の検証で測ります。足りなければ、文脈の長さを下げるか、`-ctk q8_0 -ctv q8_0`（KVキャッシュの量子化）を足して収めます。
+
+ポート・`--alias`・フォルダの置き場所は、「開発機の仮のサーバー」と同じにします（サーバー一式は`$HOME\tekurobo_servers`）。PowerShellの管理者権限が要る手順には「（管理者）」と書いています。
 
 ### 準備（1回だけ）
 
-1. **GPUのドライバー**：AMDのドライバー（AMD Software: Adrenalin Edition）の、RX480に対応した版を入れます。llama-serverのVulkan版は、このドライバーのVulkanでGPUを使います
-2. **Bun 1.4とGit**を入れ、リポジトリを置きます（「セットアップ」と同じ）。続けて入力ページをビルドします
+1. **GPUのドライバー**：AMDのドライバー（AMD Software: Adrenalin Edition）の、RX 5700 XTに対応した版を入れます。llama-serverと`whisper-server`のVulkan版は、このドライバーのVulkanでGPUを使います
+2. **Vulkan SDK**：[LunarG](https://vulkan.lunarg.com/sdk/home)のWindows版を入れます（環境変数`VULKAN_SDK`が設定されます。入れたあとは、新しいターミナルを開きます）。`whisper-server`のVulkan版のビルドに要ります
+3. **Visual Studio（C++のビルドツール）**：Build Tools for Visual Studioか、Visual Studioのインストーラーで、「C++によるデスクトップ開発」を入れます（CMakeも含まれます）。`whisper-server`のビルドに要ります
+4. **Git・Bun 1.4・Claude Code**を入れ、リポジトリをcloneします（「セットアップ」と同じ）。続けて入力ページをビルドします
 
    ```powershell
    bun install
    bun run console:build
    ```
 
-3. **llama-server**：「開発機の仮のサーバー」の手順で置きます。ダウンロードするのは`llama-b{番号}-bin-win-vulkan-x64.zip`です。置いたら、GPUが見えていることを確かめます（一覧にRX 480の行が出れば使えます）
+5. **llama-server（Vulkan版）**：「開発機の仮のサーバー」の手順で置きます。ダウンロードするのは`llama-b{番号}-bin-win-vulkan-x64.zip`です。置いたら、GPUが見えていることを確かめます（一覧にRX 5700 XTの行が出れば使えます）
 
    ```powershell
    & "$HOME\tekurobo_servers\llama\llama-server.exe" --list-devices
    ```
 
-4. **モデル**：Qwen3-4B（と予備のGemma 4 E2B）を、仮のサーバーと同じ手順で`$HOME\tekurobo_servers\models`に置きます
-5. **VOICEVOX ENGINE 0.25.2（Windows CPU版）**：仮のサーバーと同じ手順で置きます
-6. **Git管理外の設定ファイル**を、開発機からUSBメモリなどでコピーして置きます
-   - `config/backend.local.json`：話者（`tts.speaker`）など、開発機で上書きしている項目。接続先は初期値（`127.0.0.1`）のままでつながるので、書かなくてかまいません
-   - `config/filter.local.json`：禁止語リストと定型の返事（「禁止語と会話ログ」）。置かないと、禁止語の検査をしません
-7. **IPアドレスの固定**：会場のルーターの設定（DHCPの固定割り当て）で、バックエンドPCのIPアドレスを固定します。変わると、タブレットのPWAと機体アプリの接続先を設定し直すことになります（「タブレットへのインストール」）
-8. **ネットワークとファイアウォール**（管理者）：LANのネットワークを「プライベート」にし、ポート8787（入力ページとWebSocket）の受信を許可します。llama-server（8080）とVOICEVOX（50021）は、バックエンドからだけ（`127.0.0.1`で）呼ぶので開けません
+6. **LLMのモデル**：Qwen3-8B Q4_K_M（正）とQwen3-4B Q4_K_M（副）を、`$HOME\tekurobo_servers\models`に置きます（Qwen3.5などの比較用のモデルは、Phase 8で同じ手順で足します）
 
    ```powershell
-   Get-NetConnectionProfile                     # InterfaceAlias（「イーサネット」など）と NetworkCategory を確かめる
-   Set-NetConnectionProfile -InterfaceAlias "イーサネット" -NetworkCategory Private
-   New-NetFirewallRule -DisplayName "tekurobokun backend 8787" -Direction Inbound `
-     -Protocol TCP -LocalPort 8787 -Action Allow -Profile Private
+   curl.exe -L -C - -o "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+     "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
    ```
 
-   初めて`bun run backend`を起動したときに、Windowsのファイアウォールの確認が出たら、プライベートネットワークだけを許可します
-9. **スリープとWindows Update**：展示中に止まったり再起動したりしないようにします
-   - スリープと休止状態を無効にします（管理者）。画面の電源は切れてもかまいません
+7. **`whisper-server`（Vulkan版）とモデル**：`setup_whisper.ps1`を実行します（「whisper-server（whisper.cpp）」）。Vulkan SDKとVisual Studioが要ります
 
-     ```powershell
-     powercfg /change standby-timeout-ac 0
-     powercfg /change hibernate-timeout-ac 0
-     ```
+   ```powershell
+   .\scripts\setup_whisper.ps1
+   ```
 
-   - 「設定」→「Windows Update」→「更新の一時停止」で、展示の期間が入るように一時停止します
+8. **VOICEVOX ENGINE 0.25.2（Windows CPU版）**：「開発機の仮のサーバー」と同じ手順で置きます
+9. **Git管理外の設定ファイル**を、開発機からUSBメモリなどでコピーして置くか、バックエンドPCで書きます（「開発機とバックエンドPCの間のGit」）
+   - `config/backend.local.json`：話者（`tts.speaker`）と、LANで動かすための`host`・`publicUrl`（「バックエンドの設定（LAN）」）
+   - `config/filter.local.json`：禁止語リストと定型の返事（「禁止語と会話ログ」）。置かないと、禁止語の検査をしません
+10. **IPアドレスの固定**：自宅のルーターの設定（DHCPの固定割り当て）で、バックエンドPCのIPアドレスを固定します。変わると、タブレットのPWAと機体の登録（QRの接続先）をやり直すことになります（「タブレットへのインストール」）
+11. **ネットワークとファイアウォール**（管理者）：LANのネットワークを「プライベート」にし、ポート8787（入力ページとWebSocket）の受信を許可します。llama-server（8080）・`whisper-server`（8081）・VOICEVOX（50021）は、バックエンドからだけ（`127.0.0.1`で）呼ぶので開けません
+
+    ```powershell
+    Get-NetConnectionProfile                     # InterfaceAlias（「イーサネット」など）と NetworkCategory を確かめる
+    Set-NetConnectionProfile -InterfaceAlias "イーサネット" -NetworkCategory Private
+    New-NetFirewallRule -DisplayName "tekurobokun backend 8787" -Direction Inbound `
+      -Protocol TCP -LocalPort 8787 -Action Allow -Profile Private
+    ```
+
+    初めて`bun run backend`を起動したときに、Windowsのファイアウォールの確認が出たら、プライベートネットワークだけを許可します
+12. **スリープ**：動かしている間に止まらないようにします（管理者）。画面の電源は切れてもかまいません
+
+    ```powershell
+    powercfg /change standby-timeout-ac 0
+    powercfg /change hibernate-timeout-ac 0
+    ```
+
+### 開発機とバックエンドPCの間のGit
+
+コードは、開発機でコミットし、pushして、バックエンドPCでpullします（コミットとpushは、開発者が手で行います）。バックエンドPCでは、pullのあと次を実行します。
+
+```powershell
+git pull
+bun install                # 依存が変わったとき
+bun run console:build      # 入力ページ（apps/console）が変わったとき
+```
+
+次のファイルは、Git管理外のため、pullでは届きません。
+
+- `config/backend.local.json`・`config/filter.local.json`：マシンごとに書く（開発機のものを、USBメモリなどでコピーしてもよい）。バックエンドPCの`backend.local.json`は、`host`・`publicUrl`がLAN向けで、実行ファイルのパス（`stt.bench`）も違います
+- `data/`：登録済みの端末（`data/devices.json`）と、音声認識の比較の録音（`data/stt_bench/`）。バックエンドPCで作ります。開発機の`data/`はコピーしません（機体とタブレットを、バックエンドPCに登録し直します）
+- `logs/`：会話ログと比較の結果
+
+### バックエンドの設定（LAN）
+
+`config/backend.local.json`に、LANから届くための項目を書きます。`{IP}`は、固定したバックエンドPCのIPアドレスです。
+
+```json
+{
+  "host": "0.0.0.0",
+  "publicUrl": "http://{IP}:8787",
+  "tts": { "speaker": 74 },
+  "stt": {
+    "bench": {
+      "executable": "C:\\Users\\{ユーザー}\\tekurobo_servers\\whisper.cpp\\bin\\vulkan\\whisper-server.exe",
+      "modelsDir": "C:\\Users\\{ユーザー}\\tekurobo_servers\\whisper.cpp\\models"
+    }
+  }
+}
+```
+
+`host`は公開用ポートの待ち受け先で、`0.0.0.0`でLANに届きます。`publicUrl`は、登録のQRに入る接続先です（機体が、QRからバックエンドのURLを知ります）。管理用API（8788）は、`host`に関係なく`127.0.0.1`だけで待ち受けます。LLM・`whisper-server`・VOICEVOXの接続先は、初期値（`127.0.0.1`の8080・8081・50021）のままでつながります。
+
+### 各サービスを手で起動する
+
+Phase 9までは、各サービスを手で起動します（Phase 10からランチャーが行います）。**この順に**、それぞれ別のPowerShellのウィンドウで起動します。バックエンドが起動後に各サービスの応答を見るため、先に立ち上げておきます。
+
+1. **llama-server（`llm.main`、ポート8080）**：Qwen3-8B。すべての層をGPUに載せます（`-ngl all`）
+
+   ```powershell
+   & "$HOME\tekurobo_servers\llama\llama-server.exe" `
+     -m "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+     --alias qwen3-8b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off -ngl all
+   ```
+
+   副のモデル（`llm.sub`）に切り替えるときは、これを止めて、`Qwen3-4B-Q4_K_M.gguf`・`--alias qwen3-4b`で同じポートに起動し、`config/backend.local.json`の`llm.activeAlias`を`sub`にします
+2. **`whisper-server`（`stt`、ポート8081）**：モデルは、音声認識の比較で決めるまで`large-v3-turbo-q5_0`です
+
+   ```powershell
+   & "$HOME\tekurobo_servers\whisper.cpp\bin\vulkan\whisper-server.exe" `
+     -m "$HOME\tekurobo_servers\whisper.cpp\models\ggml-large-v3-turbo-q5_0.bin" `
+     --host 127.0.0.1 --port 8081 -l ja
+   ```
+
+3. **VOICEVOX ENGINE（ポート50021）**
+
+   ```powershell
+   & "$HOME\tekurobo_servers\voicevox\run.exe" --host 127.0.0.1 --port 50021
+   ```
+
+4. **バックエンド**：リポジトリのフォルダで`bun run backend`。ウィンドウの数字キーで入力元を切り替えます（「端末の切り替え」）
 
 ### 動作の確認
 
-バックエンドPCで、llama-server（下記）とVOICEVOX ENGINEを起動し、「動作確認のコマンド」で応答が返ることを確かめます。続けて`bun run backend`を起動し、別の端末（機体のPCやタブレット）のブラウザで`http://{IP}:8787/?device=tablet`が開けることを確かめます。
+1. 各サービスの応答を、「動作確認のコマンド」で確かめます（llama-serverと`whisper-server`は`/health`、VOICEVOXは`/version`）。モデルの読み込みに少しかかります
+2. バックエンドの状態で、`health`がすべて`true`になることを確かめます（別のPowerShellで）
 
-llama-serverは、仮のサーバーの起動のコマンドに`-ngl all`（すべての層をGPUに載せる）を足して起動します。
+   ```powershell
+   bun run admin status
+   ```
 
-```powershell
-& "$HOME\tekurobo_servers\llama\llama-server.exe" `
-  -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
-  --alias qwen3-4b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off -ngl all
-```
+   `llm`・`stt`・`tts`のどれかが`false`なら、そのサービスの起動と、`config/backend.*.json`の接続先を確かめます。`robot`は、機体がつながるまで`false`です
+3. 別の端末（機体のPCやタブレット）のブラウザで`http://{IP}:8787/?device=tablet`が開けることを確かめます。開けないときは、ファイアウォール（準備の11）と`host`を確かめます
 
-考えた時間は、モデルの比較（`bun run bench -- --target qwen3-4b`）で測れます。
+考えた時間は、モデルの比較（`bun run bench -- --target qwen3-8b`。接続先は`config/bench.*.json`）で、音声認識の時間と誤り率は、音声認識の比較（`bun run bench:stt`）で測れます。
+
+### 機体とconsoleの登録（LAN）
+
+バックエンドを起動した状態で、機体とconsole（入力ページ）を登録します（仕組みは「端末の登録」）。QRの中身の接続先は`publicUrl`なので、`http://{IP}:8787`にしておきます。
+
+1. **機体**：機体アプリを起動すると、カメラの登録の画面になります。バックエンドPCで`bun run admin pair`を実行し、書き出された`data/pairing_qr.svg`をバックエンドPCのブラウザで開いて、画面のQRを機体のカメラに見せます（コードは60秒だけ有効です）。「つながりました」が出れば登録できています
+2. **console**：タブレットやスマホのブラウザで`http://{IP}:8787/?device=tablet`（スマホは`?device=phone`）を開くと、登録コードの入力行が出ます。バックエンドのウィンドウで`p`を押す（または`bun run admin pair`）と出るコードを、60秒以内に入れます。タブレットは、続けてPWAとしてインストールします（「タブレットへのインストール」。オリジンは`http://{IP}:8787`）
+3. 登録の一覧と解除は、`bun run admin devices`と`bun run admin revoke {id}`です
 
 ### 自動起動
 
@@ -629,7 +841,7 @@ bun run console:icons    # 入力ページ（apps/console/public/icons/：32・1
 ```
 tekurobokun/
 ├─ apps/
-│  ├─ backend/   バックエンド（Bun）。会話の制御、llama-server・VOICEVOXの呼び出し、入力ページの配信、登録、管理用API
+│  ├─ backend/   バックエンド（Bun）。会話の制御、llama-server・`whisper-server`・VOICEVOXの呼び出し、入力ページの配信、登録、管理用API
 │  ├─ console/   入力ページ（TypeScript＋Vite）
 │  └─ robot/     機体アプリ（Tauri 2＋TypeScript＋Vite＋p5.js）
 ├─ packages/
@@ -637,9 +849,9 @@ tekurobokun/
 │  ├─ i18n/      Paraglide JS 2の辞書（原文：ja）と疑似ロケール、ロケールの判定
 │  └─ theme/     tokens.cssとフォント（M PLUS 1 Code・DotGothic16。OFLのライセンス文つき）
 ├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
-├─ data/         登録済みの端末とトークンのハッシュ（Git管理外）
-├─ logs/         会話ログとモデル比較の結果（Git管理外）
-├─ scripts/      checkコマンドとその検査、モデル比較、開発用の管理CLI、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
+├─ data/         登録済みの端末とトークンのハッシュ、音声認識の比較の録音（`data/stt_bench/`）（Git管理外）
+├─ logs/         会話ログとモデル・音声認識の比較の結果（Git管理外）
+├─ scripts/      checkコマンドとその検査、モデル比較、音声認識の比較、開発用の管理CLI、whisper.cppの準備（`setup_whisper.ps1`）、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
 ├─ .github/      CIのワークフロー（checkコマンドを実行）
 ├─ docs/
 │  ├─ brand/     ブランドの資料とマスターSVG（roadmap/specs/の写し。編集しない）

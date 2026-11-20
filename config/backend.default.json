@@ -52,6 +52,16 @@
         "チャンネル登録よろしくお願いします"
       ],
       "noSpeechThreshold": 0.6
+    },
+    "bench": {
+      "executable": "",
+      "modelsDir": "",
+      "extraArgs": [],
+      "models": [
+        { "name": "large-v3-turbo-q5_0", "file": "ggml-large-v3-turbo-q5_0.bin" },
+        { "name": "large-v3-turbo-q8_0", "file": "ggml-large-v3-turbo-q8_0.bin" },
+        { "name": "kotoba-whisper-v2.0-q5_0", "file": "ggml-kotoba-whisper-v2.0-q5_0.bin" }
+      ]
     }
   },
   "search": {

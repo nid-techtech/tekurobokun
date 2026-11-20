@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: 開発機の【エージェント】の項目（T7-8〜T7-10、T7-18）は完了。次はT7-19【ユーザー】（バックエンドPCの準備と、開発機の作業のコミット・push・バックエンドPCでのpull）。T7-20からはバックエンドPCで行う。Vulkan版のビルドと本番の手順（CONTRIBUTING）は未確認で、T7-20で確かめる。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
+引き継ぎ: T7-20まで完了（バックエンドPCでVulkan版・各サービス・`admin status`を確認）。次はT7-21【ユーザー】だが、先にバックエンドPCで管理者権限の準備の11（ネットワークをプライベートに、ポート8787の受信規則）・12（スリープ）を行う（CONTRIBUTING）。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high
@@ -329,9 +329,11 @@ Phaseの推奨: Opus・high以上
   - メモ: `CONTRIBUTING.md`に、「音声認識の比較」「whisper-server（whisper.cpp）」（`setup_whisper.ps1`、置き場所、モデル、ポート、決まり文句としきい値、開発機のCPUが遅いこと）、動作確認のコマンド、機体アプリの「音声入力」（検出の方式、区切り、半二重）と`voice`の設定の表、設定の表の`stt`を足し、Google STTの記述はなかったため消す作業はなかった。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直した（GPUドライバー、Vulkan SDK、Visual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、手で起動する順、`host`・`publicUrl`、機体とconsoleの登録、開発機とバックエンドPCの間のGit）。「自動起動」「展示当日の運用」はv5のままで、Phase 10・11で書き直す旨を書いた。Vulkan SDK・Visual Studio・Vulkan版の手順は、開発機で実行できないため未確認（T7-20で確かめる）
   - 推奨: Sonnet・medium以上
   - 依存: T7-4, T7-5, T7-9, T7-10
-- [ ] T7-19 【ユーザー】バックエンドPCを準備する（手で行うもの）：RX 5700 XTとAMDのドライバー、Vulkan SDK、Visual Studio（C++のビルドツール）、Git・Bun・Claude Code、リポジトリのclone。開発機の作業をコミット・pushし、バックエンドPCでpullする（T11-2の一部を統合）
+- [x] T7-19 【ユーザー】バックエンドPCを準備する（手で行うもの）：RX 5700 XTとAMDのドライバー、Vulkan SDK、Visual Studio（C++のビルドツール）、Git・Bun・Claude Code、リポジトリのclone。開発機の作業をコミット・pushし、バックエンドPCでpullする（T11-2の一部を統合）
   - 依存: T7-18
-- [ ] T7-20 【エージェント】（バックエンドPCで）`setup_whisper.ps1`でVulkan版の`whisper-server`をビルドし、比較するモデルを置く。Vulkan版のllama-server、Qwen3-8B Q4_K_M・Qwen3-4B Q4_K_M・Qwen3.5-9B Q4_K_M・Qwen3.5-4B、VOICEVOX ENGINE 0.25.2を置き、`config/backend.local.json`（`host`・`publicUrl`をLAN、実際のLLM・`whisper-server`・VOICEVOX）を書く。CONTRIBUTINGの手順で各サービスを起動し、`bun run admin status`で`health`がすべて`true`になることを確かめる。手順の食い違いはCONTRIBUTINGを直す（T11-2の残りを統合）
+- [x] T7-20 【エージェント】（バックエンドPCで）`setup_whisper.ps1`でVulkan版の`whisper-server`をビルドし、比較するモデルを置く。Vulkan版のllama-server、Qwen3-8B Q4_K_M・Qwen3-4B Q4_K_M・Qwen3.5-9B Q4_K_M・Qwen3.5-4B、VOICEVOX ENGINE 0.25.2を置き、`config/backend.local.json`（`host`・`publicUrl`をLAN、実際のLLM・`whisper-server`・VOICEVOX）を書く。CONTRIBUTINGの手順で各サービスを起動し、`bun run admin status`で`health`がすべて`true`になることを確かめる。手順の食い違いはCONTRIBUTINGを直す（T11-2の残りを統合）
+  - 実施: Sonnet・high
+  - メモ: バックエンドPC（IP `192.168.11.25`）で、`setup_whisper.ps1`によるv1.9.5のVulkan版のビルドとモデル3つの取得が通り、`whisper-server`はGPU（RX 5700 XT、Vulkan0）で動き、SAPIの音声で作った日本語のWAVが約3.7秒（初回）で文字になった。llama-serverはb8884（Vulkan）が置いてあり、Qwen3-8B・Qwen3-4B・Qwen3.5-9B・Qwen3.5-4Bの4つが全層GPUに載って返事が返ることを確かめた（Downloadsの3つを`models\`へコピー。Qwen3-4Bは既存）。Qwen3-8B＋`whisper-server`で専用GPUメモリ約6.6GB（推論前）。VOICEVOXは0.26.1が置いてあったため、`voicevox_0.26.1`に名前を変え、0.25.2をCPU版で置き直した（`/version`が`"0.25.2"`、話者74あり）。`config/backend.local.json`（`host: 0.0.0.0`・`publicUrl: http://192.168.11.25:8787`・`stt.bench`の実行ファイルとモデルのフォルダ）と`config/bench.local.json`（4モデルの接続先）を書いた。CONTRIBUTINGの手順どおりに起動し、`bun run admin status`で`llm`・`tts`・`stt`が`up`（`robot`は機体がつながるまで`disconnected`）、`http://192.168.11.25:8787/?device=tablet`が200で開くことを確かめた。直した食い違い：VOICEVOXの7zは`windows-cpu`フォルダに展開される（CONTRIBUTING）、LLMのモデルの表（Qwen3.5の2つを足した）、`bench`の接続先（`qwen3-8b`が既定になく、`bench.local.json`が要る）、`setup_whisper.ps1`のコメントの`\t`が改行文字になっていた。**未実施（管理者権限が要る）**：ネットワークのプロファイルが「パブリック」のまま、ポート8787の受信規則がなく、スリープも未確認のため、T7-21の前に準備の11・12を実行する（LANの別端末からの到達は未確認）
   - 推奨: Sonnet・high以上
   - 依存: T7-19
 - [ ] T7-21 【ユーザー】機体の実機を準備する：機体アプリのビルドとインストール、バックエンドPCの`bun run admin pair`のQRを機体のカメラで読んで登録する（T11-6の一部）

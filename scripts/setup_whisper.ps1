@@ -7,7 +7,7 @@
 #   .\scripts\setup_whisper.ps1 -Models large-v3-turbo-q5_0
 #
 # 置き場所は、リポジトリの外で、llama.cppとは別のフォルダ（ggmlのDLLを混ぜないため）。既定は
-# $HOME	ekurobo_servers\whisper.cpp（llama-server・VOICEVOXと同じ親のフォルダ）。
+# $HOME\tekurobo_servers\whisper.cpp（llama-server・VOICEVOXと同じ親のフォルダ）。
 #   {Root}\src                      whisper.cppのソース（-Versionのタグ）
 #   {Root}\build-{Backend}          ビルドの作業フォルダ
 #   {Root}\bin\{Backend}\           whisper-server.exe（静的リンクで、単独で動く）

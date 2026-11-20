@@ -446,8 +446,8 @@ curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
 ### VOICEVOX ENGINE 0.25.2
 
 1. [VOICEVOX ENGINEの0.25.2](https://github.com/VOICEVOX/voicevox_engine/releases/tag/0.25.2)から、`voicevox_engine-windows-cpu-0.25.2.7z.001`をダウンロードします
-2. 7-Zipで`$HOME\tekurobo_servers\voicevox`に展開します（`.7z.001`を開くと展開できます）
-3. 展開したフォルダの`run.exe`を起動します
+2. 7-Zipで展開します（`.7z.001`を開くと展開できます。約1.8GBが約2.2GBになります）。展開すると`windows-cpu`というフォルダができるので、その名前を`$HOME\tekurobo_servers\voicevox`に変えて置きます
+3. `voicevox`フォルダの`run.exe`を起動します
 
 ```powershell
 & "$HOME\tekurobo_servers\voicevox\run.exe" --host 127.0.0.1 --port 50021
@@ -592,12 +592,21 @@ llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合�
    & "$HOME\tekurobo_servers\llama\llama-server.exe" --list-devices
    ```
 
-6. **LLMのモデル**：Qwen3-8B Q4_K_M（正）とQwen3-4B Q4_K_M（副）を、`$HOME\tekurobo_servers\models`に置きます（Qwen3.5などの比較用のモデルは、Phase 8で同じ手順で足します）
+6. **LLMのモデル**：次のGGUFを`$HOME\tekurobo_servers\models`に置きます。Qwen3-8B（正）とQwen3-4B（副）が本番の候補で、Qwen3.5の2つはPhase 8の比較用です
+
+   | モデル     | `--alias`    | ファイル                 | 大きさ  | 入手先                                                          |
+   | ---------- | ------------ | ------------------------ | ------- | --------------------------------------------------------------- |
+   | Qwen3-8B   | `qwen3-8b`   | `Qwen3-8B-Q4_K_M.gguf`   | 約5.0GB | [Qwen/Qwen3-8B-GGUF](https://huggingface.co/Qwen/Qwen3-8B-GGUF) |
+   | Qwen3-4B   | `qwen3-4b`   | `Qwen3-4B-Q4_K_M.gguf`   | 約2.5GB | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF) |
+   | Qwen3.5-9B | `qwen3.5-9b` | `Qwen3.5-9B-Q4_K_M.gguf` | 約5.7GB | Hugging FaceのQwen3.5のGGUF（`Q4_K_M`）                         |
+   | Qwen3.5-4B | `qwen3.5-4b` | `Qwen3.5-4B-Q4_K_M.gguf` | 約2.7GB | 同上                                                            |
 
    ```powershell
    curl.exe -L -C - -o "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
      "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
    ```
+
+   4つとも、llama-server b8884（Vulkan）で、`-c 4096 --reasoning off -ngl all`で全層がGPUに載り、返事が返ることを確かめました（モデルのファイルだけを入れ替えて、`--alias`を合わせます）。Qwen3.5はKVキャッシュが小さい（約128MiB）かわりに、計算用のバッファが約490MiBあります
 
 7. **`whisper-server`（Vulkan版）とモデル**：`setup_whisper.ps1`を実行します（「whisper-server（whisper.cpp）」）。Vulkan SDKとVisual Studioが要ります
 
@@ -704,7 +713,7 @@ Phase 9までは、各サービスを手で起動します（Phase 10からラ�
    `llm`・`stt`・`tts`のどれかが`false`なら、そのサービスの起動と、`config/backend.*.json`の接続先を確かめます。`robot`は、機体がつながるまで`false`です
 3. 別の端末（機体のPCやタブレット）のブラウザで`http://{IP}:8787/?device=tablet`が開けることを確かめます。開けないときは、ファイアウォール（準備の11）と`host`を確かめます
 
-考えた時間は、モデルの比較（`bun run bench -- --target qwen3-8b`。接続先は`config/bench.*.json`）で、音声認識の時間と誤り率は、音声認識の比較（`bun run bench:stt`）で測れます。
+考えた時間は、モデルの比較（`bun run bench -- --target qwen3-8b`）で、音声認識の時間と誤り率は、音声認識の比較（`bun run bench:stt`）で測れます。モデルの比較の接続先は、バックエンドPCの`config/bench.local.json`に、4つのモデル（`qwen3-8b`・`qwen3-4b`・`qwen3.5-9b`・`qwen3.5-4b`。どれも`http://127.0.0.1:8080`）を書きます（配列はまるごと置き換わるので、使うものを全部書きます）。llama-serverは1つのモデルだけを載せるため、測るモデルで起動し直してから`--target`を選びます。
 
 ### 機体とconsoleの登録（LAN）
 

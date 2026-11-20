@@ -12,5 +12,15 @@
   "failTrigger": "落ちて",
   "filterWords": ["きんしご"],
   "forbiddenOutputTrigger": "言わせて",
-  "forbiddenOutputRaw": "{\"say\": \"わかりました。きんしご、と言ってみます。\", \"emotion\": \"happy\"}"
+  "forbiddenOutputRaw": "{\"say\": \"わかりました。きんしご、と言ってみます。\", \"emotion\": \"happy\"}",
+  "searchTrigger": "調べて",
+  "searchPreSay": { "say": "ちょっと調べてみるね。", "emotion": "curious" },
+  "searchReply": { "say": "スタブの検索結果によると、これはスタブです。", "emotion": "happy" },
+  "searchFailedReply": {
+    "say": "ごめんなさい、調べられませんでした。分かりません。",
+    "emotion": "troubled"
+  },
+  "questionTrigger": "質問して",
+  "questionReply": { "say": "それで、どうなったんですか？", "emotion": "curious" },
+  "antiLoopReply": { "say": "わたしは、ものづくりの話が好きです。", "emotion": "happy" }
 }

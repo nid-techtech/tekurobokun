@@ -296,6 +296,12 @@ describe("displayStateFor", () => {
     expect(displayStateFor(true, status("listening"))).toBe("LISTENING");
   });
 
+  test("調べ中は、前置きの再生中はSPEAKING、それ以外はLOADING（S02i）", () => {
+    expect(displayStateFor(true, status("searching"), true)).toBe("SPEAKING");
+    expect(displayStateFor(true, status("searching"), false)).toBe("LOADING");
+    expect(displayStateFor(true, status("searching"))).toBe("LOADING");
+  });
+
   test("STTが落ちているときは、入力元がrobotのときだけSLEEP", () => {
     expect(displayStateFor(true, status("idle", { stt: false }))).toBe("IDLE");
     const robot = { ...status("idle", { stt: false }), inputSource: "robot" };

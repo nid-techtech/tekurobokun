@@ -95,7 +95,8 @@ export type BackendConfig = {
   search: SearchConfig;
   dialogue: { questionLoopThreshold: number };
   session: { idleResetMs: number };
-  console: ConsoleSettings;
+  /** consoleへ送る設定（idleResetMsは、送るときにsession.idleResetMsから足す） */
+  console: Omit<ConsoleSettings, "idleResetMs">;
   /** 話し中のタイムアウトの余裕（送った音声の長さの合計に足す） */
   speakingGraceMs: number;
   healthIntervalMs: number;
@@ -283,8 +284,30 @@ export async function loadBackendConfig(dir = CONFIG_DIR): Promise<BackendConfig
   return parseBackendConfig(await loadJsonConfig("backend", dir));
 }
 
-/** 人格プロンプト（config/persona.md）。なければnullを返す。 */
-export async function loadPersona(dir = CONFIG_DIR): Promise<string | null> {
-  const file = Bun.file(`${dir}persona.md`);
-  return (await file.exists()) ? (await file.text()).trim() : null;
+/** 人格プロンプトのファイル。自己認識の事実（persona_self.md）を先に置く（imple 4節）。 */
+export const PERSONA_FILES = ["persona_self.md", "persona.md"] as const;
+
+/** 見出しと空行のほかに中身があるか（見出しだけの雛形は、ないものとして扱う）。 */
+export function hasBody(text: string): boolean {
+  return text.split(/\r?\n/).some((line) => line.trim() !== "" && !/^\s*#/.test(line));
+}
+
+export type Persona = {
+  /** 中身のあるファイルを順につないだもの。どれもなければnull */
+  text: string | null;
+  /** ないか、見出しだけのファイル（起動時に知らせる） */
+  missing: string[];
+};
+
+/** 人格プロンプト（config/persona_self.md→config/persona.md）を読み、つなぐ。 */
+export async function loadPersona(dir = CONFIG_DIR): Promise<Persona> {
+  const parts: string[] = [];
+  const missing: string[] = [];
+  for (const name of PERSONA_FILES) {
+    const file = Bun.file(`${dir}${name}`);
+    const text = (await file.exists()) ? (await file.text()).trim() : "";
+    if (hasBody(text)) parts.push(text);
+    else missing.push(name);
+  }
+  return { text: parts.length > 0 ? parts.join("\n\n") : null, missing };
 }

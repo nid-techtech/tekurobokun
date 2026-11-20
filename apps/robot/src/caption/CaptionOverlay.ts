@@ -38,8 +38,12 @@ export class CaptionOverlay {
       this.line.textContent = "";
       return;
     }
-    const who = content.speaker === "you" ? m["log.you"]() : m["log.robot"]();
-    this.line.textContent = m["face.caption_line"]({ who, text: content.text });
+    if (content.speaker === "search") {
+      this.line.textContent = m["face.search_line"]({ query: content.text });
+    } else {
+      const who = content.speaker === "you" ? m["log.you"]() : m["log.robot"]();
+      this.line.textContent = m["face.caption_line"]({ who, text: content.text });
+    }
     this.container.hidden = false;
   }
 }

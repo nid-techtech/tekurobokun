@@ -44,6 +44,8 @@ export type ConsoleSettings = {
   /** 入力ページの下に空ける余白（キーボードとのずれの調節） */
   bottomInsetPx: number;
   prompt: { user: string; host: string; dir: string };
+  /** だれも話さない時間で履歴を区切るまでの時間（区切りの行の「{seconds}秒」に使う。backendのsession.idleResetMs） */
+  idleResetMs: number;
 };
 
 export const DEVICE_ROLES = ["console", "robot"] as const;

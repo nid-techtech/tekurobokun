@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   type AdminEvent,
   type AdminStatus,
+  type LlmAlias,
   PAIRING_CODE_PATTERN,
   parseAdminEvent,
   parseAdminStatus,
@@ -16,13 +17,15 @@ const pairing = { codeTtlMs: 60_000, maxFailures: 5, failureWindowMs: 60_000, lo
 function setup() {
   const auth = new DeviceAuth({ store: new MemoryDeviceStore(), pairing, consoles: ["tablet"] });
   const revoked: string[] = [];
+  let llmModel: LlmAlias = "main";
+  let resets = 0;
   const sources = new InputSourceRegistry(["tablet"], "robot");
   const status = (): AdminStatus => ({
     session: "idle",
     inputSource: sources.active(),
     micPaused: sources.micPaused(),
     health: { backend: true, llm: true, tts: true, stt: true, robot: false },
-    llmModel: "main",
+    llmModel,
     searchCount: { month: "2026-11", count: 0 },
     devices: auth.devices(),
     publicUrl: "http://192.168.0.10:8787",
@@ -34,10 +37,16 @@ function setup() {
     status,
     onRevoked: (id) => revoked.push(id),
     sources,
+    setLlmModel: (alias) => {
+      llmModel = alias;
+    },
+    reset: () => {
+      resets++;
+    },
   });
   api.start();
   const base = `http://127.0.0.1:${api.port}`;
-  return { api, auth, revoked, base, sources };
+  return { api, auth, revoked, base, sources, resets: () => resets };
 }
 
 let current: AdminApi | null = null;
@@ -138,6 +147,27 @@ describe("AdminApi", () => {
     expect((await put({ paused: "no" })).status).toBe(400);
     expect((await put({ paused: false })).status).toBe(204);
     expect(sources.micPaused()).toBe(false);
+  });
+
+  test("モデルの別名を切り替える。main・sub以外は400", async () => {
+    const { api, base } = setup();
+    current = api;
+    const put = (body: unknown) =>
+      fetch(`${base}/admin/llm-model`, { method: "PUT", body: JSON.stringify(body) });
+    expect((await put({ alias: "sub" })).status).toBe(204);
+    const status = parseAdminStatus(await (await fetch(`${base}/admin/status`)).json());
+    expect(status?.llmModel).toBe("sub");
+    expect((await put({ alias: "third" })).status).toBe(400);
+    expect((await fetch(`${base}/admin/llm-model`)).status).toBe(405);
+  });
+
+  test("会話をリセットする。POSTのほかは405", async () => {
+    const { api, base, resets } = setup();
+    current = api;
+    expect((await fetch(`${base}/admin/reset`, { method: "POST" })).status).toBe(204);
+    expect(resets()).toBe(1);
+    expect((await fetch(`${base}/admin/reset`)).status).toBe(405);
+    expect(resets()).toBe(1);
   });
 
   test("違うメソッド・知らないパスは断る", async () => {

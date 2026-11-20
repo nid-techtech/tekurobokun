@@ -45,12 +45,14 @@ describe("StubAvailability", () => {
     av.toggle("llm");
     av.toggle("tts");
     av.toggle("stt");
-    await expect(dialogue.reply([], "こんにちは")).rejects.toBeInstanceOf(LlmError);
+    await expect(dialogue.reply([], "こんにちは", { antiLoop: false })).rejects.toBeInstanceOf(
+      LlmError,
+    );
     await expect(tts.synthesize("やあ。")).rejects.toBeInstanceOf(TtsError);
     await expect(stt.recognize(new Uint8Array(0))).rejects.toBeInstanceOf(SttError);
     av.toggle("llm");
     av.toggle("tts");
-    expect((await dialogue.reply([], "こんにちは")).say).not.toBe("");
+    expect((await dialogue.reply([], "こんにちは", { antiLoop: false })).say).not.toBe("");
     expect((await tts.synthesize("やあ。")).durationMs).toBeGreaterThan(0);
   });
 });

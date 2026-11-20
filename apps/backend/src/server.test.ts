@@ -11,6 +11,8 @@ import { DeviceAuth, MemoryDeviceStore } from "./device_auth.ts";
 import { DEFAULT_STUB_DATA, StubDialogueEngine } from "./dialogue/stub.ts";
 import { HealthMonitor } from "./health.ts";
 import { InputSourceRegistry } from "./input_sources.ts";
+import { StubWebSearcher } from "./search/stub.ts";
+import { SearchUsage } from "./search/usage.ts";
 import { CLOSE_REVOKED, Server, WS_PATH } from "./server.ts";
 import { ConversationSession } from "./session.ts";
 import { StubSpeechRecognizer } from "./stt/stub.ts";
@@ -24,6 +26,7 @@ const settings: ConsoleSettings = {
   fontSizePx: 18,
   bottomInsetPx: 0,
   prompt: { user: "user", host: "host", dir: "~" },
+  idleResetMs: 90000,
 };
 const staticDir = mkdtempSync(join(tmpdir(), "tekurobo-static-"));
 writeFileSync(join(staticDir, "index.html"), "<!doctype html><title>console</title>");
@@ -53,6 +56,7 @@ const session = new ConversationSession({
   dialogue: new StubDialogueEngine({ ...DEFAULT_STUB_DATA, delayMs: 50 }),
   tts: new StubTtsEngine({ delayMs: 10 }),
   stt: new StubSpeechRecognizer({ delayMs: 10, utterances: ["mic-text"] }),
+  searcher: new StubWebSearcher({ usage: new SearchUsage({ path: null }) }),
   sources,
   health,
   emit: (m) => server.broadcast(m),

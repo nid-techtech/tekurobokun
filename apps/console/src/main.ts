@@ -1,5 +1,6 @@
 // 入力ページ（apps/console）。URLの`?device=`で端末名を名乗る（既定はtablet）。
-// 表示はバックエンドから届くwelcome・status・turn_started・turn_repliedだけで決める。
+// 表示はバックエンドから届くwelcome・status・turn_started・turn_replied・turn_search_started・
+// turn_search_done・history_clearedだけで決める。
 // 未登録（auth_required）ならS01iの登録コードの入力、つながらない・LLMかVOICEVOXが応答しないときはS01f、
 // 別の端末が有効なときはS01gの全面の案内を出し、状況が戻れば自動で元の表示に戻る（再接続はLinkが続ける）。
 // 入力元が機体のマイクのときは、ログの表示だけにする（S01h。入力欄とキーボードを出さない）。
@@ -31,11 +32,14 @@ const state: {
   unpaired: boolean;
   settings: ConsoleSettings | null;
   status: StatusMessage | null;
+  /** 調べている（turn_search_startedからturn_search_doneまで）。調べ終えたら、返事を考える間のスピナーを出す */
+  searchPending: boolean;
 } = {
   connected: false,
   unpaired: false,
   settings: null,
   status: null,
+  searchPending: false,
 };
 
 /** プロンプトの表示。設定が空の項目は辞書の値を使う。 */
@@ -86,6 +90,7 @@ function statusKind(): StatusKind {
   if (isUnpaired() || currentNotice() === "offline") return "offline";
   const session = state.status?.session ?? "idle";
   if (session === "thinking") return "thinking";
+  if (session === "searching") return "searching";
   if (session === "speaking") return "speaking";
   if (viewOnly()) return state.status?.micPaused ? "mic_paused" : "listening_voice";
   return input.hasText ? "listening" : "ready";
@@ -106,7 +111,9 @@ function render(): void {
   input.setEnabled(!unpaired && kind === null && !locked && session === "idle");
   // 案内やログ表示専用を出している間は、入力欄のフォーカスを外して画面のキーボードを閉じる（S01f・S01g・S01h）。
   if ((kind !== null && !wasShown) || (locked && !wasLocked)) input.blur();
-  log.setThinking(kind === null && session === "thinking");
+  log.setThinking(
+    kind === null && (session === "thinking" || (session === "searching" && !state.searchPending)),
+  );
   log.setSpeaking(kind === null && session === "speaking");
   statusLine.set(statusKind());
 }
@@ -138,10 +145,28 @@ function onMessage(message: ServerMessage): void {
       state.status = message;
       break;
     case "turn_started":
+      state.searchPending = false;
       log.addTurn(message.turn);
+      break;
+    case "turn_search_started":
+      state.searchPending = true;
+      log.addSearchStarted(message.turnId, message.query, message.preSay, message.thinkingMs);
+      break;
+    case "turn_search_done":
+      state.searchPending = false;
+      log.addSearchDone(message.turnId, message.searchMs);
       break;
     case "turn_replied":
       log.addReply(message.turnId, message);
+      break;
+    case "history_cleared":
+      log.addNote(
+        message.reason === "idle"
+          ? m["console.history_reset"]({
+              seconds: Math.round((state.settings?.idleResetMs ?? 0) / 1000),
+            })
+          : m["console.history_reset_manual"](),
+      );
       break;
     case "speech":
       return;
@@ -164,6 +189,7 @@ const link = new Link(
       state.unpaired = false;
       state.settings = null;
       state.status = null;
+      state.searchPending = false;
       render();
     },
   },

@@ -1,8 +1,10 @@
 // AdminApi：管理用API（imple 3節・4節）。127.0.0.1だけで待ち受け、トンネルには載せない。
 // HTTPのJSONと、状態とできごとを流すWebSocket（/admin/events）。
 //
-// 受け持つのは、状態・登録コードの発行・端末の無効化・入力元の切り替え・マイクの一時停止と再開・できごと。
-// 会話のリセットとモデルの別名（Phase 8）は、それぞれの項目で足す。
+// 受け持つのは、状態・登録コードの発行・端末の無効化・入力元の切り替え・マイクの一時停止と再開・
+// モデルの別名の切り替え・会話のリセット・できごと。
+// リセットのできごと（reset）は、だれも話さない時間での自動の区切りでも出るよう、
+// ConversationSessionの通知から出す（index.ts）。ここではリセットするだけ。
 // 入力元とマイクのできごと（input_source・mic）は、どこから切り替えても出るよう、
 // InputSourceRegistryの通知から出す（index.ts）。ここでは切り替えるだけ。
 //
@@ -14,9 +16,11 @@ import {
   type AdminEvent,
   type AdminEventKind,
   type AdminStatus,
+  type LlmAlias,
   type PairingCode,
   pairingQrText,
   parseInputSourceRequest,
+  parseLlmModelRequest,
   parseMicRequest,
 } from "@tekurobokun/protocol";
 import type { Server as BunServer, ServerWebSocket } from "bun";
@@ -42,6 +46,10 @@ export type AdminApiOptions = {
     setActive(source: string): boolean;
     setMicPaused(paused: boolean): void;
   };
+  /** LLMに渡す履歴を消す（ConversationSession.resetHistory） */
+  reset: () => void;
+  /** モデルの別名の切り替え（DialogueEngine。ランチャーが正→副に切り替えたとき） */
+  setLlmModel: (alias: LlmAlias) => void;
   now?: () => Date;
   log?: (line: string) => void;
 };
@@ -155,6 +163,20 @@ export class AdminApi {
       const body = parseInputSourceRequest(await readJson(req));
       if (!body) return error(400, "expected { source: string }");
       if (!this.options.sources.setActive(body.source)) return error(400, "no such input source");
+      return noContent();
+    }
+    if (pathname === ADMIN_PATHS.reset) {
+      if (method !== "POST") return error(405, "method not allowed");
+      this.options.reset();
+      return noContent();
+    }
+    if (pathname === ADMIN_PATHS.llmModel) {
+      if (method !== "PUT") return error(405, "method not allowed");
+      const body = parseLlmModelRequest(await readJson(req));
+      if (!body) return error(400, "expected { alias: main | sub }");
+      this.options.setLlmModel(body.alias);
+      this.log(`llm model set to ${body.alias}`);
+      this.publishStatus();
       return noContent();
     }
     if (pathname === ADMIN_PATHS.mic) {

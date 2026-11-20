@@ -8,7 +8,8 @@
 //   bun run admin revoke ID               端末の登録を解除する
 //   bun run admin source NAME             入力元を切り替える（robot か、設定のconsoleの名前）
 //   bun run admin mic pause|resume        機体のマイクを一時停止・再開する
-// 会話のリセット（reset）は、Phase 8で足す。
+//   bun run admin reset                   LLMに渡す会話の履歴を消す（区切りの行を出す）
+//   bun run admin model main|sub          LLMのモデルの別名を伝える（ランチャーの正→副の切り替えと同じ）
 
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -17,6 +18,7 @@ import {
   type AdminStatus,
   type DeviceRole,
   isDeviceRole,
+  isLlmAlias,
   type PairingCode,
   parseAdminStatus,
   parsePairingCode,
@@ -35,6 +37,8 @@ const USAGE = [
   "  revoke ID",
   "  source NAME",
   "  mic pause|resume",
+  "  reset",
+  "  model main|sub",
 ].join("\n");
 
 class CliError extends Error {}
@@ -197,6 +201,22 @@ async function main(argv: string[]): Promise<void> {
         body: JSON.stringify({ paused: action === "pause" }),
       });
       console.log(`mic ${action === "pause" ? "paused" : "resumed"}`);
+      return;
+    }
+    case "reset": {
+      await call(ADMIN_PATHS.reset, { method: "POST" });
+      console.log("history cleared");
+      return;
+    }
+    case "model": {
+      const alias = args[0];
+      if (!isLlmAlias(alias)) throw new CliError("usage: bun run admin model main|sub");
+      await call(ADMIN_PATHS.llmModel, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ alias }),
+      });
+      console.log(`llm model ${alias}`);
       return;
     }
     default:

@@ -114,12 +114,14 @@ function toSettings(v: unknown): ConsoleSettings | null {
   if (!isNonNegNum(v.autosendMs) || !isNonNegNum(v.fontSizePx) || !isNonNegNum(v.bottomInsetPx)) {
     return null;
   }
+  if (!isNonNegNum(v.idleResetMs)) return null;
   if (!isStr(prompt.user) || !isStr(prompt.host) || !isStr(prompt.dir)) return null;
   return {
     autosendMs: v.autosendMs,
     fontSizePx: v.fontSizePx,
     bottomInsetPx: v.bottomInsetPx,
     prompt: { user: prompt.user, host: prompt.host, dir: prompt.dir },
+    idleResetMs: v.idleResetMs,
   };
 }
 

@@ -8,6 +8,7 @@
   "status.offline": "つながっていません",
   "status.listening_voice": "聞いています",
   "status.mic_paused": "マイク停止中",
+  "status.searching": "調べ中",
   "input.placeholder": "キーボードのマイクを押して、話しかけてください",
   "input.send_button": "送る",
   "input.clear_button": "消す",
@@ -16,6 +17,8 @@
   "input.inactive_body": "この端末からは話しかけられません。スタッフが切り替えると使えるようになります。",
   "console.locked": "入力はテクロボくんのマイクで受け付けています。この画面は会話の表示だけです",
   "console.heard_mark": "(mic)",
+  "console.history_reset": "ここで会話を区切りました（{seconds}秒だれも話さなかったため）",
+  "console.history_reset_manual": "ここで会話を区切りました（スタッフがリセットしたため）",
   "pair.console_title": "この端末は登録されていません",
   "pair.console_body": "スタッフに、ランチャーに出ている登録コードを入れてもらってください",
   "pair.code_label": "登録コード",
@@ -31,6 +34,7 @@
   "shell.finished": "{name} finished thinking in {duration}",
   "shell.duration": "{seconds}s{millis}ms",
   "shell.thinking": "{name} is thinking",
+  "shell.searched": "{name} searched \"{query}\" in {duration}",
   "shell.output_mark": ">",
   "log.you": "あなた",
   "log.robot": "テクロボ",
@@ -39,5 +43,6 @@
   "error.offline_title": "テクロボくんにつながっていません",
   "error.offline_body": "スタッフに声をかけてください。つながると自動で元に戻ります。",
   "face.caption_line": "{who}> {text}",
+  "face.search_line": "# 調べています: {query}",
   "debug.no_caption": "(なし)"
 }

@@ -35,6 +35,7 @@ const settings: ConsoleSettings = {
   fontSizePx: 20,
   bottomInsetPx: 12,
   prompt: { user: "guest", host: "tekurobokun", dir: "~" },
+  idleResetMs: 90000,
 };
 const health: Health = { backend: true, llm: true, tts: false, stt: true, robot: true };
 const status = { type: "status", session: "idle", inputSource: "tablet", micPaused: false, health };

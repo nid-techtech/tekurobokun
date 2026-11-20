@@ -69,7 +69,9 @@ describe("WordListFilter", () => {
   test("スタブの、禁止語を含む返事は、スタブの禁止語に当たる", async () => {
     const f = new WordListFilter({ words: DEFAULT_STUB_DATA.filterWords, replies });
     const stub = new StubDialogueEngine({ ...DEFAULT_STUB_DATA, delayMs: 0 });
-    const { say } = await stub.reply([], DEFAULT_STUB_DATA.forbiddenOutputTrigger);
+    const { say } = await stub.reply([], DEFAULT_STUB_DATA.forbiddenOutputTrigger, {
+      antiLoop: false,
+    });
     expect(f.check(say).hit).toBe(true);
     expect(f.check(DEFAULT_STUB_DATA.filterWords[0] ?? "").hit).toBe(true);
   });

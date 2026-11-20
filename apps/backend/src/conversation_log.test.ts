@@ -19,6 +19,10 @@ const entry = (over: Partial<LogEntry> = {}): LogEntry => ({
   stt: null,
   thinkingMs: 1200,
   raw: '{"say":"やあ。","emotion":"happy"}',
+  rawFirst: null,
+  search: null,
+  model: "main",
+  antiLoop: false,
   say: "やあ。",
   emotion: "happy",
   filtered: "none",
@@ -72,11 +76,28 @@ describe("ConversationLog", () => {
       "stt",
       "thinkingMs",
       "raw",
+      "rawFirst",
+      "search",
+      "model",
+      "antiLoop",
       "say",
       "emotion",
       "filtered",
       "error",
     ]);
+  });
+
+  test("履歴の区切りも1行として残す", async () => {
+    const log = new ConversationLog({ dir });
+    const clear = {
+      kind: "history_cleared" as const,
+      at: "2026-11-14T10:05:00.000+09:00",
+      reason: "manual" as const,
+    };
+    await log.append(entry());
+    await log.append(clear);
+    const lines = (await readFile(join(dir, "2026-11-14.jsonl"), "utf8")).trim().split("\n");
+    expect(lines[1]).toBe(JSON.stringify(clear));
   });
 
   test("書き込みに失敗しても例外を投げず、ターミナルに出す", async () => {
@@ -171,6 +192,37 @@ describe("parseLogLine・entryToTurn", () => {
     expect(parseLogLine(JSON.stringify(entry({ error: "x" as never })))).toBeNull();
     expect(parseLogLine(JSON.stringify({ ...entry(), kind: "history_cleared" }))).toBeNull();
     expect(parseLogLine("[]")).toBeNull();
+  });
+
+  test("v7までの行（rawFirst・search・model・antiLoopがない）は、null・falseとして読む", () => {
+    const { rawFirst: _r, search: _s, model: _m, antiLoop: _a, ...v7 } = entry();
+    expect(parseLogLine(JSON.stringify(v7))).toEqual(entry({ model: null }));
+  });
+
+  test("検索の項目の形が違えばnull", () => {
+    const bad = (search: unknown) => parseLogLine(JSON.stringify({ ...entry(), search }));
+    expect(bad({ query: "q", ms: 1, urls: ["u"], ok: true })).not.toBeNull();
+    expect(bad({ query: "q", ms: null, urls: [], ok: false })).not.toBeNull();
+    expect(bad({ query: "q", ms: 1, urls: [1], ok: true })).toBeNull();
+    expect(bad({ query: "q", ms: 1, urls: [] })).toBeNull();
+    expect(bad("q")).toBeNull();
+    expect(parseLogLine(JSON.stringify({ ...entry(), model: "third" }))).toBeNull();
+    expect(parseLogLine(JSON.stringify({ ...entry(), antiLoop: "yes" }))).toBeNull();
+  });
+
+  test("検索した行は、検索の情報と、1回目の生の出力から読んだ前置きを戻す", () => {
+    const searched = entry({
+      rawFirst: '{"say":"ちょっと調べてみるね。","emotion":"curious","search":"q"}',
+      search: { query: "長岡 花火", ms: 1204, urls: ["https://a.example"], ok: true },
+      thinkingMs: 3960,
+    });
+    expect(entryToTurn(searched, "x").search).toEqual({
+      query: "長岡 花火",
+      preSay: "ちょっと調べてみるね。",
+      searchMs: 1204,
+      ok: true,
+    });
+    expect(entryToTurn(entry(), "x").search).toBeUndefined();
   });
 
   test("v5の行は、kindをturn、deviceをsource、viaをtext、sttをnullとして読む", () => {

@@ -1,6 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import type { Turn } from "@tekurobokun/protocol";
-import { buildMessages, buildSystemPrompt, parseReply } from "./engine.ts";
+import {
+  buildMessages,
+  FIRST_REPLY_SCHEMA,
+  finalSystemPrompt,
+  firstSystemPrompt,
+  formatResults,
+  loadPromptSet,
+  normalizeQuery,
+  type PromptSet,
+  parseFirstReply,
+  parseReply,
+  SNIPPET_MAX_CHARS,
+} from "./engine.ts";
 
 describe("parseReply", () => {
   test("正しいJSONはそのまま", () => {
@@ -98,16 +110,122 @@ describe("buildMessages", () => {
   });
 });
 
-describe("buildSystemPrompt", () => {
-  test("人格プロンプトのあとに返事の形式を付け、感情の一覧を埋める", async () => {
-    const prompt = await buildSystemPrompt("あなたはテクロボくんです。");
-    expect(prompt.startsWith("あなたはテクロボくんです。\n\n")).toBe(true);
-    expect(prompt).toContain("neutral, happy, surprised, curious, troubled");
-    expect(prompt).not.toContain("{emotions}");
+describe("parseFirstReply", () => {
+  test("検索語を読む", () => {
+    expect(
+      parseFirstReply('{"say":"調べるね。","emotion":"curious","search":" 東京タワー  高さ "}'),
+    ).toEqual({
+      say: "調べるね。",
+      emotion: "curious",
+      search: "東京タワー 高さ",
+      wellFormed: true,
+    });
   });
 
-  test("人格プロンプトがなければ形式だけ", async () => {
-    const prompt = await buildSystemPrompt(null);
-    expect(prompt.startsWith("#")).toBe(true);
+  test("nullは調べない", () => {
+    expect(parseFirstReply('{"say":"やあ。","emotion":"happy","search":null}')).toEqual({
+      say: "やあ。",
+      emotion: "happy",
+      search: null,
+      wellFormed: true,
+    });
+  });
+
+  test("searchがない・型が違うときはnullで、崩れとして数える", () => {
+    expect(parseFirstReply('{"say":"やあ。","emotion":"happy"}')).toMatchObject({
+      search: null,
+      wellFormed: false,
+    });
+    expect(parseFirstReply('{"say":"やあ。","emotion":"happy","search":3}')).toMatchObject({
+      say: "やあ。",
+      search: null,
+      wellFormed: false,
+    });
+  });
+
+  test("形式の崩れ・範囲外の感情ではsearchをnullにする", () => {
+    expect(parseFirstReply("調べてみるね。")).toEqual({
+      say: "調べてみるね。",
+      emotion: "neutral",
+      search: null,
+      wellFormed: false,
+    });
+    expect(parseFirstReply('{"say":"やあ。","emotion":"angry","search":"x"}')).toMatchObject({
+      emotion: "neutral",
+      search: null,
+      wellFormed: false,
+    });
+  });
+
+  test("コードブロックの中のJSONは検索語も読む（崩れとして数える）", () => {
+    const raw = '```json\n{"say":"a","emotion":"happy","search":"q"}\n```';
+    expect(parseFirstReply(raw)).toMatchObject({ search: "q", wellFormed: false });
+  });
+});
+
+describe("normalizeQuery", () => {
+  test("空や「null」はnull、長すぎる語は切る", () => {
+    expect(normalizeQuery("")).toBeNull();
+    expect(normalizeQuery("  ")).toBeNull();
+    expect(normalizeQuery("null")).toBeNull();
+    expect(normalizeQuery("None")).toBeNull();
+    expect(normalizeQuery(3)).toBeNull();
+    expect(normalizeQuery("a".repeat(150))).toHaveLength(100);
+  });
+});
+
+describe("FIRST_REPLY_SCHEMA", () => {
+  test("searchも必須にする", () => {
+    expect(FIRST_REPLY_SCHEMA.required).toEqual(["say", "emotion", "search"]);
+  });
+});
+
+describe("システムプロンプト", () => {
+  const set: PromptSet = {
+    persona: "PERSONA",
+    firstFormat: "FIRST",
+    finalFormat: "FINAL",
+    antiLoop: "ANTILOOP",
+    results: "RESULTS {query}\n{results}",
+    searchFailed: "FAILED {query}",
+  };
+  const lines = (...parts: string[]) => parts.join("\n\n");
+
+  test("1回目は人格→形式。antiLoopなら間に指示を置く", () => {
+    expect(firstSystemPrompt(set, { antiLoop: false })).toBe(lines("PERSONA", "FIRST"));
+    expect(firstSystemPrompt(set, { antiLoop: true })).toBe(lines("PERSONA", "ANTILOOP", "FIRST"));
+    expect(firstSystemPrompt({ ...set, persona: null }, { antiLoop: false })).toBe("FIRST");
+  });
+
+  test("2回目は形式のあとに結果を付ける（検索語・抜粋の中の記号は読み替えない）", () => {
+    const prompt = finalSystemPrompt(set, { antiLoop: false }, "q$&", [
+      { title: "T", url: "u", snippet: "S {query} $1" },
+    ]);
+    expect(prompt).toBe(lines("PERSONA", "FINAL", "RESULTS q$&\n[1] T\nS {query} $1"));
+  });
+
+  test("検索の失敗・0件は、失敗の指示を付ける", () => {
+    expect(finalSystemPrompt(set, { antiLoop: true }, "q", null)).toBe(
+      lines("PERSONA", "ANTILOOP", "FINAL", "FAILED q"),
+    );
+    expect(finalSystemPrompt(set, { antiLoop: false }, "q", [])).toBe(
+      lines("PERSONA", "FINAL", "FAILED q"),
+    );
+  });
+
+  test("長い抜粋は切る", () => {
+    const text = formatResults([{ title: "T", url: "u", snippet: "あ".repeat(400) }]);
+    expect(text).toBe(`[1] T\n${"あ".repeat(SNIPPET_MAX_CHARS)}…`);
+  });
+
+  test("文面のファイルを読み、感情の一覧を埋める", async () => {
+    const loaded = await loadPromptSet("  あなたはテクロボくんです。 ");
+    expect(loaded.persona).toBe("あなたはテクロボくんです。");
+    expect(loaded.firstFormat).toContain("neutral, happy, surprised, curious, troubled");
+    expect(loaded.firstFormat).toContain('"search"');
+    expect(loaded.finalFormat).not.toContain('"search"');
+    expect(loaded.results).toContain("{results}");
+    expect(loaded.searchFailed).toContain("{query}");
+    expect((await loadPromptSet(null)).persona).toBeNull();
   });
 });

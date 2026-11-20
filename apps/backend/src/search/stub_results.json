@@ -1,0 +1,22 @@
+{
+  "delayMs": 1200,
+  "results": [
+    {
+      "title": "スタブの検索結果1",
+      "url": "https://example.com/stub/1",
+      "snippet": "これはスタブの検索結果です。本物の検索はしていません。"
+    },
+    {
+      "title": "スタブの検索結果2",
+      "url": "https://example.com/stub/2",
+      "snippet": "スタブでは、どの検索語でも同じ抜粋を返します。"
+    },
+    {
+      "title": "スタブの検索結果3",
+      "url": "https://example.com/stub/3",
+      "snippet": "検索語に決まった語を入れると、検索の失敗を再現できます。"
+    }
+  ],
+  "failTrigger": "しっぱい",
+  "quotaTrigger": "つかいきり"
+}

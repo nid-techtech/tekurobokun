@@ -7,19 +7,22 @@ import { CONFIG_DIR, loadBackendConfig, loadPersona, REPO_ROOT } from "./config.
 import { loadFilterConfig, WordListFilter } from "./content_filter.ts";
 import { ConversationLog } from "./conversation_log.ts";
 import { DeviceAuth, FileDeviceStore } from "./device_auth.ts";
-import { buildSystemPrompt, type DialogueEngine } from "./dialogue/engine.ts";
+import { type DialogueEngine, loadPromptSet } from "./dialogue/engine.ts";
 import { LlamaDialogueEngine } from "./dialogue/llama.ts";
 import { DEFAULT_STUB_DATA, StubDialogueEngine } from "./dialogue/stub.ts";
 import { HealthMonitor, httpProbe } from "./health.ts";
 import { InputSourceRegistry } from "./input_sources.ts";
 import { OperatorConsole } from "./operator.ts";
+import type { WebSearcher } from "./search/engine.ts";
+import { StubWebSearcher } from "./search/stub.ts";
+import { TavilyWebSearcher } from "./search/tavily.ts";
+import { SearchUsage } from "./search/usage.ts";
 import { Server } from "./server.ts";
 import { ConversationSession } from "./session.ts";
 import type { SpeechRecognizer } from "./stt/engine.ts";
 import { StubSpeechRecognizer } from "./stt/stub.ts";
 import { WhisperSpeechRecognizer } from "./stt/whisper.ts";
 import { StubAvailability } from "./stub_availability.ts";
-import { toJstIso } from "./time.ts";
 import type { TtsEngine } from "./tts/engine.ts";
 import { StubTtsEngine } from "./tts/stub.ts";
 import { VoicevoxTtsEngine } from "./tts/voicevox.ts";
@@ -56,8 +59,15 @@ if (availability) {
   );
 } else {
   const persona = await loadPersona();
-  if (persona === null) log(`warning: ${CONFIG_DIR}persona.md not found; using reply format only`);
-  dialogue = new LlamaDialogueEngine(config.llm, await buildSystemPrompt(persona));
+  for (const name of persona.missing) {
+    log(`warning: ${CONFIG_DIR}${name} is missing or has only headings; skipped`);
+  }
+  dialogue = new LlamaDialogueEngine({
+    llm: config.llm,
+    models: config.llm.models,
+    alias: config.llm.activeAlias,
+    prompts: await loadPromptSet(persona.text),
+  });
   tts = new VoicevoxTtsEngine(config.tts);
   stt = createSpeechRecognizer();
   health = new HealthMonitor(
@@ -68,6 +78,18 @@ if (availability) {
     },
     config.healthIntervalMs,
   );
+}
+
+// 検索。スタブの回数は、本番の回数（data/usage.json）に混ぜないよう別のファイルに数える。
+const usageFile = `${REPO_ROOT}data/${stub ? "stub/" : ""}usage.json`;
+const usage = new SearchUsage({ path: usageFile, log });
+await usage.load();
+const searcher: WebSearcher =
+  stub || config.search.provider === "stub"
+    ? new StubWebSearcher({ usage, maxResults: config.search.maxResults })
+    : new TavilyWebSearcher({ config: config.search, usage });
+if (!stub && config.search.provider === "tavily" && config.search.apiKey === "") {
+  log("warning: search.apiKey is empty; every search fails (set it in config/backend.local.json)");
 }
 
 // 禁止語リストと定型の返事。スタブのときは、差し替えを確かめるためのスタブの禁止語を足す。
@@ -91,7 +113,7 @@ const server = new Server({
   host: config.host,
   port: config.port,
   staticDir: `${REPO_ROOT}apps/console/dist`,
-  settings: config.console,
+  settings: { ...config.console, idleResetMs: config.session.idleResetMs },
   health,
   auth,
   onPaired: (device) => {
@@ -110,6 +132,7 @@ const session = new ConversationSession({
   dialogue,
   tts,
   stt,
+  searcher,
   sources,
   health,
   emit: (message) => {
@@ -120,7 +143,12 @@ const session = new ConversationSession({
   sendToRobot: (message) => server.sendToRobot(message),
   displayTurns: config.historyDisplayTurns,
   speakingGraceMs: config.speakingGraceMs,
+  questionLoopThreshold: config.dialogue.questionLoopThreshold,
+  idleResetMs: config.session.idleResetMs,
   record: (entry) => void conversationLog.append(entry),
+  onHistoryCleared: (reason) => admin.event("reset", reason),
+  onLlmTimeout: () =>
+    admin.event("llm_timeout", `${dialogue.activeModel()} ${config.llm.timeoutMs}ms`),
   log,
 });
 // 当日の会話ログの末尾を、表示用の履歴として戻す（LLMに渡す往復は空から始める）。
@@ -129,15 +157,13 @@ server.attach(session);
 
 function adminStatus(): AdminStatus {
   const { session: state, inputSource, micPaused, health: h } = session.status();
-  const now = toJstIso(new Date());
   return {
     session: state,
     inputSource,
     micPaused,
     health: h,
-    llmModel: config.llm.activeAlias,
-    // 検索の回数はPhase 8（WebSearcher）で数える。
-    searchCount: { month: now.slice(0, 7), count: 0 },
+    llmModel: dialogue.activeModel(),
+    searchCount: searcher.monthCount(),
     devices: auth.devices((id) => server.isConnected(id)),
     publicUrl: config.publicUrl,
   };
@@ -150,6 +176,8 @@ const admin = new AdminApi({
   status: adminStatus,
   onRevoked: (id) => server.disconnectDevice(id),
   sources,
+  setLlmModel: (alias) => dialogue.setModel(alias),
+  reset: () => session.resetHistory(),
   log,
 });
 
@@ -202,6 +230,12 @@ log(
       : `whisper ${config.stt.whisper.url} (${config.stt.whisper.language}, logprob < ${config.stt.whisper.logprobThreshold}, ${config.stt.whisper.hallucinations.length} hallucinations)`
   }`,
 );
+{
+  const { month, count } = searcher.monthCount();
+  log(
+    `search ${stub || config.search.provider === "stub" ? "stub" : `tavily (max ${config.search.maxResults} results, timeout ${config.search.timeoutMs}ms)`}, ${month}: ${count} searches (${usageFile})`,
+  );
+}
 log(`filter: ${filterConfig.words.length} words, ${filterConfig.replies.length} replies`);
 log(`conversation log: ${logDir} (restored ${session.history().length} turns)`);
 log(`admin api: http://127.0.0.1:${admin.port}/admin/status (public url ${config.publicUrl})`);

@@ -1,9 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import type { BroadcastMessage, Health, SpeechMessage, Turn } from "@tekurobokun/protocol";
+import type {
+  BroadcastMessage,
+  Health,
+  LlmAlias,
+  SpeechMessage,
+  Turn,
+} from "@tekurobokun/protocol";
 import { type ContentFilter, WordListFilter } from "./content_filter.ts";
-import type { LogEntry } from "./conversation_log.ts";
-import { type DialogueEngine, type DialogueResult, LlmError } from "./dialogue/engine.ts";
+import type { ClearEntry, LogEntry } from "./conversation_log.ts";
+import {
+  type DialogueEngine,
+  type DialogueResult,
+  type FirstReplyResult,
+  LlmError,
+  LlmTimeoutError,
+  type ReplyOptions,
+} from "./dialogue/engine.ts";
 import { InputSourceRegistry } from "./input_sources.ts";
+import { SearchError, type SearchResult, type WebSearcher } from "./search/engine.ts";
 import { ConversationSession, DEFAULT_LISTENING_TIMEOUT_MS, type Timers } from "./session.ts";
 import { type Recognition, type SpeechRecognizer, SttError } from "./stt/engine.ts";
 import { type Speech, splitSentences, type TtsEngine, TtsError } from "./tts/engine.ts";
@@ -73,20 +87,93 @@ class ManualClock implements Timers {
   }
 }
 
+/** 結果を外から渡すまで待つWebSearcher。 */
+class ManualSearcher implements WebSearcher {
+  queries: string[] = [];
+  private pending: {
+    resolve: (r: { results: SearchResult[]; ms: number }) => void;
+    reject: (e: Error) => void;
+  }[] = [];
+
+  search(query: string): Promise<{ results: SearchResult[]; ms: number }> {
+    this.queries.push(query);
+    return new Promise((resolve, reject) => this.pending.push({ resolve, reject }));
+  }
+  monthCount() {
+    return { month: "2026-11", count: this.queries.length };
+  }
+  answer(results: SearchResult[] = [{ title: "T", url: "https://a.example", snippet: "S" }]) {
+    this.pending.shift()?.resolve({ results, ms: 900 });
+  }
+  fail(): void {
+    this.pending.shift()?.reject(new SearchError("quota", "used up", 300));
+  }
+}
+
 /** 返事を外から渡すまで待つDialogueEngine。 */
 class ManualDialogue implements DialogueEngine {
   calls: { history: Turn[]; text: string }[] = [];
-  private pending: { resolve: (r: DialogueResult) => void; reject: (e: Error) => void }[] = [];
+  private pending: {
+    resolve: (r: FirstReplyResult) => void;
+    reject: (e: Error) => void;
+  }[] = [];
+  private alias: LlmAlias = "main";
 
-  reply(history: Turn[], text: string): Promise<DialogueResult> {
+  activeModel(): LlmAlias {
+    return this.alias;
+  }
+  setModel(alias: LlmAlias): void {
+    this.alias = alias;
+  }
+  options: ReplyOptions[] = [];
+  /** 2回目の問い合わせ（検索語と結果） */
+  finals: { text: string; query: string; results: SearchResult[] | null }[] = [];
+  private pendingFinal: {
+    resolve: (r: DialogueResult) => void;
+    reject: (e: Error) => void;
+  }[] = [];
+
+  reply(history: Turn[], text: string, opts: ReplyOptions): Promise<FirstReplyResult> {
     this.calls.push({ history, text });
+    this.options.push(opts);
     return new Promise((resolve, reject) => this.pending.push({ resolve, reject }));
   }
-  answer(say: string): void {
-    this.pending.shift()?.resolve({ raw: say, say, emotion: "happy", thinkingMs: 1200 });
+  replyWithResults(
+    history: Turn[],
+    text: string,
+    query: string,
+    results: SearchResult[] | null,
+    opts: ReplyOptions,
+  ): Promise<DialogueResult> {
+    this.calls.push({ history, text });
+    this.options.push(opts);
+    this.finals.push({ text, query, results });
+    return new Promise((resolve, reject) => this.pendingFinal.push({ resolve, reject }));
   }
-  fail(): void {
-    this.pending.shift()?.reject(new LlmError("down"));
+  answer(say: string, search: string | null = null): void {
+    this.pending.shift()?.resolve({
+      raw: search === null ? say : `first:${say}`,
+      say,
+      emotion: search === null ? "happy" : "curious",
+      thinkingMs: 1200,
+      search,
+      model: this.alias,
+    });
+  }
+  answerFinal(say: string): void {
+    this.pendingFinal.shift()?.resolve({
+      raw: `final:${say}`,
+      say,
+      emotion: "happy",
+      thinkingMs: 800,
+      model: this.alias,
+    });
+  }
+  fail(error: Error = new LlmError("down")): void {
+    this.pending.shift()?.reject(error);
+  }
+  failFinal(): void {
+    this.pendingFinal.shift()?.reject(new LlmError("down"));
   }
 }
 
@@ -105,6 +192,7 @@ function setup(
   const dialogue = new ManualDialogue();
   const tts = new ManualTts();
   const stt = new ManualStt();
+  const searcher = new ManualSearcher();
   const clock = new ManualClock();
   const sources = new InputSourceRegistry(["tablet", "phone"], options.active ?? "tablet");
   const health = {
@@ -131,11 +219,13 @@ function setup(
   const emitted: BroadcastMessage[] = [];
   const speeches: SpeechMessage[] = [];
   let id = 0;
+  const timeouts: number[] = [];
   const session = new ConversationSession({
     dialogue,
     filter: options.filter,
     tts,
     stt,
+    searcher,
     sources,
     health,
     emit: (m) => emitted.push(m),
@@ -145,8 +235,21 @@ function setup(
     now: () => new Date(clock.ms),
     timers: clock,
     newId: () => `t${++id}`,
+    onLlmTimeout: () => timeouts.push(clock.ms),
   });
-  return { session, dialogue, tts, stt, clock, sources, health, emitted, speeches };
+  return {
+    session,
+    dialogue,
+    tts,
+    stt,
+    searcher,
+    clock,
+    sources,
+    health,
+    emitted,
+    speeches,
+    timeouts,
+  };
 }
 
 /** 機体ありで発言し、返事を得て話し中に入ったところまで進める。 */
@@ -463,11 +566,13 @@ describe("ConversationSession（会話ログ）", () => {
   const canned = { say: "その話はやめておきましょう。", emotion: "troubled" as const };
   function logged(options: Parameters<typeof setup>[0] = {}) {
     const entries: LogEntry[] = [];
+    const clears: ClearEntry[] = [];
     const s = setup(options);
     const session = new ConversationSession({
       dialogue: s.dialogue,
       tts: s.tts,
       stt: s.stt,
+      searcher: s.searcher,
       filter: options.filter,
       sources: s.sources,
       health: s.health,
@@ -478,9 +583,9 @@ describe("ConversationSession（会話ログ）", () => {
       now: () => new Date(s.clock.ms),
       timers: s.clock,
       newId: () => "t1",
-      record: (e) => entries.push(e),
+      record: (e) => (e.kind === "turn" ? entries.push(e) : clears.push(e)),
     });
-    return { ...s, session, entries };
+    return { ...s, session, entries, clears };
   }
 
   test("返事を得たら1行残す（imple 7節の手順3）", async () => {
@@ -499,6 +604,10 @@ describe("ConversationSession（会話ログ）", () => {
         stt: null,
         thinkingMs: 1200,
         raw: "やあ。",
+        rawFirst: null,
+        search: null,
+        model: "main",
+        antiLoop: false,
         say: "やあ。",
         emotion: "happy",
         filtered: "none",
@@ -548,6 +657,10 @@ describe("ConversationSession（会話ログ）", () => {
     const failedFields: Omit<LogEntry, "kind" | "at" | "source" | "via" | "input" | "stt"> = {
       thinkingMs: null,
       raw: null,
+      rawFirst: null,
+      search: null,
+      model: null,
+      antiLoop: false,
       say: null,
       emotion: null,
       filtered: "none",
@@ -571,7 +684,7 @@ describe("ConversationSession（会話ログ）", () => {
     const done = failing.session.handleUtterance("tablet", "こんにちは");
     failing.dialogue.fail();
     await done;
-    expect(failing.entries[0]).toMatchObject(failedFields);
+    expect(failing.entries[0]).toMatchObject({ ...failedFields, model: "main" });
   });
 
   test("捨てた発言（考え中・別の端末・空・VOICEVOXが落ちている）は残さない（手順4・二重操作）", async () => {
@@ -621,12 +734,14 @@ describe("ConversationSession（機体のマイク）", () => {
 
   function robotSetup(options: Parameters<typeof setup>[0] = {}) {
     const entries: LogEntry[] = [];
+    const clears: ClearEntry[] = [];
     const s = setup({ active: "robot", robot: true, ...options });
     let id = 0;
     const session = new ConversationSession({
       dialogue: s.dialogue,
       tts: s.tts,
       stt: s.stt,
+      searcher: s.searcher,
       sources: s.sources,
       health: s.health,
       emit: (m) => s.emitted.push(m),
@@ -636,9 +751,9 @@ describe("ConversationSession（機体のマイク）", () => {
       now: () => new Date(s.clock.ms),
       timers: s.clock,
       newId: () => `v${++id}`,
-      record: (e) => entries.push(e),
+      record: (e) => (e.kind === "turn" ? entries.push(e) : clears.push(e)),
     });
-    return { ...s, session, entries };
+    return { ...s, session, entries, clears };
   }
 
   test("listening→聞き取り中→voice→STT→考え中→返事→話し中。(mic)の発言として残す", async () => {
@@ -680,6 +795,10 @@ describe("ConversationSession（機体のマイク）", () => {
         stt: { ms: 640 },
         thinkingMs: 1200,
         raw: "やあ。",
+        rawFirst: null,
+        search: null,
+        model: "main",
+        antiLoop: false,
         say: "やあ。",
         emotion: "happy",
         filtered: "none",
@@ -770,6 +889,10 @@ describe("ConversationSession（機体のマイク）", () => {
         stt: null,
         thinkingMs: null,
         raw: null,
+        rawFirst: null,
+        search: null,
+        model: null,
+        antiLoop: false,
         say: null,
         emotion: null,
         filtered: "none",
@@ -841,5 +964,334 @@ describe("ConversationSession（機体のマイク）", () => {
     await settle();
     dialogue.answer("a");
     expect(await done).toBe("accepted");
+  });
+});
+
+describe("ConversationSession（調べ中）", () => {
+  const settle = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+  const sessions = (emitted: BroadcastMessage[]) =>
+    emitted.filter((m) => m.type === "status").map((m) => m.type === "status" && m.session);
+
+  function searchSetup(options: Parameters<typeof setup>[0] = {}) {
+    const entries: LogEntry[] = [];
+    const clears: ClearEntry[] = [];
+    const s = setup(options);
+    const timeouts: number[] = [];
+    const session = new ConversationSession({
+      dialogue: s.dialogue,
+      tts: s.tts,
+      stt: s.stt,
+      searcher: s.searcher,
+      filter: options.filter,
+      sources: s.sources,
+      health: s.health,
+      emit: (m) => s.emitted.push(m),
+      sendToRobot: (m) => s.speeches.push(m),
+      displayTurns: 50,
+      speakingGraceMs: 5000,
+      now: () => new Date(s.clock.ms),
+      timers: s.clock,
+      newId: () => "t1",
+      record: (e) => (e.kind === "turn" ? entries.push(e) : clears.push(e)),
+      onLlmTimeout: () => timeouts.push(s.clock.ms),
+    });
+    return { ...s, session, entries, clears, timeouts };
+  }
+
+  test("機体なし：検索語があれば調べ中、検索の結果つきで2回目、返事、待機中。ログに検索を残す", async () => {
+    const { session, dialogue, searcher, emitted, entries } = searchSetup();
+    const done = session.handleUtterance("tablet", "東京タワーの高さは？");
+    dialogue.answer("ちょっと調べてみるね。", "東京タワー 高さ");
+    await settle();
+    expect(session.session).toBe("searching");
+    expect(searcher.queries).toEqual(["東京タワー 高さ"]);
+    expect(emitted.find((m) => m.type === "turn_search_started")).toEqual({
+      type: "turn_search_started",
+      turnId: "t1",
+      query: "東京タワー 高さ",
+      preSay: "ちょっと調べてみるね。",
+      emotion: "curious",
+      thinkingMs: 1200,
+    });
+    // 調べている間は、新しい発言を受け付けない
+    expect(await session.handleUtterance("tablet", "まだ？")).toBe("busy");
+
+    searcher.answer([{ title: "T", url: "https://a.example", snippet: "333m" }]);
+    await settle();
+    expect(emitted.find((m) => m.type === "turn_search_done")).toEqual({
+      type: "turn_search_done",
+      turnId: "t1",
+      searchMs: 900,
+      ok: true,
+    });
+    expect(dialogue.finals).toEqual([
+      {
+        text: "東京タワーの高さは？",
+        query: "東京タワー 高さ",
+        results: [{ title: "T", url: "https://a.example", snippet: "333m" }],
+      },
+    ]);
+    expect(session.session).toBe("searching");
+    dialogue.answerFinal("高さは333メートルです。");
+    await done;
+    expect(session.session).toBe("idle");
+    expect(sessions(emitted)).toEqual(["thinking", "searching", "idle"]);
+    expect(emitted.find((m) => m.type === "turn_replied")).toMatchObject({
+      say: "高さは333メートルです。",
+      thinkingMs: 800,
+    });
+    expect(session.history()[0]).toMatchObject({
+      search: {
+        query: "東京タワー 高さ",
+        preSay: "ちょっと調べてみるね。",
+        searchMs: 900,
+        ok: true,
+      },
+      reply: { say: "高さは333メートルです。", thinkingMs: 800 },
+    });
+    expect(entries[0]).toMatchObject({
+      thinkingMs: 2000,
+      raw: "final:高さは333メートルです。",
+      rawFirst: "first:ちょっと調べてみるね。",
+      search: { query: "東京タワー 高さ", ms: 900, urls: ["https://a.example"], ok: true },
+      model: "main",
+      say: "高さは333メートルです。",
+      error: null,
+    });
+  });
+
+  test("機体あり：前置きを話し、検索と前置きの再生の両方を待ってから2回目。返事の文の番号は前置きの続き", async () => {
+    const { session, dialogue, searcher, tts, speeches, clock } = searchSetup({ robot: true });
+    const done = session.handleUtterance("tablet", "長岡の花火は？");
+    dialogue.answer("ちょっと調べてみるね。", "長岡 花火");
+    await settle();
+    expect(tts.calls).toEqual(["ちょっと調べてみるね。"]);
+    tts.finish();
+    await settle();
+    expect(speeches.map((m) => [m.turnId, m.index, m.last, m.text])).toEqual([
+      ["t1", 0, true, "ちょっと調べてみるね。"],
+    ]);
+    // 検索が先に終わっても、前置きの再生を待つ
+    searcher.answer();
+    await settle();
+    expect(dialogue.finals).toHaveLength(0);
+    clock.advance(500);
+    session.handlePlaybackDone("t1", 0);
+    await settle();
+    expect(dialogue.finals).toHaveLength(1);
+    expect(session.session).toBe("searching");
+    dialogue.answerFinal("大きな花火です。三尺玉が有名です。");
+    await done;
+    expect(session.session).toBe("speaking");
+    tts.finish();
+    await settle();
+    tts.finish();
+    await settle();
+    expect(speeches.slice(1).map((m) => [m.index, m.last])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+    session.handlePlaybackDone("t1", 2);
+    expect(session.session).toBe("idle");
+  });
+
+  test("前置きの再生が先に終わっても、検索を待つ。機体が切れたら前置きは待たない", async () => {
+    const { session, dialogue, searcher, tts, health } = searchSetup({ robot: true });
+    const done = session.handleUtterance("tablet", "q");
+    dialogue.answer("調べるね。", "q");
+    await settle();
+    tts.finish();
+    await settle();
+    health.value.robot = false;
+    session.robotDisconnected();
+    await settle();
+    expect(dialogue.finals).toHaveLength(0);
+    searcher.answer();
+    await settle();
+    expect(dialogue.finals).toHaveLength(1);
+    dialogue.answerFinal("答え。");
+    await done;
+    expect(session.session).toBe("idle");
+  });
+
+  test("検索の失敗は、結果なし（null）で2回目を問い合わせ、ok: falseで残す", async () => {
+    const { session, dialogue, searcher, emitted, entries } = searchSetup();
+    const done = session.handleUtterance("tablet", "q");
+    dialogue.answer("調べるね。", "q");
+    await settle();
+    searcher.fail();
+    await settle();
+    expect(emitted.find((m) => m.type === "turn_search_done")).toMatchObject({
+      searchMs: 300,
+      ok: false,
+    });
+    expect(dialogue.finals[0]?.results).toBeNull();
+    dialogue.answerFinal("調べられませんでした。");
+    await done;
+    expect(entries[0]?.search).toEqual({ query: "q", ms: 300, urls: [], ok: false });
+    expect(entries[0]?.error).toBeNull();
+  });
+
+  test("2回目に失敗したら、検索の情報つきでllm_unavailableを残し、待機中へ", async () => {
+    const { session, dialogue, searcher, entries, health } = searchSetup();
+    const done = session.handleUtterance("tablet", "q");
+    dialogue.answer("調べるね。", "q");
+    await settle();
+    searcher.answer();
+    await settle();
+    dialogue.failFinal();
+    await done;
+    expect(session.session).toBe("idle");
+    expect(health.value.llm).toBe(false);
+    expect(entries[0]).toMatchObject({
+      rawFirst: "first:調べるね。",
+      search: { query: "q", ok: true },
+      say: null,
+      error: "llm_unavailable",
+    });
+    expect(session.history()[0]?.reply).toBeUndefined();
+  });
+
+  test("前置きが禁止語に当たったら、検索せずに定型の返事", async () => {
+    const canned = { say: "その話はやめておきましょう。", emotion: "troubled" as const };
+    const filter = new WordListFilter({ words: ["バカ"], replies: [canned] });
+    const { session, dialogue, searcher, entries } = searchSetup({ filter });
+    const done = session.handleUtterance("tablet", "q");
+    dialogue.answer("バカを調べるね。", "q");
+    await done;
+    expect(searcher.queries).toEqual([]);
+    expect(entries[0]).toMatchObject({ ...canned, filtered: "output", search: null });
+  });
+
+  test("LLMの時間切れは、llm_timeoutとして知らせる", async () => {
+    const { session, dialogue, timeouts } = searchSetup();
+    const done = session.handleUtterance("tablet", "q");
+    dialogue.fail(new LlmTimeoutError("slow"));
+    await done;
+    expect(timeouts).toHaveLength(1);
+    const again = searchSetup();
+    const done2 = again.session.handleUtterance("tablet", "q");
+    again.dialogue.fail();
+    await done2;
+    expect(again.timeouts).toHaveLength(0);
+  });
+});
+
+describe("ConversationSession（質問のループ・履歴の区切り）", () => {
+  const IDLE_RESET_MS = 90_000;
+  const cleared = (emitted: BroadcastMessage[]) =>
+    emitted.filter((m) => m.type === "history_cleared");
+
+  function loopSetup(options: Parameters<typeof setup>[0] = {}) {
+    const entries: LogEntry[] = [];
+    const clears: ClearEntry[] = [];
+    const reasons: string[] = [];
+    const s = setup(options);
+    let id = 0;
+    const session = new ConversationSession({
+      dialogue: s.dialogue,
+      tts: s.tts,
+      stt: s.stt,
+      searcher: s.searcher,
+      sources: s.sources,
+      health: s.health,
+      emit: (m) => s.emitted.push(m),
+      sendToRobot: (m) => s.speeches.push(m),
+      displayTurns: 50,
+      speakingGraceMs: 5000,
+      now: () => new Date(s.clock.ms),
+      timers: s.clock,
+      newId: () => `t${++id}`,
+      questionLoopThreshold: 2,
+      idleResetMs: IDLE_RESET_MS,
+      record: (e) => (e.kind === "turn" ? entries.push(e) : clears.push(e)),
+      onHistoryCleared: (reason) => reasons.push(reason),
+    });
+    /** 1往復する（機体なし） */
+    const turn = async (text: string, say: string) => {
+      const done = session.handleUtterance("tablet", text);
+      s.dialogue.answer(say);
+      await done;
+    };
+    return { ...s, session, entries, clears, reasons, turn };
+  }
+
+  test("直近の返事が2回続けて質問で終わったら、指示を足してログに残す", async () => {
+    const { dialogue, entries, turn } = loopSetup();
+    await turn("a", "何が好き？");
+    await turn("b", "どうして？");
+    await turn("c", "わたしは電池が好きです。");
+    await turn("d", "なぜ？");
+    expect(dialogue.options.map((o) => o.antiLoop)).toEqual([false, false, true, false]);
+    expect(entries.map((e) => e.antiLoop)).toEqual([false, false, true, false]);
+  });
+
+  test("返事が終わってから90秒だれも話さなければ、LLMの履歴を消して区切りを配信し、ログに残す", async () => {
+    const { session, dialogue, emitted, clears, reasons, clock, turn } = loopSetup();
+    await turn("a", "やあ。");
+    clock.advance(IDLE_RESET_MS - 1);
+    expect(cleared(emitted)).toHaveLength(0);
+    clock.advance(1);
+    expect(cleared(emitted)).toEqual([
+      { type: "history_cleared", at: "2026-11-14T10:03:41.000+09:00", reason: "idle" },
+    ]);
+    expect(clears).toEqual([
+      { kind: "history_cleared", at: "2026-11-14T10:03:41.000+09:00", reason: "idle" },
+    ]);
+    expect(reasons).toEqual(["idle"]);
+    // 表示用の履歴は消さない。次の発言からLLMには渡さない
+    expect(session.history()).toHaveLength(1);
+    await turn("b", "はじめまして。");
+    expect(dialogue.calls[1]?.history).toEqual([]);
+    // 消す履歴がなければ、時間がたっても区切らない
+    clock.advance(IDLE_RESET_MS);
+    expect(cleared(emitted)).toHaveLength(2);
+    clock.advance(IDLE_RESET_MS);
+    expect(cleared(emitted)).toHaveLength(2);
+  });
+
+  test("90秒の前に話せば区切らない。話し中・聞き取り中は数えない", async () => {
+    const s = loopSetup({ robot: true, active: "robot" });
+    s.sources.setActive("tablet");
+    await s.turn("a", "やあ。");
+    // 機体ありなので話し中。話している間は数えない
+    expect(s.session.session).toBe("speaking");
+    s.clock.advance(IDLE_RESET_MS);
+    expect(cleared(s.emitted)).toHaveLength(0);
+    s.tts.finish();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    s.session.handlePlaybackDone("t1", 0);
+    expect(s.session.session).toBe("idle");
+    s.clock.advance(IDLE_RESET_MS - 1000);
+    // 機体のマイクで聞き取り中になれば止まり、待機中に戻ったら数え直す
+    s.sources.setActive("robot");
+    s.session.handleListening(true);
+    s.clock.advance(5000);
+    expect(cleared(s.emitted)).toHaveLength(0);
+    s.session.handleListening(false);
+    s.clock.advance(IDLE_RESET_MS - 1);
+    expect(cleared(s.emitted)).toHaveLength(0);
+    s.clock.advance(1);
+    expect(cleared(s.emitted)).toHaveLength(1);
+  });
+
+  test("管理用APIのresetは、どの状態でも受け付け、考え中の発言も以後の履歴に入れない", async () => {
+    const { session, dialogue, emitted, clears, reasons, turn } = loopSetup();
+    await turn("a", "やあ。");
+    const done = session.handleUtterance("tablet", "b");
+    expect(session.session).toBe("thinking");
+    session.resetHistory();
+    expect(cleared(emitted).at(-1)).toMatchObject({ reason: "manual" });
+    expect(clears.at(-1)).toMatchObject({ kind: "history_cleared", reason: "manual" });
+    expect(reasons).toEqual(["manual"]);
+    dialogue.answer("はい。");
+    await done;
+    await turn("c", "ええ。");
+    expect(dialogue.calls[2]?.history).toEqual([]);
+    // 区切ったあとに返事をした発言は、また渡す
+    await turn("d", "うん。");
+    expect(dialogue.calls[3]?.history.map((t) => t.text)).toEqual(["c"]);
   });
 });

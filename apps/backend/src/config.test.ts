@@ -2,7 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONFIG_DIR, loadBackendConfig, mergeConfig, parseBackendConfig } from "./config.ts";
+import {
+  CONFIG_DIR,
+  hasBody,
+  loadBackendConfig,
+  loadPersona,
+  mergeConfig,
+  parseBackendConfig,
+} from "./config.ts";
 
 describe("mergeConfig", () => {
   test("オブジェクトは項目ごと、配列と値はまるごと上書きする", () => {
@@ -128,5 +135,30 @@ describe("parseBackendConfig", () => {
         }),
       ),
     ).toThrow("stt.bench.models");
+  });
+});
+
+describe("loadPersona", () => {
+  test("persona_self.md→persona.mdの順につなぎ、見出しだけ・ないファイルは飛ばす", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tekurobokun-persona-"));
+    try {
+      const d = `${dir}/`;
+      expect(await loadPersona(d)).toEqual({
+        text: null,
+        missing: ["persona_self.md", "persona.md"],
+      });
+      writeFileSync(join(dir, "persona_self.md"), "# 名前\n\n## 体\n", "utf8");
+      writeFileSync(join(dir, "persona.md"), "  人格\n", "utf8");
+      expect(await loadPersona(d)).toEqual({ text: "人格", missing: ["persona_self.md"] });
+      writeFileSync(join(dir, "persona_self.md"), "# 名前\nテクロボくん\n", "utf8");
+      expect(await loadPersona(d)).toEqual({ text: "# 名前\nテクロボくん\n\n人格", missing: [] });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("hasBody", () => {
+    expect(hasBody("# a\n\n## b")).toBe(false);
+    expect(hasBody("# a\nb")).toBe(true);
   });
 });

@@ -67,9 +67,10 @@ const state: {
   pairedUntil: 0,
 };
 
-// 字幕：考え中は来場者の発言、話し中は読み上げている文。
+// 字幕：考え中は来場者の発言、話し中は読み上げている文、調べ中は前置きの文のあとに検索語（S02i）。
 const captionOverlay = new CaptionOverlay(document.body, config.caption);
 let userText: string | null = null;
+let searchQuery: string | null = null;
 let currentCaption: string | null = null;
 
 function updateCaption(): void {
@@ -88,6 +89,7 @@ function updateCaption(): void {
       session: state.status?.session ?? null,
       userText,
       sentence: currentCaption,
+      searchQuery,
     }),
   );
 }
@@ -99,7 +101,7 @@ function updateFace(): void {
   else scanner.start();
   voice.setLink({ paired, connected: state.connected, status: state.status });
   face.setState(
-    paired ? displayStateFor(state.connected, state.status) : "IDLE",
+    paired ? displayStateFor(state.connected, state.status, audio.playing) : "IDLE",
     performance.now(),
   );
   updateCaption();
@@ -137,6 +139,7 @@ const link = new RobotLink(credentials, {
     state.connected = false;
     state.status = null;
     userText = null;
+    searchQuery = null;
     currentCaption = null;
     stopAudio();
     updateFace();
@@ -165,8 +168,8 @@ const link = new RobotLink(credentials, {
       }
       case "status":
         state.status = message;
-        // 話し中でなくなったら（タイムアウト・合成の失敗など）、残りの音声は捨てる。
-        if (message.session !== "speaking") {
+        // 話し中・調べ中（前置き）でなくなったら（タイムアウト・合成の失敗など）、残りの音声は捨てる。
+        if (message.session !== "speaking" && message.session !== "searching") {
           stopAudio();
           currentCaption = null;
         }
@@ -174,29 +177,36 @@ const link = new RobotLink(credentials, {
         return;
       case "turn_started":
         userText = message.turn.text;
+        searchQuery = null;
+        updateCaption();
+        return;
+      case "turn_search_started":
+        searchQuery = message.query;
         updateCaption();
         return;
       case "speech":
-        if (state.status?.session !== "speaking") return;
+        // 返事は話し中、前置きは調べ中に届く。
+        if (state.status?.session !== "speaking" && state.status?.session !== "searching") return;
         face.setEmotion(message.emotion);
         audio.enqueue(message);
         return;
       default:
-        // welcome・turn_repliedは、機体では使わない。
+        // welcome・turn_replied・turn_search_done・history_clearedは、機体では使わない。
         return;
     }
   },
 });
 
+// 調べ中の顔は、前置きを再生しているかで変わるため、文の始まりと終わりで顔も決め直す。
 audio.onSentenceStart((item) => {
   voice.setPlaying(true);
   currentCaption = item.text;
-  updateCaption();
+  updateFace();
 });
 audio.onSentenceEnd((item) => {
   voice.setPlaying(false);
   currentCaption = null;
-  updateCaption();
+  updateFace();
   link.send({ type: "playback_done", turnId: item.turnId, index: item.index });
 });
 

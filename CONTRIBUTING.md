@@ -364,8 +364,8 @@ bun run bench -- --repeat 3           # 質問のセットを3回くり返す
 {
   "stt": {
     "bench": {
-      "executable": "C:\Users\{ユーザー}\tekurobo_servers\whisper.cpp\bin\vulkan\whisper-server.exe",
-      "modelsDir": "C:\Users\{ユーザー}\tekurobo_servers\whisper.cpp\models"
+      "executable": "C:\\Users\\{ユーザー}\\tekurobo_servers\\whisper.cpp\\bin\\vulkan\\whisper-server.exe",
+      "modelsDir": "C:\\Users\\{ユーザー}\\tekurobo_servers\\whisper.cpp\\models"
     }
   }
 }

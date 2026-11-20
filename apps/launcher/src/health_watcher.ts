@@ -1,10 +1,13 @@
 // HealthWatcher（imple 3節）：正のLLMのハートビートと、backendの「LLMが時間内に返事をしなかった」知らせ
-// （/admin/events の llm_timeout）を失敗として数え、続けて決まった回数（既定3）で副に切り替える。
+// （/admin/events の llm_timeout）を失敗として数え、合わせて決まった回数（既定3）で副に切り替える。
+// ハートビートの失敗は、ハートビートの成功で数え直す。llm_timeoutは、backendが返事を得たとき（会話の状態が
+// 考え中・調べ中から話し中へ移ったとき）に数え直す（llama-serverは生成で詰まっていても /health に応えるため、
+// ハートビートの成功では数え直さない）。
 // 切り替えは、正の終了→ポートとプロセスの解放を待つ→一定時間待つ→副を同じポートで起動（ServiceSupervisor）→
 // PUT /admin/llm-model で sub を伝える。sttは止めない。正に戻すのは手動（backToMain）。
 // backendが再起動して別名が食い違ったら（設定の起動時の別名はmain）、いまの別名を伝え直す。
 
-import type { LlmAlias } from "@tekurobokun/protocol";
+import type { LlmAlias, SessionState } from "@tekurobokun/protocol";
 import type { FailReason, ServiceState } from "./supervisor.ts";
 
 /** 画面のできごとの一覧に出すもの。 */
@@ -36,7 +39,9 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export class HealthWatcher {
   private aliasValue: LlmAlias = "main";
   private failoverTime: Date | null = null;
-  private failures = 0;
+  private heartbeatFailures = 0;
+  private timeoutFailures = 0;
+  private lastSession: SessionState | null = null;
   private switching = false;
   private mainActive = false;
   private probing = false;
@@ -62,13 +67,13 @@ export class HealthWatcher {
   }
 
   get failureCount(): number {
-    return this.failures;
+    return this.heartbeatFailures + this.timeoutFailures;
   }
 
   /** 正のLLMの状態（ServiceSupervisorから）。稼働中か、稼働後に落ちたときだけ数える */
   setMainState(state: ServiceState, reason: FailReason | null): void {
     this.mainActive = state === "running" || (state === "failed" && reason?.kind === "exited");
-    if (!this.watching()) this.failures = 0;
+    if (!this.watching()) this.clearFailures();
   }
 
   /** 一定の間隔でハートビートを始める。 */
@@ -96,20 +101,27 @@ export class HealthWatcher {
     }
     if (!this.watching()) return;
     if (ok) {
-      this.failures = 0;
+      this.heartbeatFailures = 0;
       return;
     }
+    this.heartbeatFailures += 1;
     await this.fail("heartbeat_fail");
   }
 
   /** backendから llm_timeout が届いた。 */
   async onLlmTimeout(): Promise<void> {
     if (!this.watching()) return;
+    this.timeoutFailures += 1;
     await this.fail("llm_timeout");
   }
 
-  /** backendの状態が届いた。別名が食い違っていたら伝え直す。 */
-  async onStatus(llmModel: LlmAlias): Promise<void> {
+  /** backendの状態が届いた。返事を得たらllm_timeoutを数え直し、別名が食い違っていたら伝え直す。 */
+  async onStatus(llmModel: LlmAlias, session: SessionState): Promise<void> {
+    const before = this.lastSession;
+    this.lastSession = session;
+    if (session === "speaking" && (before === "thinking" || before === "searching")) {
+      this.timeoutFailures = 0;
+    }
     if (this.switching || llmModel === this.aliasValue) return;
     await this.syncModel();
   }
@@ -118,7 +130,7 @@ export class HealthWatcher {
   async switchToSub(manual = false): Promise<void> {
     if (this.switching || this.aliasValue === "sub") return;
     this.switching = true;
-    this.failures = 0;
+    this.clearFailures();
     this.deps.onChange();
     try {
       await this.deps.switchToSub(manual ? "stopped" : "down");
@@ -143,7 +155,7 @@ export class HealthWatcher {
       await this.deps.switchToMain();
       this.aliasValue = "main";
       this.failoverTime = null;
-      this.failures = 0;
+      this.clearFailures();
       this.deps.log({ kind: "switched_back" });
     } catch (e) {
       this.deps.log({ kind: "switch_failed", detail: message(e) });
@@ -158,8 +170,13 @@ export class HealthWatcher {
   reset(): void {
     this.aliasValue = "main";
     this.failoverTime = null;
-    this.failures = 0;
+    this.clearFailures();
     this.deps.onChange();
+  }
+
+  private clearFailures(): void {
+    this.heartbeatFailures = 0;
+    this.timeoutFailures = 0;
   }
 
   private watching(): boolean {
@@ -167,9 +184,9 @@ export class HealthWatcher {
   }
 
   private async fail(kind: "heartbeat_fail" | "llm_timeout"): Promise<void> {
-    this.failures += 1;
-    this.deps.log({ kind, n: this.failures, max: this.maxFailures });
-    if (this.failures >= this.maxFailures) await this.switchToSub();
+    const n = this.failureCount;
+    this.deps.log({ kind, n, max: this.maxFailures });
+    if (n >= this.maxFailures) await this.switchToSub();
   }
 
   private async syncModel(): Promise<void> {

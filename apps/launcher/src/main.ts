@@ -58,7 +58,7 @@ const admin = new AdminClient({
   handlers: {
     onStatus: (status) => {
       state.status = status;
-      void watcher?.onStatus(status.llmModel);
+      void watcher?.onStatus(status.llmModel, status.session);
       void ensureCode();
       draw();
     },

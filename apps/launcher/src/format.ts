@@ -105,9 +105,12 @@ export function stateClass(state: ServiceState): string {
   return "up";
 }
 
-/** 状態行の「n/m 稼働中」。待機（副のLLM）は正常として数える。 */
-export function summaryCounts(views: ServiceView[]): { up: number; all: number } {
-  const up = views.filter((v) => v.state === "running" || v.state === "standby").length;
+/** 状態行の「n/m 稼働中」。待機（副のLLM）は、正（from）が稼働中のときだけ正常として数える（S03a〜S03d）。 */
+export function summaryCounts(views: ServiceView[], from: string): { up: number; all: number } {
+  const mainRunning = views.some((v) => v.id === from && v.state === "running");
+  const up = views.filter(
+    (v) => v.state === "running" || (v.state === "standby" && mainRunning),
+  ).length;
   return { up, all: views.length };
 }
 

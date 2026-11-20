@@ -100,7 +100,7 @@ function actionLabel(kind: ActionKind): string {
 // ===== 状態行 =====
 
 function titleBar(model: Model): HTMLElement {
-  const { up, all } = summaryCounts(model.views);
+  const { up, all } = summaryCounts(model.views, model.ctx.from);
   const left = h(
     "span",
     {},
@@ -142,7 +142,9 @@ function banners(model: Model, cb: Callbacks): HTMLElement[] {
       ),
     );
   }
-  if (model.views.some((v) => v.id === model.ctx.from && v.state === "loading")) {
+  // 起動中の案内（S03b）。失敗したサービスがあれば出さない（S03d。理由は行とできごとに出る）
+  const anyFailed = model.views.some((v) => v.state === "failed");
+  if (!anyFailed && model.views.some((v) => v.id === model.ctx.from && v.state === "loading")) {
     out.push(h("div", { class: "banner info" }, h("span", { text: m["launcher.loading_msg"]() })));
   }
   return out;

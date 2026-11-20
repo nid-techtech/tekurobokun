@@ -42,18 +42,20 @@ describe("format", () => {
     expect(reasonText({ kind: "timeout", seconds: 180 })).toContain("180");
   });
 
-  test("状態行の数は、稼働中と待機を数える", () => {
+  test("状態行の数は、稼働中と、正が稼働中のときの待機を数える", () => {
+    const sub = view("llm.sub", "standby", true);
+    // S03a
     expect(
-      summaryCounts([
-        view("llm.main", "running"),
-        view("llm.sub", "standby", true),
-        view("stt", "running"),
-      ]),
+      summaryCounts([view("llm.main", "running"), sub, view("stt", "running")], "llm.main"),
     ).toEqual({ up: 3, all: 3 });
-    expect(summaryCounts([view("llm.main", "down"), view("llm.sub", "running", true)])).toEqual({
-      up: 1,
-      all: 2,
-    });
+    // S03b（正は読み込み中なので、待機の副は数えない）
+    expect(
+      summaryCounts([view("llm.main", "loading"), sub, view("tts", "running")], "llm.main"),
+    ).toEqual({ up: 1, all: 3 });
+    // S03c
+    expect(
+      summaryCounts([view("llm.main", "down"), view("llm.sub", "running", true)], "llm.main"),
+    ).toEqual({ up: 1, all: 2 });
   });
 
   test("入力元の選択肢は、機体のマイクと登録済みのconsole", () => {

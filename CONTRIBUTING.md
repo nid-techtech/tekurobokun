@@ -447,7 +447,7 @@ bun run launcher:dev     # = cd apps/launcher; bun run tauri dev（開発サー�
 
 #### 正→副の切り替え
 
-正（`llm.main`）が稼働中の間、`heartbeat.url`（`/health`）を`intervalMs`ごとに確かめ、失敗と、backendから届く「LLMが時間内に返事をしなかった」知らせ（`/admin/events`の`llm_timeout`）を合わせて数えます。続けて`failures`回で、次の順に副へ切り替えます（S03c）。
+正（`llm.main`）が稼働中の間、`heartbeat.url`（`/health`）を`intervalMs`ごとに確かめ、失敗と、backendから届く「LLMが時間内に返事をしなかった」知らせ（`/admin/events`の`llm_timeout`）を合わせて数え、`failures`回で、次の順に副へ切り替えます（S03c）。ハートビートの失敗はハートビートが成功すると、`llm_timeout`はbackendが返事を得ると（会話の状態が考え中・調べ中から話し中へ移ると）数え直します。llama-serverは、生成で詰まっていても`/health`には応えるため、ハートビートの成功では`llm_timeout`を数え直しません。
 
 1. 正をジョブごと終了し、「応答なし」にする
 2. ポート8080が空くのを、`releaseTimeoutMs`まで待つ

@@ -118,12 +118,12 @@ describe("HealthWatcher", () => {
   test("backendの別名が食い違っていたら伝え直す（backendの再起動）。伝えられなければ知らせる", async () => {
     const { watcher, models } = setup();
     await watcher.switchToSub(true);
-    await watcher.onStatus("main");
-    await watcher.onStatus("sub");
+    await watcher.onStatus("main", "idle");
+    await watcher.onStatus("sub", "idle");
     expect(models).toEqual(["sub", "sub"]);
 
     const down = setup({ setModelFails: true });
-    await down.watcher.onStatus("sub");
+    await down.watcher.onStatus("sub", "idle");
     expect(down.logs).toEqual([{ kind: "admin_failed", detail: "connection refused" }]);
   });
 
@@ -134,5 +134,32 @@ describe("HealthWatcher", () => {
     watcher.reset();
     expect(watcher.alias).toBe("main");
     expect(watcher.failoverAt).toBeNull();
+  });
+
+  test("ハートビートが成功していても、llm_timeoutは数え続ける（生成で詰まっても /health は応える）", async () => {
+    const { watcher, calls, logs } = setup({ probe: [true, true, true] });
+    await watcher.onLlmTimeout();
+    await watcher.heartbeat();
+    await watcher.onLlmTimeout();
+    await watcher.heartbeat();
+    await watcher.heartbeat();
+    await watcher.onLlmTimeout();
+    expect(calls).toEqual(["sub:down"]);
+    expect(logs.slice(0, 3).map((l) => ("n" in l ? l.n : 0))).toEqual([1, 2, 3]);
+  });
+
+  test("backendが返事を得たら（考え中から話し中）、llm_timeoutを数え直す", async () => {
+    const { watcher, calls } = setup();
+    await watcher.onLlmTimeout();
+    await watcher.onLlmTimeout();
+    await watcher.onStatus("main", "thinking");
+    await watcher.onStatus("main", "speaking");
+    expect(watcher.failureCount).toBe(0);
+    await watcher.onLlmTimeout();
+    expect(calls).toEqual([]);
+    // 禁止語の定型の返事（待機から話し中）では数え直さない
+    await watcher.onStatus("main", "idle");
+    await watcher.onStatus("main", "speaking");
+    expect(watcher.failureCount).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 // 音声認識の比較（scripts/bench_stt.ts）の計算。文字の誤り率と、モデルごとの集計。
 
-import { phraseKey } from "../../apps/backend/src/stt/whisper.ts";
+import { type DiscardReason, phraseKey } from "../../apps/backend/src/stt/whisper.ts";
 
 /** 誤り率を数えるために揃える（NFKCにして、空白・句読点・記号を除く）。 */
 export function normalizeForCer(text: string): string {
@@ -41,7 +41,7 @@ export function characterErrorRate(reference: string, hypothesis: string): numbe
   return refLength === 0 ? null : distance / refLength;
 }
 
-export type DiscardReasonName = "empty" | "no_speech" | "hallucination";
+export type DiscardReasonName = DiscardReason;
 
 /** 1つの録音をモデルに流した結果 */
 export type SampleResult = {
@@ -53,8 +53,17 @@ export type SampleResult = {
   /** 捨てなかった文。捨てたときは空 */
   text: string;
   discarded: DiscardReasonName | null;
+  /** 区切りごとのavg_logprob（区切りがなければ空） */
+  logprobs: number[];
   ms: number;
 };
+
+/** 録音のavg_logprobの最小と最大。区切りがなければnull。
+ * `low_logprob`は「すべての区切りがしきい値を下回る」ため、捨てるかどうかは最大で決まる。 */
+export function logprobRange(logprobs: readonly number[]): { min: number; max: number } | null {
+  if (logprobs.length === 0) return null;
+  return { min: Math.min(...logprobs), max: Math.max(...logprobs) };
+}
 
 export type ModelSummary = {
   /** 正解のある録音の数 */
@@ -68,6 +77,11 @@ export type ModelSummary = {
   /** 正解のある録音で、捨てられてしまった数 */
   speechDiscarded: number;
   discards: Record<DiscardReasonName, number>;
+  /** 発話の録音のavg_logprob（録音ごとの最大）のうち、いちばん低いもの。これ以下のしきい値なら、確からしさで発話を捨てない */
+  speechLogprobFloor: number | null;
+  /** 無音・雑音の録音で文が出たもの（VADを通り抜けたもの）のavg_logprob（録音ごとの最大）のうち、いちばん高いもの。
+   * これより大きいしきい値なら、確からしさでそれらを捨てられる（決まり文句で捨てるものも含む） */
+  silentLogprobCeiling: number | null;
   medianMs: number | null;
   meanMs: number | null;
   maxMs: number | null;
@@ -83,8 +97,19 @@ export function summarize(results: readonly SampleResult[]): ModelSummary {
     distance += e.distance;
     refLength += e.refLength;
   }
-  const discards: Record<DiscardReasonName, number> = { empty: 0, no_speech: 0, hallucination: 0 };
+  const discards: Record<DiscardReasonName, number> = {
+    empty: 0,
+    low_logprob: 0,
+    hallucination: 0,
+  };
   for (const r of results) if (r.discarded !== null) discards[r.discarded] += 1;
+  const maxes = (rs: readonly SampleResult[]) =>
+    rs.flatMap((r) => {
+      const range = logprobRange(r.logprobs);
+      return range === null || r.raw.trim() === "" ? [] : [range.max];
+    });
+  const speechMaxes = maxes(speech);
+  const silentMaxes = maxes(silent);
   const times = results.map((r) => r.ms).sort((a, b) => a - b);
   return {
     speechCount: speech.length,
@@ -93,6 +118,8 @@ export function summarize(results: readonly SampleResult[]): ModelSummary {
     silentRecognized: silent.filter((r) => r.discarded === null && r.text !== "").length,
     speechDiscarded: speech.filter((r) => r.discarded !== null).length,
     discards,
+    speechLogprobFloor: speechMaxes.length === 0 ? null : Math.min(...speechMaxes),
+    silentLogprobCeiling: silentMaxes.length === 0 ? null : Math.max(...silentMaxes),
     medianMs: times.length === 0 ? null : (times[Math.floor((times.length - 1) / 2)] ?? null),
     meanMs: times.length === 0 ? null : Math.round(times.reduce((a, b) => a + b, 0) / times.length),
     maxMs: times.at(-1) ?? null,

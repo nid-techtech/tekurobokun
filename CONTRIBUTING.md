@@ -280,38 +280,38 @@ bun run admin revoke {id}                # 登録を解除する
 }
 ```
 
-| 項目                                                    | 内容                                                                                          | 初期値                               |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `host`                                                  | 公開用ポートの待ち受け先。本番は`127.0.0.1`（トンネルだけが届く）。LANから試すときは`0.0.0.0` | `127.0.0.1`                          |
-| `port`                                                  | 公開用ポート（入力ページとWebSocket）                                                         | `8787`                               |
-| `publicUrl`                                             | 登録のQRに入れる公開URL。LANから試すときは`http://{LANのIP}:8787`                             | `http://localhost:8787`              |
-| `admin.port`                                            | 管理用API（`127.0.0.1`だけで待ち受ける）                                                      | `8788`                               |
-| `llm.baseUrl`                                           | llama-serverの接続先（OpenAI互換API）                                                         | `http://127.0.0.1:8080`              |
-| `llm.models.{main,sub}`                                 | 正・副のモデル名（llama-serverの`--alias`）と、生成の上限トークン数（`maxTokens`）・温度      | `qwen3-8b`・`qwen3-4b`、`256`・`0.7` |
-| `llm.activeAlias`                                       | 起動時に使うモデルの別名（`main`・`sub`）                                                     | `main`                               |
-| `llm.contextTurns`                                      | LLMに渡す直近の往復数                                                                         | `4`                                  |
-| `llm.jsonSchema`                                        | JSONスキーマ制約（`response_format`）を使うか                                                 | `true`                               |
-| `llm.timeoutMs`                                         | LLMの応答を待つ上限                                                                           | `60000`                              |
-| `tts.baseUrl`・`tts.speaker`                            | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                                 | `http://127.0.0.1:50021`・`1`        |
-| `inputSources.consoles`                                 | 入力ページの端末名（順番は、入力元を切り替える数字キーの`2`以降の順）                         | `["tablet", "phone"]`                |
-| `inputSources.active`                                   | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                  | `robot`                              |
-| `pairing.codeTtlMs`                                     | 登録コードの有効時間                                                                          | `60000`                              |
-| `pairing.maxFailures`・`failureWindowMs`・`lockMs`      | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない        | `5`・`60000`・`300000`               |
-| `stt.provider`                                          | 音声認識の実装（`whisper`・`stub`）。スタブは`--stub`で選ばれる                               | `whisper`                            |
-| `stt.timeoutMs`                                         | 音声認識の応答を待つ上限                                                                      | `10000`                              |
-| `stt.whisper.url`・`language`                           | `whisper-server`の接続先（`/inference`と`/health`）と、話す言語（翻訳はしない）               | `http://127.0.0.1:8081`・`ja`        |
-| `stt.whisper.hallucinations`                            | 結果の全体がこのどれかと一致したら、空の発話として捨てる決まり文句（「音声認識」の節）        | 「ご視聴ありがとうございました」など |
-| `stt.whisper.noSpeechThreshold`                         | すべての区切りで「音声なしの確率」がこれを超えたら、空の発話として捨てる（0〜1）              | `0.6`                                |
-| `stt.bench`                                             | 音声認識の比較の設定（実行ファイル・モデルのフォルダ・モデルの一覧。「音声認識の比較」）      | モデル3つ（パスは空）                |
-| `search`                                                | 検索（Tavily）の設定の雛形。Phase 8で使い始める                                               | 空                                   |
-| `dialogue.questionLoopThreshold`・`session.idleResetMs` | 質問のループを防ぐ指示と、履歴の区切り（Phase 8で使い始める）                                 | `2`・`90000`                         |
-| `console.autosendMs`                                    | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                 | `3000`                               |
-| `console.fontSizePx`                                    | 入力ページの文字の大きさ                                                                      | `18`                                 |
-| `console.bottomInsetPx`                                 | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                                  | `0`                                  |
-| `console.prompt`                                        | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える）               | `user`・`nid-techtech`・`~/makers`   |
-| `speakingGraceMs`                                       | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                                    | `5000`                               |
-| `healthIntervalMs`                                      | llama-serverとVOICEVOXへの問い合わせの間隔                                                    | `5000`                               |
-| `historyDisplayTurns`                                   | 入力ページに送る表示用の履歴の件数                                                            | `50`                                 |
+| 項目                                                    | 内容                                                                                                            | 初期値                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `host`                                                  | 公開用ポートの待ち受け先。本番は`127.0.0.1`（トンネルだけが届く）。LANから試すときは`0.0.0.0`                   | `127.0.0.1`                                     |
+| `port`                                                  | 公開用ポート（入力ページとWebSocket）                                                                           | `8787`                                          |
+| `publicUrl`                                             | 登録のQRに入れる公開URL。LANから試すときは`http://{LANのIP}:8787`                                               | `http://localhost:8787`                         |
+| `admin.port`                                            | 管理用API（`127.0.0.1`だけで待ち受ける）                                                                        | `8788`                                          |
+| `llm.baseUrl`                                           | llama-serverの接続先（OpenAI互換API）                                                                           | `http://127.0.0.1:8080`                         |
+| `llm.models.{main,sub}`                                 | 正・副のモデル名（llama-serverの`--alias`）と、生成の上限トークン数（`maxTokens`）・温度                        | `qwen3-8b`・`qwen3-4b`、`256`・`0.7`            |
+| `llm.activeAlias`                                       | 起動時に使うモデルの別名（`main`・`sub`）                                                                       | `main`                                          |
+| `llm.contextTurns`                                      | LLMに渡す直近の往復数                                                                                           | `4`                                             |
+| `llm.jsonSchema`                                        | JSONスキーマ制約（`response_format`）を使うか                                                                   | `true`                                          |
+| `llm.timeoutMs`                                         | LLMの応答を待つ上限                                                                                             | `60000`                                         |
+| `tts.baseUrl`・`tts.speaker`                            | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                                                   | `http://127.0.0.1:50021`・`1`                   |
+| `inputSources.consoles`                                 | 入力ページの端末名（順番は、入力元を切り替える数字キーの`2`以降の順）                                           | `["tablet", "phone"]`                           |
+| `inputSources.active`                                   | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                                    | `robot`                                         |
+| `pairing.codeTtlMs`                                     | 登録コードの有効時間                                                                                            | `60000`                                         |
+| `pairing.maxFailures`・`failureWindowMs`・`lockMs`      | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない                          | `5`・`60000`・`300000`                          |
+| `stt.provider`                                          | 音声認識の実装（`whisper`・`stub`）。スタブは`--stub`で選ばれる                                                 | `whisper`                                       |
+| `stt.timeoutMs`                                         | 音声認識の応答を待つ上限                                                                                        | `10000`                                         |
+| `stt.whisper.url`・`language`                           | `whisper-server`の接続先（`/inference`と`/health`）と、話す言語（翻訳はしない）                                 | `http://127.0.0.1:8081`・`ja`                   |
+| `stt.whisper.hallucinations`                            | 結果の全体がこのどれかと一致したら、空の発話として捨てる決まり文句（「音声認識」の節）                          | 「ご視聴ありがとうございました」など            |
+| `stt.whisper.logprobThreshold`                          | すべての区切りで認識の確からしさ（`avg_logprob`）がこれを下回ったら、空の発話として捨てる（0以下）              | `-0.3`                                          |
+| `stt.bench`                                             | 音声認識の比較の設定（実行ファイル・モデルのフォルダ・モデルの一覧・VADのモデル`vadModel`。「音声認識の比較」） | モデル3つ（パスは空）、`ggml-silero-v6.2.0.bin` |
+| `search`                                                | 検索（Tavily）の設定の雛形。Phase 8で使い始める                                                                 | 空                                              |
+| `dialogue.questionLoopThreshold`・`session.idleResetMs` | 質問のループを防ぐ指示と、履歴の区切り（Phase 8で使い始める）                                                   | `2`・`90000`                                    |
+| `console.autosendMs`                                    | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                                   | `3000`                                          |
+| `console.fontSizePx`                                    | 入力ページの文字の大きさ                                                                                        | `18`                                            |
+| `console.bottomInsetPx`                                 | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                                                    | `0`                                             |
+| `console.prompt`                                        | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える）                                 | `user`・`nid-techtech`・`~/makers`              |
+| `speakingGraceMs`                                       | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                                                      | `5000`                                          |
+| `healthIntervalMs`                                      | llama-serverとVOICEVOXへの問い合わせの間隔                                                                      | `5000`                                          |
+| `historyDisplayTurns`                                   | 入力ページに送る表示用の履歴の件数                                                                              | `50`                                            |
 
 バックエンドは、`llm.baseUrl`の`/health`と`tts.baseUrl`の`/version`に定期的に問い合わせます。LLMかVOICEVOXが応答しない間は、発言を受け付けません（入力ページは全面の案内、機体は眠っている顔）。応答が戻れば、自動で受け付けに戻ります。機体アプリがつながっていない間は、音声を作らず、返事を出したらすぐ待機中に戻ります。
 
@@ -378,11 +378,15 @@ bun run bench:stt                                  # stt.bench.models のすべ�
 bun run bench:stt -- --model large-v3-turbo-q5_0   # 1つのモデルだけ
 bun run bench:stt -- --gpu-memory                  # 専用GPUメモリの増え方も測る（Windows）
 bun run bench:stt -- --timeout-ms 120000           # 1回の認識を待つ上限（初期値60000）
+bun run bench:stt -- --no-vad                      # VADなしで起動する（VADの効き目を比べる）
+bun run bench:stt -- --logprob-threshold -0.25     # 確からしさのしきい値を、設定の代わりにこの値で試す
 ```
 
-- `whisper-server`の接続先とポートは`stt.whisper.url`のとおりです（すでに動いていたら、止めてから実行するよう求めて終わります）。起動オプションを足すときは、`stt.bench.extraArgs`に書きます（`-m`・`--host`・`--port`・`-l`はスクリプトが付けます）
-- 捨てる決まり文句としきい値は、本番と同じ`stt.whisper`の値です。最初の1回は準備（GPUの初期化など）のため、測りません
-- 結果は`logs/bench/{日時}_stt.md`に書きます。要約の表に、モデルごとの誤り率・時間（中央値・平均・最大）・捨てた数（`empty` / `no_speech` / `hallucination`）・「無音で文が出た」（無音の録音で、捨てられずに文が出た数）・「発話を捨てた」（発話を誤って捨てた数）・読み込みの時間を出し、続けて、無音・雑音の録音にモデルが出した文（決まり文句の候補）と、録音ごとの結果を出します
+- `whisper-server`の接続先とポートは`stt.whisper.url`のとおりです（すでに動いていたら、止めてから実行するよう求めて終わります）。起動オプションを足すときは、`stt.bench.extraArgs`に書きます（`-m`・`--host`・`--port`・`-l`と、VADの`--vad -vm`はスクリプトが付けます）
+- **VAD**：`stt.bench.vadModel`（`modelsDir`の中のファイル名か絶対パス。初期値`ggml-silero-v6.2.0.bin`）があれば、本番と同じく`--vad -vm`を付けて起動します。空にするか`--no-vad`でVADなしです。ファイルがなければ、始める前に止まります。VADのしきい値などを試すときは、`stt.bench.extraArgs`に`["-vt", "0.6"]`のように書きます
+- 捨てる決まり文句としきい値は、本番と同じ`stt.whisper`の値です（`--logprob-threshold`で確からしさのしきい値だけ差し替えられます）。最初の1回は準備（GPUの初期化など）のため、測りません
+- 結果は`logs/bench/{日時}_stt.md`に書きます。冒頭に条件（VADの有無・追加の引数・確からしさのしきい値）を書き、要約の表に、モデルごとの誤り率・時間（中央値・平均・最大）・捨てた数（`empty` / `low_logprob` / `hallucination`）・「無音で文が出た」（無音の録音で、捨てられずに文が出た数）・「発話を捨てた」（発話を誤って捨てた数）・`avg_logprob`の「発話の下端」と「雑音の上端」・読み込みの時間を出し、続けて、無音・雑音の録音にモデルが出した文（決まり文句の候補）と、録音ごとの結果（区切りの`avg_logprob`。区切りが複数なら「最小〜最大」）を出します
+- **確からしさのしきい値の決め方**：`low_logprob`は「すべての区切りが下回る」ときに捨てるため、録音を捨てるかどうかは、その録音の区切りの`avg_logprob`の最大で決まります。「発話の下端」は発話の録音ごとの最大のうち最も低い値、「雑音の上端」は、無音・雑音の録音で文が出たもの（VADを通り抜けたもの）の最大のうち最も高い値です。しきい値を「雑音の上端」より大きく、「発話の下端」以下に置けば、発話を捨てずに雑音を捨てられます
 - GPUメモリは、Windowsの性能カウンター（`GPU Adapter Memory`の`Dedicated Usage`）の、大きい方のアダプターの値で、モデルを読み込む前との差です。llama-serverなど、ほかのGPUの使用が動いていると、その増減も混ざります
 - サーバーのログは`logs/bench/whisper_server_{モデル名}.log`に残ります
 
@@ -459,13 +463,14 @@ VOICEVOXの利用規約により、VOICEVOXを利用したことがわかるク�
 
 音声認識は、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-server`で行います。バックエンドが、機体から届いた発話のWAVを`/inference`へ送り、文字にします（言語は日本語に固定し、翻訳しません）。版はv1.9.5に固定しています（上げるときは、`apps/backend/src/stt/whisper.ts`の項目名と応答の形を、その版のソースで確かめ直します）。置き場所はリポジトリの外で、llama.cppとは別のフォルダです（ggmlのDLLを混ぜないため）。
 
-`scripts/setup_whisper.ps1`が、ソースの取得・ビルド・モデルの取得をまとめて行います。Git、CMake（PATHになければ、Visual Studioに付いてくるものを使います）、Visual StudioのC++のビルドツールが要ります。
+`scripts/setup_whisper.ps1`が、ソースの取得・ビルド・モデルとVADのモデルの取得をまとめて行います。Git、CMake（PATHになければ、Visual Studioに付いてくるものを使います）、Visual StudioのC++のビルドツールが要ります。
 
 ```powershell
-.\scripts\setup_whisper.ps1 -Backend cpu    # 開発機：Vulkanなしのビルドと、既定のモデルの取得
+.\scripts\setup_whisper.ps1 -Backend cpu    # 開発機：Vulkanなしのビルドと、既定のモデル・VADのモデルの取得
 .\scripts\setup_whisper.ps1                 # バックエンドPC：Vulkan版（Vulkan SDKが要る）
 .\scripts\setup_whisper.ps1 -SkipModels     # ビルドだけ
-.\scripts\setup_whisper.ps1 -SkipBuild -Models large-v3-turbo-q5_0   # モデルだけ
+.\scripts\setup_whisper.ps1 -SkipBuild -Models large-v3-turbo-q5_0   # モデルだけ（VADのモデルも取る）
+.\scripts\setup_whisper.ps1 -SkipBuild -Models @()                   # VADのモデルだけ
 ```
 
 | 場所（既定は`$HOME\tekurobo_servers\whisper.cpp`。`-Root`で変える） | 内容                                                     |
@@ -483,22 +488,34 @@ VOICEVOXの利用規約により、VOICEVOXを利用したことがわかるク�
 | `large-v3-turbo-q8_0`      | `ggml-large-v3-turbo-q8_0.bin`      | 約874MB | 同上                                                                                                              |
 | `kotoba-whisper-v2.0-q5_0` | `ggml-kotoba-whisper-v2.0-q5_0.bin` | 約538MB | [kotoba-tech/kotoba-whisper-v2.0-ggml](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)（日本語向け） |
 
-どのモデルを使うかは、音声認識の比較（「音声認識の比較」）で決めます。
+どのモデルを使うかは、音声認識の比較（「音声認識の比較」）で決めます（v8の時点では`large-v3-turbo-q5_0`）。
 
-起動（ポートは8081。`stt.whisper.url`の初期値と同じです）：
+VADのモデル（`-VadModels`に名前を渡す。既定は`silero-v6.2.0`。空の配列`@()`なら取らない）：
+
+| 名前            | ファイル                 | 大きさ  | 取得元                                                              |
+| --------------- | ------------------------ | ------- | ------------------------------------------------------------------- |
+| `silero-v6.2.0` | `ggml-silero-v6.2.0.bin` | 約0.9MB | [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad) |
+| `silero-v5.1.2` | `ggml-silero-v5.1.2.bin` | -       | 同上（比べるときだけ）                                              |
+
+起動（ポートは8081。`stt.whisper.url`の初期値と同じです）。組み込みのVAD（`--vad -vm`）を必ず付けます：
 
 ```powershell
 & "$HOME\tekurobo_servers\whisper.cpp\bin\cpu\whisper-server.exe" `
   -m "$HOME\tekurobo_servers\whisper.cpp\models\ggml-large-v3-turbo-q5_0.bin" `
-  --host 127.0.0.1 --port 8081 -l ja
+  --host 127.0.0.1 --port 8081 -l ja `
+  --vad -vm "$HOME\tekurobo_servers\whisper.cpp\models\ggml-silero-v6.2.0.bin"
 ```
 
-Vulkan版（バックエンドPC）は、同じ引数で`bin\vulkan\whisper-server.exe`を起動します（GPUで動きます。GPUを使わせないときは`-ng`）。
+Vulkan版（バックエンドPC）は、同じ引数で`bin\vulkan\whisper-server.exe`を起動します（GPUで動きます。GPUを使わせないときは`-ng`）。`-p`（`--processors`）は付けません（v1.9.5では、2以上にすると、VADが音声の区間を見つけなかったときに前回の結果が残って返ります）。
 
 - **開発機のCPUでは遅い**：large-v3-turboは、開発機（16スレッド、既定の4スレッド）で、3秒の発話に約25秒かかりました。バックエンドの`stt.timeoutMs`（初期値10秒）を超えて失敗します。開発機で会話の流れを確かめるときは、スタブ（`bun run backend:stub`）を使うか、`config/backend.local.json`で`stt.timeoutMs`を伸ばします
-- **決まり文句**：Whisperは、無音や雑音だけの音声に、学習データの癖で「ご視聴ありがとうございました」のような文を出すことがあります（開発機で3秒の無音を流すと実際に出ました）。バックエンドは、結果の全体が`stt.whisper.hallucinations`のどれかと一致したら、空の発話として捨てます。空白・句読点・記号と全角・半角の違いは無視しますが、**部分一致にはしません**（本当にそう言った発話の一部を捨てないため）。一覧に足すときは、比較スクリプトの「決まり文句の候補」を見ます（配列はまるごと置き換わるので、`backend.local.json`には全部書きます）
-- **音声なしのしきい値**：`stt.whisper.noSpeechThreshold`（初期値`0.6`）。`whisper-server`が返す区切りごとの`no_speech_prob`が、**すべての区切り**でこれを超えたら、空の発話として捨てます。下げるほど雑音をよく捨てますが、小さな声の発話も捨てやすくなります
-- 捨てた結果は、会話ログには残さず、バックエンドの標準出力に出します：`stt: discarded (hallucination) "…" [empty 0, no_speech 1, hallucination 2]`
+  Whisperは、無音や雑音だけの音声にも文を出すことがあります（開発機で3秒の無音を流すと「ご視聴ありがとうございました」が、W7-4では白色雑音・クリック音などで「はい」が出ました）。これを、次の順に防ぎ、空の発話として捨てます（機体のSilero VADとは別に、バックエンド側でもう一度確かめる形です）。
+
+- **VAD**（`whisper-server`の`--vad -vm`）：Silero VADが音声の区間を見つけなければ、Whisperに音声を渡さず、`text`が空・区切りが0件の応答になります（理由`empty`）。VADのしきい値（`-vt`）などは既定（0.5）のままで、起動オプションに足しません（2026年11月、large-v3-turbo q5_0で、合成した無音・雑音7件をすべて捨て、発話7件は1件も捨てず、誤り率も変わりませんでした。捨てた雑音は1件約10msで返ります。専用GPUメモリの増分は、VADなしと同じ約670MB）
+- **確からしさのしきい値**：`stt.whisper.logprobThreshold`（初期値`-0.3`）。`whisper-server`が返す区切りごとの`avg_logprob`（認識したトークンの対数確率の平均。0に近いほど確か）が、**すべての区切り**でこれを下回ったら捨てます（理由`low_logprob`）。「すべて」にするのは、長い発話の一部だけが不確かなときに全体を捨てないためです。上げる（0に近づける）ほど雑音をよく捨てますが、聞き取りにくい発話も捨てやすくなります。値は比較スクリプトの「発話の下端」「雑音の上端」で決めます。初期値は、VADなしで流したときに雑音から出た「はい」（−0.394〜−0.851）と、録音のセットの発話（下端−0.149〜−0.160）の間に置いたものです（2026年11月、large-v3-turbo q5_0。発話は1人の声の7件だけのため、会場で発話が捨てられたら（標準出力の`low_logprob`）下げます）
+- **決まり文句**：結果の全体が`stt.whisper.hallucinations`のどれかと一致したら捨てます（理由`hallucination`）。空白・句読点・記号と全角・半角の違いは無視しますが、**部分一致にはしません**（本当にそう言った発話の一部を捨てないため）。一覧に足すときは、比較スクリプトの「決まり文句の候補」を見ます（配列はまるごと置き換わるので、`backend.local.json`には全部書きます）。来場者が答えに使う「はい」は、一覧に足しません
+- v1.9.5の`no_speech_prob`（音声なしの確率）は、プロンプトを読ませた後の位置で取るため、無音でもつねに0になり、判断に使えません（v8で、音声なしのしきい値をやめました）
+- 捨てた結果は、会話ログには残さず、バックエンドの標準出力に出します：`stt: discarded (low_logprob) " はい" [empty 3, low_logprob 1, hallucination 0]`
 - 空の発話になったときは、機体は聞き取り中から待機中に戻り、何も記録しません。`whisper-server`が応答しないとき（`/health`が200でない）は、`health.stt`が`false`になります。入力元が`robot`のときは、入力ページは全面の案内、機体は眠っている顔になります（入力元がconsoleのときは、音声認識の応答を見ません）
 
 ### 動作確認のコマンド
@@ -674,7 +691,7 @@ bun run console:build      # 入力ページ（apps/console）が変わったと
 
 ### 各サービスを手で起動する
 
-Phase 9までは、各サービスを手で起動します（Phase 10からランチャーが行います）。**この順に**、それぞれ別のPowerShellのウィンドウで起動します。バックエンドが起動後に各サービスの応答を見るため、先に立ち上げておきます。
+ランチャー（Phase 10）までは、各サービスを手で起動します（Phase 10からランチャーが行います）。**この順に**、それぞれ別のPowerShellのウィンドウで起動します。バックエンドが起動後に各サービスの応答を見るため、先に立ち上げておきます。
 
 1. **llama-server（`llm.main`、ポート8080）**：Qwen3-8B。すべての層をGPUに載せます（`-ngl all`）
 
@@ -685,12 +702,13 @@ Phase 9までは、各サービスを手で起動します（Phase 10からラ�
    ```
 
    副のモデル（`llm.sub`）に切り替えるときは、これを止めて、`Qwen3-4B-Q4_K_M.gguf`・`--alias qwen3-4b`で同じポートに起動し、`config/backend.local.json`の`llm.activeAlias`を`sub`にします
-2. **`whisper-server`（`stt`、ポート8081）**：モデルは、音声認識の比較で決めるまで`large-v3-turbo-q5_0`です
+2. **`whisper-server`（`stt`、ポート8081）**：モデルは`large-v3-turbo-q5_0`（音声認識の比較で決めました）。無音・雑音を捨てるため、VAD（`--vad -vm`）を付けます
 
    ```powershell
    & "$HOME\tekurobo_servers\whisper.cpp\bin\vulkan\whisper-server.exe" `
      -m "$HOME\tekurobo_servers\whisper.cpp\models\ggml-large-v3-turbo-q5_0.bin" `
-     --host 127.0.0.1 --port 8081 -l ja
+     --host 127.0.0.1 --port 8081 -l ja `
+     --vad -vm "$HOME\tekurobo_servers\whisper.cpp\models\ggml-silero-v6.2.0.bin"
    ```
 
 3. **VOICEVOX ENGINE（ポート50021）**

@@ -3,6 +3,7 @@ import {
   characterErrorRate,
   characterErrors,
   editDistance,
+  logprobRange,
   normalizeForCer,
   type SampleResult,
   summarize,
@@ -55,6 +56,7 @@ const sample = (over: Partial<SampleResult>): SampleResult => ({
   raw: "",
   text: "",
   discarded: null,
+  logprobs: [],
   ms: 100,
   ...over,
 });
@@ -75,12 +77,28 @@ describe("summarize", () => {
       sample({ reference: "", raw: "ご視聴ありがとうございました", discarded: "hallucination" }),
       sample({ reference: "", raw: "ふーん", text: "ふーん" }),
       sample({ reference: "", raw: " ", discarded: "empty" }),
-      sample({ reference: "こんにちは", raw: "こんにちは", discarded: "no_speech" }),
+      sample({ reference: "こんにちは", raw: "こんにちは", discarded: "low_logprob" }),
     ]);
     expect(s.silentCount).toBe(3);
     expect(s.silentRecognized).toBe(1);
     expect(s.speechDiscarded).toBe(1);
-    expect(s.discards).toEqual({ empty: 1, no_speech: 1, hallucination: 1 });
+    expect(s.discards).toEqual({ empty: 1, low_logprob: 1, hallucination: 1 });
+  });
+
+  test("avg_logprobの境目：発話は録音ごとの最大の最小、雑音は文が出たものの最大の最大", () => {
+    expect(logprobRange([])).toBeNull();
+    expect(logprobRange([-0.5, -0.1, -0.3])).toEqual({ min: -0.5, max: -0.1 });
+    const s = summarize([
+      sample({ reference: "こんにちは", raw: "こんにちは", logprobs: [-0.05] }),
+      sample({ reference: "長い発話", raw: "長い。発話", logprobs: [-0.6, -0.12] }),
+      sample({ reference: "", raw: "はい", logprobs: [-0.39] }),
+      sample({ reference: "", raw: "ん", logprobs: [-0.85, -0.7] }),
+      // VADが捨てた（文も区切りもない）
+      sample({ reference: "", raw: "", logprobs: [] }),
+    ]);
+    expect(s.speechLogprobFloor).toBe(-0.12);
+    expect(s.silentLogprobCeiling).toBe(-0.39);
+    expect(summarize([sample({ reference: "", raw: "" })]).silentLogprobCeiling).toBeNull();
   });
 
   test("時間は中央値（偶数件は小さい側）・平均・最大", () => {

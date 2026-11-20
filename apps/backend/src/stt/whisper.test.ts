@@ -16,10 +16,10 @@ const whisperConfig = (url: string): WhisperConfig => ({
   url,
   language: "ja",
   hallucinations: ["ご視聴ありがとうございました", "チャンネル登録お願いします"],
-  noSpeechThreshold: 0.6,
+  logprobThreshold: -0.3,
 });
 
-const seg = (text: string, noSpeechProb: number | null = 0.01) => ({ text, noSpeechProb });
+const seg = (text: string, avgLogprob: number | null = -0.1) => ({ text, avgLogprob });
 
 describe("捨てる結果の判断", () => {
   const config = whisperConfig("http://x");
@@ -30,18 +30,35 @@ describe("捨てる結果の判断", () => {
     expect(discardReason("", [], config)).toBe("empty");
   });
 
-  test("すべての区切りで音声なしの確率がしきい値を超えたら no_speech", () => {
-    expect(discardReason("はい", [seg("はい", 0.9)], config)).toBe("no_speech");
-    expect(discardReason("はい。いいえ", [seg("はい", 0.9), seg("いいえ", 0.7)], config)).toBe(
-      "no_speech",
+  test("すべての区切りで avg_logprob がしきい値を下回ったら low_logprob", () => {
+    expect(discardReason("はい", [seg("はい", -0.6)], config)).toBe("low_logprob");
+    expect(discardReason("はい。いいえ", [seg("はい", -0.8), seg("いいえ", -0.4)], config)).toBe(
+      "low_logprob",
     );
-    // 1つでもしきい値以下なら捨てない。しきい値ちょうども捨てない
-    expect(discardReason("はい。いいえ", [seg("はい", 0.9), seg("いいえ", 0.1)], config)).toBe(
+    // 1つでもしきい値以上なら捨てない（長い発話の一部だけが不確かなとき）。しきい値ちょうども捨てない
+    expect(discardReason("はい。いいえ", [seg("はい", -0.8), seg("いいえ", -0.1)], config)).toBe(
       null,
     );
-    expect(discardReason("はい", [seg("はい", 0.6)], config)).toBe(null);
-    // 確率がない区切りは判断しない
+    expect(discardReason("はい", [seg("はい", -0.3)], config)).toBe(null);
+    // 値のない区切りは判断しない
     expect(discardReason("はい", [seg("はい", null)], config)).toBe(null);
+  });
+
+  test("avg_logprobは数のときだけ読む（nullや欠けはnull）", () => {
+    expect(
+      parseVerboseJson({
+        text: "a",
+        segments: [
+          { text: "a", avg_logprob: -0.5 },
+          { text: "b", avg_logprob: null },
+          { text: "c" },
+        ],
+      }).segments,
+    ).toEqual([
+      { text: "a", avgLogprob: -0.5 },
+      { text: "b", avgLogprob: null },
+      { text: "c", avgLogprob: null },
+    ]);
   });
 
   test("決まり文句と全体が一致したら hallucination。部分一致は捨てない", () => {
@@ -128,9 +145,10 @@ describe("WhisperSpeechRecognizer（偽のwhisper-server）", () => {
       language: "ja",
       translate: "false",
       response_format: "verbose_json",
-      no_speech_thold: "0.6",
       no_language_probabilities: "true",
     });
+    // v1.9.5では働かない音声なしのしきい値は送らない
+    expect(fields).not.toHaveProperty("no_speech_thold");
     expect(file).not.toBeNull();
     expect(Buffer.from(await (file as File).arrayBuffer()).equals(Buffer.from(wav))).toBe(true);
   });
@@ -145,26 +163,50 @@ describe("WhisperSpeechRecognizer（偽のwhisper-server）", () => {
     reply = () =>
       Response.json({
         text: "ご視聴ありがとうございました。",
-        segments: [{ text: "ご視聴ありがとうございました。", no_speech_prob: 0.1 }],
+        segments: [{ text: "ご視聴ありがとうございました。", avg_logprob: -0.1 }],
       });
     expect((await stt.recognize(wav)).text).toBe("");
+    // 雑音の「はい」（W7-4）。v1.9.5ではno_speech_probがつねに0
     reply = () =>
-      Response.json({ text: "えー", segments: [{ text: "えー", no_speech_prob: 0.95 }] });
+      Response.json({
+        text: " はい",
+        segments: [{ text: " はい", no_speech_prob: 0, avg_logprob: -0.62 }],
+      });
     expect((await stt.recognize(wav)).text).toBe("");
-    reply = () => Response.json({ text: "", segments: [] });
+    // VADが音声の区間を見つけなかったときの応答（v1.9.5：textが空、segmentsが0件）
+    reply = () =>
+      Response.json({
+        task: "transcribe",
+        language: "japanese",
+        duration: 3,
+        text: "",
+        segments: [],
+      });
     expect((await stt.recognize(wav)).text).toBe("");
-    expect(stt.discardCounts()).toEqual({ empty: 1, no_speech: 1, hallucination: 1 });
+    expect(stt.discardCounts()).toEqual({ empty: 1, low_logprob: 1, hallucination: 1 });
     expect(lines).toHaveLength(3);
     expect(lines[0]).toContain("(hallucination)");
     expect(lines[0]).toContain("ご視聴ありがとうございました");
-    expect(lines[1]).toContain("(no_speech)");
-    expect(lines[2]).toContain("empty 1, no_speech 1, hallucination 1");
+    expect(lines[1]).toContain("(low_logprob)");
+    expect(lines[2]).toContain("(empty)");
+    expect(lines[2]).toContain("empty 1, low_logprob 1, hallucination 1");
 
-    // 比較スクリプト用の中身では、捨てる前の文と理由が分かる
+    // 比較スクリプト用の中身では、捨てる前の文と理由と、区切りごとのavg_logprobが分かる
     reply = () =>
-      Response.json({ text: "えー", segments: [{ text: "えー", no_speech_prob: 0.95 }] });
+      Response.json({
+        text: "えー。うん",
+        segments: [
+          { text: "えー。", avg_logprob: -0.5 },
+          { text: "うん", avg_logprob: -0.7 },
+        ],
+      });
     const t = await stt.transcribe(wav);
-    expect(t).toMatchObject({ text: "", raw: "えー", discarded: "no_speech" });
+    expect(t).toMatchObject({
+      text: "",
+      raw: "えー。うん",
+      discarded: "low_logprob",
+      logprobs: [-0.5, -0.7],
+    });
   });
 
   test("エラーの応答・形の違う応答・つながらない・時間切れは SttError", async () => {

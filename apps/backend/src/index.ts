@@ -199,7 +199,7 @@ log(
   `stt ${
     stub || config.stt.provider === "stub"
       ? "stub"
-      : `whisper ${config.stt.whisper.url} (${config.stt.whisper.language}, no speech > ${config.stt.whisper.noSpeechThreshold}, ${config.stt.whisper.hallucinations.length} hallucinations)`
+      : `whisper ${config.stt.whisper.url} (${config.stt.whisper.language}, logprob < ${config.stt.whisper.logprobThreshold},${config.stt.whisper.hallucinations.length} hallucinations)`
   }`,
 );
 log(`filter: ${filterConfig.words.length} words, ${filterConfig.replies.length} replies`);

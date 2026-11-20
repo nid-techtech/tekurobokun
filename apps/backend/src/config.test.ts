@@ -98,9 +98,15 @@ describe("parseBackendConfig", () => {
     expect(() => parseBackendConfig(withWhisper({ hallucinations: ["a", ""] }))).toThrow(
       "stt.whisper.hallucinations",
     );
-    expect(() => parseBackendConfig(withWhisper({ noSpeechThreshold: 1.5 }))).toThrow(
-      "stt.whisper.noSpeechThreshold",
+    expect(() => parseBackendConfig(withWhisper({ logprobThreshold: 0.1 }))).toThrow(
+      "stt.whisper.logprobThreshold",
     );
+    expect(() => parseBackendConfig(withWhisper({ logprobThreshold: "-0.3" }))).toThrow(
+      "stt.whisper.logprobThreshold",
+    );
+    expect(
+      parseBackendConfig(withWhisper({ logprobThreshold: -1 })).stt.whisper.logprobThreshold,
+    ).toBe(-1);
     const bench = stt.bench as Record<string, unknown>;
     const withBench = (b: Record<string, unknown>) => ({
       ...raw,
@@ -108,6 +114,7 @@ describe("parseBackendConfig", () => {
     });
     expect(() => parseBackendConfig(withBench({ executable: 1 }))).toThrow("stt.bench.executable");
     expect(() => parseBackendConfig(withBench({ extraArgs: [1] }))).toThrow("stt.bench.extraArgs");
+    expect(() => parseBackendConfig(withBench({ vadModel: null }))).toThrow("stt.bench.vadModel");
     expect(() => parseBackendConfig(withBench({ models: [{ name: "a", file: "" }] }))).toThrow(
       "stt.bench.models",
     );

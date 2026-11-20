@@ -5,6 +5,10 @@
 #   .\scripts\setup_whisper.ps1 -SkipModels           ビルドだけ
 #   .\scripts\setup_whisper.ps1 -SkipBuild            モデルの取得だけ
 #   .\scripts\setup_whisper.ps1 -Models large-v3-turbo-q5_0
+#   .\scripts\setup_whisper.ps1 -SkipBuild -Models @()  VADのモデルだけを取得する
+#
+# モデルと一緒に、whisper-serverの組み込みのVAD（--vad -vm）が使うVADのモデル（-VadModels。既定はSilero v6.2.0）も取得する。
+# 取得元は、whisper.cppの models\download-vad-model.cmd と同じ（Hugging Faceの ggml-org/whisper-vad）。
 #
 # 置き場所は、リポジトリの外で、llama.cppとは別のフォルダ（ggmlのDLLを混ぜないため）。既定は
 # $HOME\tekurobo_servers\whisper.cpp（llama-server・VOICEVOXと同じ親のフォルダ）。
@@ -24,6 +28,8 @@ param(
     # 固定する版（whisper.cppのタグ）。上げるときは、WhisperSpeechRecognizerの項目名を確かめ直す
     [string]$Version = 'v1.9.5',
     [string[]]$Models = @('large-v3-turbo-q5_0', 'large-v3-turbo-q8_0', 'kotoba-whisper-v2.0-q5_0'),
+    # VADのモデル（空の配列なら取得しない）。ファイル名は、設定の stt.bench.vadModel と、起動の -vm に使う
+    [string[]]$VadModels = @('silero-v6.2.0'),
     [switch]$SkipBuild,
     [switch]$SkipModels
 )
@@ -37,6 +43,9 @@ $ModelCatalog = @{
     'large-v3-turbo'           = @{ File = 'ggml-large-v3-turbo.bin'; Url = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin' }
     'kotoba-whisper-v2.0-q5_0' = @{ File = 'ggml-kotoba-whisper-v2.0-q5_0.bin'; Url = 'https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml/resolve/main/ggml-kotoba-whisper-v2.0-q5_0.bin' }
     'kotoba-whisper-v2.0'      = @{ File = 'ggml-kotoba-whisper-v2.0.bin'; Url = 'https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml/resolve/main/ggml-kotoba-whisper-v2.0.bin' }
+    # VADのモデル（-VadModelsで指定する）
+    'silero-v6.2.0'            = @{ File = 'ggml-silero-v6.2.0.bin'; Url = 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin' }
+    'silero-v5.1.2'            = @{ File = 'ggml-silero-v5.1.2.bin'; Url = 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin' }
 }
 
 function Invoke-Native {
@@ -63,7 +72,7 @@ function Find-CMake {
 function Get-ModelFiles {
     $dir = Join-Path $Root 'models'
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    foreach ($name in $Models) {
+    foreach ($name in @($Models) + @($VadModels)) {
         $entry = $ModelCatalog[$name]
         if (-not $entry) {
             throw "未知のモデル: $name（取得できるのは $($ModelCatalog.Keys -join ', ')）"
@@ -129,6 +138,7 @@ if (-not $SkipModels) { Get-ModelFiles }
 
 $exePath = Join-Path $Root "bin\$Backend\whisper-server.exe"
 $model = if ($Models.Count -gt 0) { $ModelCatalog[$Models[0]].File } else { 'ggml-large-v3-turbo-q5_0.bin' }
+$vadModel = if ($VadModels.Count -gt 0) { $ModelCatalog[$VadModels[0]].File } else { 'ggml-silero-v6.2.0.bin' }
 Write-Host ''
 Write-Host '起動の例（ポート8081。応答の確認は curl http://127.0.0.1:8081/health）:'
-Write-Host "  & '$exePath' -m '$(Join-Path $Root "models\$model")' --host 127.0.0.1 --port 8081 -l ja"
+Write-Host "  & '$exePath' -m '$(Join-Path $Root "models\$model")' --host 127.0.0.1 --port 8081 -l ja --vad -vm '$(Join-Path $Root "models\$vadModel")'"

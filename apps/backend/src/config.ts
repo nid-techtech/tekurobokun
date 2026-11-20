@@ -42,8 +42,8 @@ export type SttConfig = {
     language: string;
     /** 結果の全体がこのどれかと一致したら捨てる決まり文句 */
     hallucinations: string[];
-    /** すべての区切りで音声なしの確率がこれを超えたら捨てる（0〜1） */
-    noSpeechThreshold: number;
+    /** すべての区切りで`avg_logprob`がこれを下回ったら捨てる（0以下） */
+    logprobThreshold: number;
   };
   /** 音声認識の比較（scripts/bench_stt.ts）の設定。モデルのファイルは、マシンごとに`*.local.json`で書く */
   bench: {
@@ -55,6 +55,8 @@ export type SttConfig = {
     extraArgs: string[];
     /** 比較するモデル。fileはmodelsDirからの相対（絶対でもよい） */
     models: { name: string; file: string }[];
+    /** VADのモデル（modelsDirからの相対か絶対）。指定があれば`--vad -vm`を付けて起動する。空ならVADなし */
+    vadModel: string;
   };
 };
 
@@ -223,11 +225,11 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
           (x) => Array.isArray(x) && x.every(isNonEmpty),
           "an array of non-empty strings",
         ) as string[],
-        noSpeechThreshold: pick(
+        logprobThreshold: pick(
           raw,
-          "stt.whisper.noSpeechThreshold",
-          (x) => isNonNeg(x) && (x as number) <= 1,
-          "a number from 0 to 1",
+          "stt.whisper.logprobThreshold",
+          (x) => typeof x === "number" && Number.isFinite(x) && x <= 0,
+          "a number of 0 or less",
         ) as number,
       },
       bench: {
@@ -248,6 +250,7 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
             new Set(x.map((m: Obj) => m.name)).size === x.length,
           "an array of {name, file} with unique non-empty names",
         ) as { name: string; file: string }[],
+        vadModel: s("stt.bench.vadModel"),
       },
     },
     search: {

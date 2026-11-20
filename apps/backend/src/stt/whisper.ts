@@ -1,13 +1,18 @@
 // WhisperSpeechRecognizer：手元の`whisper-server`（whisper.cpp）の`/inference`で文字にする（imple 3節）。
 // 受け口と項目名は、whisper.cpp v1.9.5の`examples/server/server.cpp`とREADMEで確かめた。
-//   POST {url}/inference（multipart）：`file`（WAV）、`language`、`translate`、`response_format`、`no_speech_thold`ほか
-//   `response_format=verbose_json`の応答：`text`と`segments[]`（`text`・`no_speech_prob`・`avg_logprob`など）
+//   POST {url}/inference（multipart）：`file`（WAV）、`language`、`translate`、`response_format`ほか
+//   `response_format=verbose_json`の応答：`text`と`segments[]`（`text`・`avg_logprob`など）
 //   GET {url}/health：読み込み済みなら200で`{"status":"ok"}`、モデルの読み込み中は503
 // サーバーは要求の接続が切れると処理をやめるため、時間切れで要求を取り消せば、後ろに処理が溜まらない。
+// `whisper-server`は組み込みのVAD（`--vad -vm`）を付けて起動する。VADが音声の区間を見つけなければ、
+// Whisperに音声を渡さず、`text`が空・`segments`が0件の応答になる（v1.9.5の`whisper_full`。`-p`が1のとき）。
+// これは`empty`で捨てる。
+// v1.9.5の`no_speech_prob`は、プロンプトを読ませた後の位置で取るため無音でも0になり、判断に使えない。
 //
 // 捨てる結果（空の発話にする）は3つ。捨てた理由は標準出力にだけ出し、会話ログには残さない。
-//   empty：前後の空白・句読点・記号を除くと何も残らない
-//   no_speech：すべての区切り（segment）で、音声なしの確率が`noSpeechThreshold`を超える
+//   empty：前後の空白・句読点・記号を除くと何も残らない（VADが音声の区間を見つけなかったときを含む）
+//   low_logprob：すべての区切り（segment）で、`avg_logprob`が`logprobThreshold`を下回る
+//     （「すべて」にするのは、長い発話の一部だけが不確かなときに、全体を捨てないため）
 //   hallucination：決まり文句の一覧（`hallucinations`）の1つと全体が一致する（部分一致にはしない。
 //     本当にそう言った発話の一部を捨てないため）。空白・句読点・記号を除き、NFKCで揃えてから比べる
 
@@ -15,8 +20,8 @@ import type { SttConfig } from "../config.ts";
 import { type Recognition, type SpeechRecognizer, SttError } from "./engine.ts";
 
 export type WhisperConfig = SttConfig["whisper"];
-export type DiscardReason = "empty" | "no_speech" | "hallucination";
-export const DISCARD_REASONS: readonly DiscardReason[] = ["empty", "no_speech", "hallucination"];
+export type DiscardReason = "empty" | "low_logprob" | "hallucination";
+export const DISCARD_REASONS: readonly DiscardReason[] = ["empty", "low_logprob", "hallucination"];
 
 /** 1回の文字起こしの中身（比較スクリプトでも使う） */
 export type Transcription = {
@@ -25,6 +30,8 @@ export type Transcription = {
   /** `whisper-server`が返した文そのまま */
   raw: string;
   discarded: DiscardReason | null;
+  /** 区切りごとの`avg_logprob`（値のない区切りは除く。区切りがなければ空） */
+  logprobs: number[];
   ms: number;
 };
 
@@ -46,7 +53,8 @@ export function phraseKey(text: string): string {
   return text.normalize("NFKC").replace(ALL_NOISE, "");
 }
 
-type Segment = { text: string; noSpeechProb: number | null };
+/** 区切り。`avgLogprob`は、値がない（トークンが0個でnullになるなど）ときnull */
+type Segment = { text: string; avgLogprob: number | null };
 
 /** verbose_jsonの応答から、文と区切りを取り出す。形が違えば例外。 */
 export function parseVerboseJson(body: unknown): { text: string; segments: Segment[] } {
@@ -58,9 +66,10 @@ export function parseVerboseJson(body: unknown): { text: string; segments: Segme
   }
   return {
     text,
-    segments: (segments ?? []).map((s: { text?: unknown; no_speech_prob?: unknown }) => ({
+    segments: (segments ?? []).map((s: { text?: unknown; avg_logprob?: unknown }) => ({
       text: typeof s?.text === "string" ? s.text : "",
-      noSpeechProb: typeof s?.no_speech_prob === "number" ? s.no_speech_prob : null,
+      avgLogprob:
+        typeof s?.avg_logprob === "number" && Number.isFinite(s.avg_logprob) ? s.avg_logprob : null,
     })),
   };
 }
@@ -69,14 +78,14 @@ export function parseVerboseJson(body: unknown): { text: string; segments: Segme
 export function discardReason(
   text: string,
   segments: readonly Segment[],
-  config: Pick<WhisperConfig, "hallucinations" | "noSpeechThreshold">,
+  config: Pick<WhisperConfig, "hallucinations" | "logprobThreshold">,
 ): DiscardReason | null {
   if (stripEdges(text) === "") return "empty";
   if (
     segments.length > 0 &&
-    segments.every((s) => s.noSpeechProb !== null && s.noSpeechProb > config.noSpeechThreshold)
+    segments.every((s) => s.avgLogprob !== null && s.avgLogprob < config.logprobThreshold)
   ) {
-    return "no_speech";
+    return "low_logprob";
   }
   const key = phraseKey(text);
   if (config.hallucinations.some((h) => phraseKey(h) === key)) return "hallucination";
@@ -90,7 +99,6 @@ export function inferenceForm(wav: Uint8Array, config: WhisperConfig): FormData 
   form.append("language", config.language);
   form.append("translate", "false");
   form.append("response_format", "verbose_json");
-  form.append("no_speech_thold", String(config.noSpeechThreshold));
   // 言語ごとの確率は使わない（計算に時間がかかる）
   form.append("no_language_probabilities", "true");
   return form;
@@ -108,7 +116,7 @@ export class WhisperSpeechRecognizer implements SpeechRecognizer {
   private readonly fetch: Fetch;
   private readonly discards: Record<DiscardReason, number> = {
     empty: 0,
-    no_speech: 0,
+    low_logprob: 0,
     hallucination: 0,
   };
 
@@ -162,6 +170,7 @@ export class WhisperSpeechRecognizer implements SpeechRecognizer {
       text: discarded === null ? text.trim() : "",
       raw: text,
       discarded,
+      logprobs: segments.flatMap((s) => (s.avgLogprob === null ? [] : [s.avgLogprob])),
       ms: Math.round(performance.now() - started),
     };
   }

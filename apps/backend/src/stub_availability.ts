@@ -1,13 +1,13 @@
-// スタブ（--stub）で、LLM・VOICEVOXの停止と復旧を再現する切り替え（imple 10節のスタブ、W4-2）。
+// スタブ（--stub）で、LLM・VOICEVOX・STTの停止と復旧を再現する切り替え（imple 10節のスタブ、W4-2）。
 // 止めている間は、ヘルスチェックの問い合わせが応答なしを返し、スタブのエンジンは失敗する。
 // 切り替えはOperatorConsoleのキー入力から行う。
 
 import type { Probe } from "./health.ts";
 
-export type StubTarget = "llm" | "tts";
+export type StubTarget = "llm" | "tts" | "stt";
 
 export class StubAvailability {
-  private readonly up: Record<StubTarget, boolean> = { llm: true, tts: true };
+  private readonly up: Record<StubTarget, boolean> = { llm: true, tts: true, stt: true };
 
   isUp(target: StubTarget): boolean {
     return this.up[target];

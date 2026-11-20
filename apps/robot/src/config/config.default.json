@@ -7,6 +7,15 @@
     "scanIntervalMs": 300,
     "okHoldMs": 2000
   },
+  "voice": {
+    "detector": "silero",
+    "silenceMs": 800,
+    "maxUtteranceMs": 15000,
+    "halfDuplexGraceMs": 500,
+    "levelThreshold": 0.02,
+    "minSpeechMs": 300,
+    "preSpeechPadMs": 300
+  },
   "drive": {
     "forwardSpeed": 40,
     "turnSpeed": 30,
@@ -19,6 +28,7 @@
       "y": 149,
       "outerRadius": 111,
       "innerRadius": 82,
+      "listeningInnerRadius": 96,
       "strokeWeight": 10
     },
     "mouth": {

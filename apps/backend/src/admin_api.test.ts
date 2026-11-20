@@ -9,16 +9,18 @@ import {
 } from "@tekurobokun/protocol";
 import { AdminApi, isLocalRequest } from "./admin_api.ts";
 import { DeviceAuth, MemoryDeviceStore } from "./device_auth.ts";
+import { InputSourceRegistry } from "./input_sources.ts";
 
 const pairing = { codeTtlMs: 60_000, maxFailures: 5, failureWindowMs: 60_000, lockMs: 300_000 };
 
 function setup() {
   const auth = new DeviceAuth({ store: new MemoryDeviceStore(), pairing, consoles: ["tablet"] });
   const revoked: string[] = [];
+  const sources = new InputSourceRegistry(["tablet"], "robot");
   const status = (): AdminStatus => ({
     session: "idle",
-    inputSource: "robot",
-    micPaused: false,
+    inputSource: sources.active(),
+    micPaused: sources.micPaused(),
     health: { backend: true, llm: true, tts: true, stt: true, robot: false },
     llmModel: "main",
     searchCount: { month: "2026-11", count: 0 },
@@ -31,10 +33,11 @@ function setup() {
     publicUrl: "http://192.168.0.10:8787",
     status,
     onRevoked: (id) => revoked.push(id),
+    sources,
   });
   api.start();
   const base = `http://127.0.0.1:${api.port}`;
-  return { api, auth, revoked, base };
+  return { api, auth, revoked, base, sources };
 }
 
 let current: AdminApi | null = null;
@@ -103,6 +106,38 @@ describe("AdminApi", () => {
 
     const again = await fetch(`${base}/admin/devices/${paired.device.id}`, { method: "DELETE" });
     expect(again.status).toBe(404);
+  });
+
+  test("入力元を切り替える。一覧にない入力元・形の違う本文は400", async () => {
+    const { api, base, sources } = setup();
+    current = api;
+    const put = (body: string) =>
+      fetch(`${base}/admin/input-source`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+    expect((await put(JSON.stringify({ source: "tablet" }))).status).toBe(204);
+    expect(sources.active()).toBe("tablet");
+    expect((await put(JSON.stringify({ source: "laptop" }))).status).toBe(400);
+    expect((await put(JSON.stringify({ device: "robot" }))).status).toBe(400);
+    expect((await put("not json")).status).toBe(400);
+    expect(sources.active()).toBe("tablet");
+    expect((await fetch(`${base}/admin/input-source`)).status).toBe(405);
+  });
+
+  test("マイクを一時停止・再開する。形の違う本文は400", async () => {
+    const { api, base, sources } = setup();
+    current = api;
+    const put = (body: unknown) =>
+      fetch(`${base}/admin/mic`, { method: "PUT", body: JSON.stringify(body) });
+    expect((await put({ paused: true })).status).toBe(204);
+    expect(sources.micPaused()).toBe(true);
+    const status = parseAdminStatus(await (await fetch(`${base}/admin/status`)).json());
+    expect(status?.micPaused).toBe(true);
+    expect((await put({ paused: "no" })).status).toBe(400);
+    expect((await put({ paused: false })).status).toBe(204);
+    expect(sources.micPaused()).toBe(false);
   });
 
   test("違うメソッド・知らないパスは断る", async () => {

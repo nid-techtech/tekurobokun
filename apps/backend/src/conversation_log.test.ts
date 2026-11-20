@@ -11,9 +11,12 @@ import {
 } from "./conversation_log.ts";
 
 const entry = (over: Partial<LogEntry> = {}): LogEntry => ({
+  kind: "turn",
   at: "2026-11-14T10:02:11.000+09:00",
-  device: "tablet",
+  source: "tablet",
+  via: "text",
   input: "こんにちは",
+  stt: null,
   thinkingMs: 1200,
   raw: '{"say":"やあ。","emotion":"happy"}',
   say: "やあ。",
@@ -61,9 +64,12 @@ describe("ConversationLog", () => {
     await log.append(entry());
     const line = (await readFile(join(dir, "2026-11-14.jsonl"), "utf8")).trim();
     expect(Object.keys(JSON.parse(line))).toEqual([
+      "kind",
       "at",
-      "device",
+      "source",
+      "via",
       "input",
+      "stt",
       "thinkingMs",
       "raw",
       "say",
@@ -120,6 +126,39 @@ describe("ConversationLog", () => {
     expect((await log.loadRecent(50)).map((t) => t.text)).toEqual(["a", "b"]);
     expect(await log.loadRecent(0)).toEqual([]);
   });
+
+  test("v5の行と機体のマイクの行を読む。STTが失敗した行と、発言でない行は戻さない", async () => {
+    const { kind: _k, source: _s, via: _v, stt: _t, ...rest } = entry({ input: "v5" });
+    const v5 = { ...rest, device: "phone" };
+    const lines = [
+      JSON.stringify(v5),
+      JSON.stringify(entry({ source: "robot", via: "mic", stt: { ms: 640 }, input: "mic" })),
+      JSON.stringify(
+        entry({
+          source: "robot",
+          via: "mic",
+          input: "",
+          thinkingMs: null,
+          raw: null,
+          say: null,
+          emotion: null,
+          error: "stt_unavailable",
+        }),
+      ),
+      JSON.stringify({
+        kind: "history_cleared",
+        at: "2026-11-14T10:05:00.000+09:00",
+        reason: "idle",
+      }),
+    ];
+    await writeFile(join(dir, "2026-11-14.jsonl"), `${lines.join("\n")}\n`);
+    const log = new ConversationLog({ dir, now: at("2026-11-14T01:30:00.000Z") });
+    const turns = await log.loadRecent(50);
+    expect(turns.map((t) => [t.source, t.via, t.text])).toEqual([
+      ["phone", "text", "v5"],
+      ["robot", "mic", "mic"],
+    ]);
+  });
 });
 
 describe("parseLogLine・entryToTurn", () => {
@@ -127,7 +166,18 @@ describe("parseLogLine・entryToTurn", () => {
     expect(parseLogLine(JSON.stringify(entry()))).toEqual(entry());
     expect(parseLogLine(JSON.stringify(entry({ emotion: "angry" as never })))).toBeNull();
     expect(parseLogLine(JSON.stringify(entry({ filtered: "x" as never })))).toBeNull();
+    expect(parseLogLine(JSON.stringify(entry({ via: "voice" as never })))).toBeNull();
+    expect(parseLogLine(JSON.stringify(entry({ stt: { ms: "1" } as never })))).toBeNull();
+    expect(parseLogLine(JSON.stringify(entry({ error: "x" as never })))).toBeNull();
+    expect(parseLogLine(JSON.stringify({ ...entry(), kind: "history_cleared" }))).toBeNull();
     expect(parseLogLine("[]")).toBeNull();
+  });
+
+  test("v5の行は、kindをturn、deviceをsource、viaをtext、sttをnullとして読む", () => {
+    const { kind: _k, source: _s, via: _v, stt: _t, ...rest } = entry();
+    expect(parseLogLine(JSON.stringify({ ...rest, device: "phone" }))).toEqual(
+      entry({ source: "phone" }),
+    );
   });
 
   test("LLMが失敗した行は、返事のない発言にする", () => {

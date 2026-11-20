@@ -6,7 +6,9 @@
 //                                         機体の config.local.json の backend.token に書く（カメラのない開発機で登録するため）
 //   bun run admin devices                 登録済みの端末を出す
 //   bun run admin revoke ID               端末の登録を解除する
-// 入力元・マイク・会話のリセット（source・mic・reset）は、Phase 7・8で足す。
+//   bun run admin source NAME             入力元を切り替える（robot か、設定のconsoleの名前）
+//   bun run admin mic pause|resume        機体のマイクを一時停止・再開する
+// 会話のリセット（reset）は、Phase 8で足す。
 
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -31,6 +33,8 @@ const USAGE = [
   "  exchange [--role robot|console] [--device NAME] [CODE]",
   "  devices",
   "  revoke ID",
+  "  source NAME",
+  "  mic pause|resume",
 ].join("\n");
 
 class CliError extends Error {}
@@ -169,6 +173,30 @@ async function main(argv: string[]): Promise<void> {
       if (!id) throw new CliError("usage: bun run admin revoke ID");
       await call(`${ADMIN_PATHS.devices}/${encodeURIComponent(id)}`, { method: "DELETE" });
       console.log(`revoked ${id}`);
+      return;
+    }
+    case "source": {
+      const source = args[0];
+      if (!source) throw new CliError("usage: bun run admin source NAME");
+      await call(ADMIN_PATHS.inputSource, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      console.log(`input source ${source}`);
+      return;
+    }
+    case "mic": {
+      const action = args[0];
+      if (action !== "pause" && action !== "resume") {
+        throw new CliError("usage: bun run admin mic pause|resume");
+      }
+      await call(ADMIN_PATHS.mic, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paused: action === "pause" }),
+      });
+      console.log(`mic ${action === "pause" ? "paused" : "resumed"}`);
       return;
     }
     default:

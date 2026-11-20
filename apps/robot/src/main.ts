@@ -15,9 +15,13 @@ import { BarcodeKeyboardSource } from "./input/InputSource";
 import { browserStorage, RobotCredentials } from "./link/credentials";
 import { RobotLink } from "./link/RobotLink";
 import { PairingScanner } from "./pairing/PairingScanner";
+import { LevelDetector } from "./voice/LevelDetector";
+import { SileroDetector } from "./voice/SileroDetector";
+import { VoiceCapture } from "./voice/VoiceCapture";
 
 // 機体アプリ：バックエンドから届くstatus・speechだけで顔と音声を決める（表示と音声再生だけの薄いクライアント）。
 // 未登録（接続先かトークンがない・断られた）なら、登録の画面（S02g）でQRを読む。
+// 入力元が機体のマイクのときは、VoiceCaptureで聞き、1発話をWAVで送る（文字にするのはバックエンド）。
 // 走行（DriveStateMachine・シリアル通信）と音声スロット（数字キーでの再生）は、この版では配線しない。
 // コードは今後の版のために残す。
 
@@ -93,12 +97,30 @@ function updateFace(): void {
   const paired = link.paired;
   if (paired) scanner.stop();
   else scanner.start();
+  voice.setLink({ paired, connected: state.connected, status: state.status });
   face.setState(
     paired ? displayStateFor(state.connected, state.status) : "IDLE",
     performance.now(),
   );
   updateCaption();
 }
+
+/** 再生中の音声を捨てる（再生していないことをVoiceCaptureに伝える）。 */
+function stopAudio(): void {
+  audio.stop();
+  voice.setPlaying(false);
+}
+
+// 機体のマイク。聞く条件（入力元・状態・マイクの一時停止・再生中）はVoiceCaptureが決める。
+const voice = new VoiceCapture({
+  createDetector: (events) =>
+    config.voice.detector === "level"
+      ? new LevelDetector(config.voice, events)
+      : new SileroDetector(config.voice, events),
+  send: (message) => link.send(message),
+  maxUtteranceMs: config.voice.maxUtteranceMs,
+  halfDuplexGraceMs: config.voice.halfDuplexGraceMs,
+});
 
 // 接続先とトークン。開発用に、config.local.jsonのbackend.url・backend.tokenがあればそれを使う。
 const credentials = new RobotCredentials(browserStorage(), {
@@ -116,7 +138,7 @@ const link = new RobotLink(credentials, {
     state.status = null;
     userText = null;
     currentCaption = null;
-    audio.stop();
+    stopAudio();
     updateFace();
   },
   onMessage: (message) => {
@@ -124,7 +146,7 @@ const link = new RobotLink(credentials, {
       case "auth_required":
         // 未登録・無効なトークン（RobotLinkがトークンを消す）。登録の画面へ。
         state.status = null;
-        audio.stop();
+        stopAudio();
         updateFace();
         return;
       case "pair_failed":
@@ -145,7 +167,7 @@ const link = new RobotLink(credentials, {
         state.status = message;
         // 話し中でなくなったら（タイムアウト・合成の失敗など）、残りの音声は捨てる。
         if (message.session !== "speaking") {
-          audio.stop();
+          stopAudio();
           currentCaption = null;
         }
         updateFace();
@@ -167,10 +189,12 @@ const link = new RobotLink(credentials, {
 });
 
 audio.onSentenceStart((item) => {
+  voice.setPlaying(true);
   currentCaption = item.text;
   updateCaption();
 });
 audio.onSentenceEnd((item) => {
+  voice.setPlaying(false);
   currentCaption = null;
   updateCaption();
   link.send({ type: "playback_done", turnId: item.turnId, index: item.index });
@@ -199,6 +223,11 @@ function buildDebugSnapshot(): DebugSnapshot {
       paired: String(link.paired),
       connected: String(state.connected),
       session: state.status?.session ?? "-",
+      input: state.status
+        ? `${state.status.inputSource}${state.status.micPaused ? " (mic paused)" : ""}`
+        : "-",
+      "voice.detector": config.voice.detector,
+      "voice.active": String(voice.active),
       display: face.displayState,
       emotion: face.currentEmotion,
       "audio.level": audio.level().toFixed(3),

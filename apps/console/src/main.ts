@@ -2,14 +2,16 @@
 // 表示はバックエンドから届くwelcome・status・turn_started・turn_repliedだけで決める。
 // 未登録（auth_required）ならS01iの登録コードの入力、つながらない・LLMかVOICEVOXが応答しないときはS01f、
 // 別の端末が有効なときはS01gの全面の案内を出し、状況が戻れば自動で元の表示に戻る（再接続はLinkが続ける）。
+// 入力元が機体のマイクのときは、ログの表示だけにする（S01h。入力欄とキーボードを出さない）。
 
 import "./styles.css";
 import { initLocale, m } from "@tekurobokun/i18n";
 import type { ConsoleSettings, ServerMessage, StatusMessage } from "@tekurobokun/protocol";
+import { h } from "./dom.ts";
 import { FullNotice } from "./full_notice.ts";
 import { Link } from "./link.ts";
 import { LogView } from "./log_view.ts";
-import { noticeFor } from "./notice.ts";
+import { isViewOnly, noticeFor } from "./notice.ts";
 import { PairForm } from "./pair_form.ts";
 import { PromptInput } from "./prompt_input.ts";
 import { type StatusKind, StatusLine } from "./status_line.ts";
@@ -59,9 +61,12 @@ const input = new PromptInput(promptText(), 0, {
 });
 
 const pairForm = new PairForm({ onSubmit: (code) => link.pair(code) });
+// S01hの下端の案内（入力は機体のマイクで受け付けている）。
+const lockLine = h("div", { class: "lockline sh-comment", text: `# ${m["console.locked"]()}` });
+lockLine.hidden = true;
 
 const root = document.querySelector<HTMLElement>("#app");
-root?.append(statusLine.el, log.el, notice.el, pairForm.message, input.el, pairForm.row);
+root?.append(statusLine.el, log.el, notice.el, pairForm.message, input.el, lockLine, pairForm.row);
 
 function currentNotice() {
   return noticeFor({
@@ -74,11 +79,15 @@ function currentNotice() {
 
 const isUnpaired = () => state.connected && state.unpaired;
 
+/** ログ表示専用（S01h）にするか。案内を出しているときは出さない。 */
+const viewOnly = () => !isUnpaired() && currentNotice() === null && isViewOnly(state.status);
+
 function statusKind(): StatusKind {
   if (isUnpaired() || currentNotice() === "offline") return "offline";
   const session = state.status?.session ?? "idle";
   if (session === "thinking") return "thinking";
   if (session === "speaking") return "speaking";
+  if (viewOnly()) return state.status?.micPaused ? "mic_paused" : "listening_voice";
   return input.hasText ? "listening" : "ready";
 }
 
@@ -87,13 +96,16 @@ function render(): void {
   const unpaired = isUnpaired();
   const kind = unpaired ? null : currentNotice();
   const session = state.status?.session ?? "idle";
+  const locked = viewOnly();
   const wasShown = notice.shown;
+  const wasLocked = !lockLine.hidden;
   notice.set(kind);
   pairForm.set(unpaired);
   log.el.hidden = kind !== null || unpaired;
-  input.setEnabled(!unpaired && kind === null && session === "idle");
-  // 案内を出している間は、入力欄のフォーカスを外して画面のキーボードを閉じる（S01f・S01g）。
-  if (kind !== null && !wasShown) input.blur();
+  lockLine.hidden = !locked;
+  input.setEnabled(!unpaired && kind === null && !locked && session === "idle");
+  // 案内やログ表示専用を出している間は、入力欄のフォーカスを外して画面のキーボードを閉じる（S01f・S01g・S01h）。
+  if ((kind !== null && !wasShown) || (locked && !wasLocked)) input.blur();
   log.setThinking(kind === null && session === "thinking");
   log.setSpeaking(kind === null && session === "speaking");
   statusLine.set(statusKind());
@@ -162,4 +174,7 @@ link.connect();
 
 // ログをタップしてもキーボードを閉じないよう、入力欄にフォーカスを戻す。
 // 案内から戻ったあと、キーボードが自動で開かない端末でも、ログをタップすれば開く。
-log.el.addEventListener("click", () => input.focus());
+// ログ表示専用（S01h）の間は、キーボードを出さない。
+log.el.addEventListener("click", () => {
+  if (!viewOnly()) input.focus();
+});

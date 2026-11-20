@@ -18,7 +18,8 @@
     "console:build": "bun run --filter @tekurobokun/console build",
     "console:icons": "bun scripts/gen_console_icons.ts",
     "robot:icons": "bun scripts/gen_robot_icons.ts",
-    "bench": "bun scripts/bench_dialogue.ts"
+    "bench": "bun scripts/bench_dialogue.ts",
+    "stt:locations": "bun scripts/stt_locations.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",

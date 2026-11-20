@@ -1,4 +1,4 @@
-// HealthMonitor：llama-serverとVOICEVOXに定期的に問い合わせ、応答の有無を保持する（imple 3節）。
+// HealthMonitor：llama-server・VOICEVOX・STTに定期的に問い合わせ、応答の有無を保持する（imple 3節）。
 // 機体の接続の有無もここで持ち、入力ページと機体へ送るHealthを1か所で組み立てる。
 
 import type { Health } from "@tekurobokun/protocol";
@@ -20,18 +20,18 @@ export function httpProbe(url: string, timeoutMs = 3000): Probe {
 export class HealthMonitor {
   private llm = false;
   private tts = false;
+  private stt = false;
   private robot = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly listeners = new Set<(health: Health) => void>();
 
   constructor(
-    private readonly probes: { llm: Probe; tts: Probe },
+    private readonly probes: { llm: Probe; tts: Probe; stt: Probe },
     private readonly intervalMs: number,
   ) {}
 
   snapshot(): Health {
-    // STTの応答の有無はPhase 7で問い合わせる。それまでは常にtrue（STTを使わない）。
-    return { backend: true, llm: this.llm, tts: this.tts, stt: true, robot: this.robot };
+    return { backend: true, llm: this.llm, tts: this.tts, stt: this.stt, robot: this.robot };
   }
 
   /** 値が変わったときに呼ばれる処理を登録する。戻り値で登録を外す。 */
@@ -53,8 +53,12 @@ export class HealthMonitor {
   }
 
   async checkNow(): Promise<void> {
-    const [llm, tts] = await Promise.all([this.probes.llm(), this.probes.tts()]);
-    this.set({ llm, tts });
+    const [llm, tts, stt] = await Promise.all([
+      this.probes.llm(),
+      this.probes.tts(),
+      this.probes.stt(),
+    ]);
+    this.set({ llm, tts, stt });
   }
 
   setRobot(connected: boolean): void {
@@ -71,10 +75,16 @@ export class HealthMonitor {
     this.set({ tts: false });
   }
 
-  private set(next: Partial<Pick<Health, "llm" | "tts" | "robot">>): void {
+  /** 文字にするのにSTTが失敗したとき。次の問い合わせで応答があれば戻る。 */
+  markSttDown(): void {
+    this.set({ stt: false });
+  }
+
+  private set(next: Partial<Pick<Health, "llm" | "tts" | "stt" | "robot">>): void {
     const before = JSON.stringify(this.snapshot());
     this.llm = next.llm ?? this.llm;
     this.tts = next.tts ?? this.tts;
+    this.stt = next.stt ?? this.stt;
     this.robot = next.robot ?? this.robot;
     if (JSON.stringify(this.snapshot()) === before) return;
     const health = this.snapshot();

@@ -222,8 +222,11 @@ export class Server {
     if (message.type === "utterance" && ws.data.role === "console") {
       void session.handleUtterance(ws.data.device, message.text);
     }
-    if (message.type === "playback_done" && ws.data.role === "robot") {
-      session.handlePlaybackDone(message.turnId, message.index);
+    if (ws.data.role !== "robot") return;
+    if (message.type === "playback_done") session.handlePlaybackDone(message.turnId, message.index);
+    if (message.type === "listening") session.handleListening(message.active);
+    if (message.type === "voice") {
+      void session.handleVoice(new Uint8Array(Buffer.from(message.wav, "base64")));
     }
   }
 

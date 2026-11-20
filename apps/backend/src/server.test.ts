@@ -8,11 +8,13 @@ import {
   type ServerMessage,
 } from "@tekurobokun/protocol";
 import { DeviceAuth, MemoryDeviceStore } from "./device_auth.ts";
-import { InputDeviceRegistry } from "./devices.ts";
 import { DEFAULT_STUB_DATA, StubDialogueEngine } from "./dialogue/stub.ts";
 import { HealthMonitor } from "./health.ts";
+import { InputSourceRegistry } from "./input_sources.ts";
 import { CLOSE_REVOKED, Server, WS_PATH } from "./server.ts";
 import { ConversationSession } from "./session.ts";
+import { StubSpeechRecognizer } from "./stt/stub.ts";
+import { encodeWav } from "./tts/engine.ts";
 import { StubTtsEngine } from "./tts/stub.ts";
 
 // スタブのバックエンドを立て、WebSocketで入力ページのふりをして会話を通す。
@@ -26,8 +28,11 @@ const settings: ConsoleSettings = {
 const staticDir = mkdtempSync(join(tmpdir(), "tekurobo-static-"));
 writeFileSync(join(staticDir, "index.html"), "<!doctype html><title>console</title>");
 
-const health = new HealthMonitor({ llm: async () => true, tts: async () => true }, 60_000);
-const devices = new InputDeviceRegistry(["tablet", "phone"], "tablet");
+const health = new HealthMonitor(
+  { llm: async () => true, tts: async () => true, stt: async () => true },
+  60_000,
+);
+const sources = new InputSourceRegistry(["tablet", "phone"], "tablet");
 const pairing = { codeTtlMs: 60_000, maxFailures: 5, failureWindowMs: 60_000, lockMs: 300_000 };
 const auth = new DeviceAuth({
   store: new MemoryDeviceStore(),
@@ -47,7 +52,8 @@ const server = new Server({
 const session = new ConversationSession({
   dialogue: new StubDialogueEngine({ ...DEFAULT_STUB_DATA, delayMs: 50 }),
   tts: new StubTtsEngine({ delayMs: 10 }),
-  devices,
+  stt: new StubSpeechRecognizer({ delayMs: 10, utterances: ["mic-text"] }),
+  sources,
   health,
   emit: (m) => server.broadcast(m),
   sendToRobot: (m) => server.sendToRobot(m),
@@ -266,6 +272,42 @@ describe("Server", () => {
     );
     expect(session.session).toBe("idle");
     tablet.ws.close();
+  });
+
+  test("入力元がrobotなら、機体のlisteningで聞き取り中、voiceをSTTで文字にして(mic)の発言にする", async () => {
+    const tablet = await connect({
+      type: "hello",
+      role: "console",
+      device: "tablet",
+      token: tokens.tablet,
+    });
+    const robot = await connect({ type: "hello", role: "robot", token: tokens.robot });
+    await tablet.waitFor((m) => m.type === "status" && m.health.robot);
+    // consoleがいる入力元のままでは、機体の声を受け付けない
+    robot.ws.send(JSON.stringify({ type: "listening", active: true }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(session.session).toBe("idle");
+
+    sources.setActive("robot");
+    session.broadcastStatus();
+    robot.ws.send(JSON.stringify({ type: "listening", active: true }));
+    await tablet.waitFor((m) => m.type === "status" && m.session === "listening");
+    const wav = encodeWav(new Int16Array(16_000), 16_000);
+    robot.ws.send(
+      JSON.stringify({
+        type: "voice",
+        wav: Buffer.from(wav).toString("base64"),
+        durationMs: 1000,
+      }),
+    );
+    const started = await tablet.waitFor((m) => m.type === "turn_started");
+    if (started.type !== "turn_started") throw new Error("unreachable");
+    expect(started.turn).toMatchObject({ source: "robot", via: "mic", text: "mic-text" });
+    await robot.waitFor((m) => m.type === "speech" && m.last);
+    sources.setActive("tablet");
+    session.robotDisconnected();
+    for (const c of [tablet, robot]) c.ws.close();
+    await tablet.closed;
   });
 
   test("トークンのない・知らない・役割や名前の違うトークンにはauth_requiredを返し、会話を受け付けない", async () => {

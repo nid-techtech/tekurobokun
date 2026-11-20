@@ -1,4 +1,4 @@
-// フェイシャルの形（S02a〜S02e）。描く図形を、p5に依存しない値の並びとして組み立てる。
+// フェイシャルの形（S02a〜S02e、S02h）。描く図形を、p5に依存しない値の並びとして組み立てる。
 // 目・口の基本座標は機体の設定（ヘボコン版の値）。表情ごとの目の崩し方はモックS02c〜S02eの値。
 
 import type { Emotion } from "@tekurobokun/protocol";
@@ -8,11 +8,18 @@ export const FACIAL_CANVAS_WIDTH = 800;
 export const FACIAL_CANVAS_HEIGHT = 600;
 const CENTER_X = FACIAL_CANVAS_WIDTH / 2;
 
-/** 表示状態（imple 4節）。SLEEPは眠っている顔（S02e）。 */
-export type DisplayState = "IDLE" | "SPEAKING" | "LOADING" | "SLEEP";
+/** 表示状態（imple 4節）。SLEEPは眠っている顔（S02e）、LISTENINGは聞き取り中（S02h）。 */
+export type DisplayState = "IDLE" | "LISTENING" | "SPEAKING" | "LOADING" | "SLEEP";
 
-/** 目の形。emotionの5種に、考え中・まばたき・きょろきょろ・眠っている（閉じた目）を足したもの。 */
-export type EyeKind = Emotion | "loading" | "blink" | "look_left" | "look_right" | "sleep";
+/** 目の形。emotionの5種に、聞き取り中・考え中・まばたき・きょろきょろ・眠っている（閉じた目）を足したもの。 */
+export type EyeKind =
+  | Emotion
+  | "listening"
+  | "loading"
+  | "blink"
+  | "look_left"
+  | "look_right"
+  | "sleep";
 
 export type Shape =
   | { type: "circle"; x: number; y: number; r: number; weight: number }
@@ -104,6 +111,9 @@ export function eyeShapes(
     }
     case "surprised":
       return [outer, circle(x, y, EYE.surprisedInnerR)];
+    case "listening":
+      // 内側の円を少し大きくして注目を示す（S02h）
+      return [outer, circle(x, y, eyes.listeningInnerRadius)];
     case "curious":
       return [outer, circle(x + EYE.curiousShift, y - EYE.curiousShift, EYE.curiousInnerR[side])];
     case "troubled": {

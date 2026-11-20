@@ -24,6 +24,24 @@ export interface PairingConfig {
   okHoldMs: number;
 }
 
+/** 機体のマイクの音声入力（VoiceCapture） */
+export interface VoiceConfig {
+  /** 検出の方式：silero（Silero VAD。精度が高いがCPUを使う）・level（音量のしきい値。軽い） */
+  detector: "silero" | "level";
+  /** 区切りの無音の長さ */
+  silenceMs: number;
+  /** 1発話の最大の長さ（超えたらそこで区切って送る） */
+  maxUtteranceMs: number;
+  /** 再生が終わってから聞き始めるまでの余裕（半二重） */
+  halfDuplexGraceMs: number;
+  /** 音量のしきい値（levelのとき。RMS、0〜1） */
+  levelThreshold: number;
+  /** これより短い音は声とみなさない */
+  minSpeechMs: number;
+  /** 声の始まりより前に含める長さ（語頭が切れないように） */
+  preSpeechPadMs: number;
+}
+
 export interface DriveConfig {
   forwardSpeed: number;
   turnSpeed: number;
@@ -36,6 +54,8 @@ export interface EyesConfig {
   y: number;
   outerRadius: number;
   innerRadius: number;
+  /** 聞き取り中（S02h）の内側の円の半径。待機中より少し大きくして注目を示す */
+  listeningInnerRadius: number;
   strokeWeight: number;
 }
 
@@ -122,6 +142,7 @@ export interface AudioConfig {
 export interface AppConfig {
   backend: BackendConfig;
   pairing: PairingConfig;
+  voice: VoiceConfig;
   drive: DriveConfig;
   facial: FacialConfig;
   lipSync: LipSyncConfig;

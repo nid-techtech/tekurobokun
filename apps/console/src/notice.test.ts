@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Health } from "@tekurobokun/protocol";
-import { type NoticeInput, noticeFor } from "./notice.ts";
+import { isViewOnly, type NoticeInput, noticeFor } from "./notice.ts";
 
 const health = (h: Partial<Health> = {}): Health => ({
   backend: true,
@@ -43,6 +43,21 @@ describe("noticeFor", () => {
         "offline",
       );
     }
+  });
+
+  test("入力元が機体のマイクなら案内を出さず（S01h）、STTが応答しないときだけS01f", () => {
+    const robot = (h: Partial<Health> = {}) =>
+      input({ status: { inputSource: "robot", health: health(h) } });
+    expect(noticeFor(robot())).toBeNull();
+    expect(noticeFor(robot({ stt: false }))).toBe("offline");
+    expect(noticeFor(robot({ llm: false }))).toBe("offline");
+    // consoleが入力元なら、STTが落ちていても使える
+    expect(
+      noticeFor(input({ status: { inputSource: "tablet", health: health({ stt: false }) } })),
+    ).toBeNull();
+    expect(isViewOnly({ inputSource: "robot" })).toBe(true);
+    expect(isViewOnly({ inputSource: "tablet" })).toBe(false);
+    expect(isViewOnly(null)).toBe(false);
   });
 
   test("別の端末が有効ならS01g、自分に切り替われば戻る", () => {

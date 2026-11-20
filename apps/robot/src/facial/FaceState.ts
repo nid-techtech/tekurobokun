@@ -1,5 +1,6 @@
 // FaceState：表示状態とemotionから、その時刻の顔（Scene）を決める。p5に依存しない。
 // - IDLE：通常の目でまばたき・きょろきょろ。話し終えた直後は、しばらく感情の目を残す
+// - LISTENING：聞き取り中（S02h）。内側の円を少し大きくして注目を示す。まばたきはしない
 // - SPEAKING：emotionの目。口の高さは再生中の音の大きさに合わせて伸び縮みする
 // - LOADING：内側の円が外側の円の中を回る
 // - SLEEP：眠っている顔（S02e）。目を閉じ、口を少し開け、顔全体がゆっくり上下に揺れる
@@ -103,6 +104,8 @@ export class FaceState {
           offsetY: bob,
         };
       }
+      case "LISTENING":
+        return { eyes: "listening", mouthRatio: 1, orbitAngle: 0 };
       default:
         return { eyes: this.idleEyes(nowMs), mouthRatio: 1, orbitAngle: 0 };
     }

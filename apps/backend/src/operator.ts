@@ -1,7 +1,8 @@
-// OperatorConsole：バックエンドを起動したターミナルでのキー操作（imple 3節）。
-// 数字キー`1`〜`9`（端末一覧の順）で入力を受け付ける端末を切り替え、現在の状態を1行で表示する。
-// 端末の切り替えはここからだけ行う（入力ページ・機体には切り替えの操作を置かない）。
-// スタブ（--stub）のときは、`l`・`t`でLLM・VOICEVOXの停止と復旧を再現できる（W4-2）。
+// OperatorConsole：バックエンドを起動したターミナルでのキー操作（開発用。imple 3節）。
+// 数字キー`1`〜`9`（入力元の一覧の順。`1`が`robot`）で入力元を切り替え、`m`でマイクを一時停止・再開し、
+// 現在の状態を1行で表示する。本番の切り替えはランチャー（管理用API）から行う。
+// console・機体には切り替えの操作を置かない。
+// スタブ（--stub）のときは、`l`・`t`・`r`でLLM・VOICEVOX・STTの停止と復旧を再現できる（W4-2）。
 // `p`で登録コードを発行して表示する（開発用。本番はランチャーで出す）。
 //
 // キーの解釈（handleKey）と状態の1行（statusLine）は端末の入出力と分け、テストできるようにする。
@@ -9,15 +10,17 @@
 import type { StatusMessage } from "@tekurobokun/protocol";
 import type { StubAvailability, StubTarget } from "./stub_availability.ts";
 
-/** OperatorConsoleが参照するInputDeviceRegistryの部分。 */
-export type OperatorDevices = {
+/** OperatorConsoleが参照するInputSourceRegistryの部分。 */
+export type OperatorSources = {
   list(): readonly string[];
   active(): string;
   setActiveByNumber(n: number): boolean;
+  micPaused(): boolean;
+  setMicPaused(paused: boolean): void;
 };
 
 export type OperatorConsoleOptions = {
-  devices: OperatorDevices;
+  sources: OperatorSources;
   /** 現在の会話の状態と接続・応答の有無 */
   status: () => StatusMessage;
   /** スタブのときだけ渡す。止める・戻すの切り替えのあと、recheckでヘルスを問い合わせ直す */
@@ -32,7 +35,7 @@ export type OperatorConsoleOptions = {
 };
 
 const CTRL_C = "\u0003";
-const STUB_KEYS: Record<string, StubTarget> = { l: "llm", t: "tts" };
+const STUB_KEYS: Record<string, StubTarget> = { l: "llm", t: "tts", r: "stt" };
 
 /** 端末で読み込むstdinの部分。 */
 export type KeyInput = {
@@ -46,34 +49,41 @@ export type KeyInput = {
 export class OperatorConsole {
   constructor(private readonly options: OperatorConsoleOptions) {}
 
-  /** 現在の状態の1行。例：`[operator] active=tablet [1:tablet* 2:phone] session=idle llm=up tts=up robot=connected` */
+  /**
+   * 現在の状態の1行。例：
+   * `[operator] input=robot [1:robot* 2:tablet 3:phone] mic=on session=idle llm=up tts=up stt=up robot=connected`
+   */
   statusLine(): string {
-    const { devices } = this.options;
+    const { sources } = this.options;
     const { session, health } = this.options.status();
-    const active = devices.active();
-    const list = devices
+    const active = sources.active();
+    const list = sources
       .list()
       .map((d, i) => `${i + 1}:${d}${d === active ? "*" : ""}`)
       .join(" ");
     const up = (v: boolean) => (v ? "up" : "DOWN");
     return [
-      `[operator] active=${active || "(none)"}`,
+      `[operator] input=${active}`,
       `[${list}]`,
+      `mic=${sources.micPaused() ? "paused" : "on"}`,
       `session=${session}`,
       `llm=${up(health.llm)}`,
       `tts=${up(health.tts)}`,
+      `stt=${up(health.stt)}`,
       `robot=${health.robot ? "connected" : "disconnected"}`,
     ].join(" ");
   }
 
   /** キー操作の説明。起動時と`h`・`?`で出す。 */
   helpLines(): string[] {
-    const n = Math.min(this.options.devices.list().length, 9);
+    const n = Math.min(this.options.sources.list().length, 9);
     const pair = this.options.issuePairingCode ? ", p pairing code" : "";
     const lines = [
-      `[operator] keys: 1-${n} switch input source${pair}, s show status, h help, Ctrl+C quit`,
+      `[operator] keys: 1-${n} switch input source, m pause/resume mic${pair}, s show status, h help, Ctrl+C quit`,
     ];
-    if (this.options.stub) lines.push("[operator] stub keys: l stop/start llm, t stop/start tts");
+    if (this.options.stub) {
+      lines.push("[operator] stub keys: l stop/start llm, t stop/start tts, r stop/start stt");
+    }
     return lines;
   }
 
@@ -89,16 +99,22 @@ export class OperatorConsole {
     }
     if (/^[1-9]$/.test(key)) {
       const n = Number(key);
-      const before = this.options.devices.active();
-      if (!this.options.devices.setActiveByNumber(n)) {
-        this.options.write(`[operator] no device for key ${key}`);
+      const before = this.options.sources.active();
+      if (!this.options.sources.setActiveByNumber(n)) {
+        this.options.write(`[operator] no input source for key ${key}`);
         return;
       }
-      // 切り替わればInputDeviceRegistryの通知で状態が表示される。同じ端末なら、ここで表示する。
-      if (this.options.devices.active() === before) this.showStatus();
+      // 切り替わればInputSourceRegistryの通知で状態が表示される。同じ入力元なら、ここで表示する。
+      if (this.options.sources.active() === before) this.showStatus();
       return;
     }
     const lower = key.toLowerCase();
+    if (lower === "m") {
+      // 変わればInputSourceRegistryの通知で状態が表示される。
+      const { sources } = this.options;
+      sources.setMicPaused(!sources.micPaused());
+      return;
+    }
     if (lower === "s" || key === "\r" || key === "\n") {
       this.showStatus();
       return;

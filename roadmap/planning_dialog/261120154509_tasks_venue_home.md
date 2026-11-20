@@ -278,18 +278,29 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-- [ ] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
+引き継ぎ: T7-1〜T7-5まで完了。次はT7-6（ユーザー：Google Cloudの準備）、そのあとT7-7。STTのAPIの項目名は公式の参照ページを全文で読めておらず、T7-6・W7-4で`bun run stt:locations --json`と実際の`Recognize`で確かめる（T7-2のメモ）。Silero VADの実際の動き（`/vad/`の読み込み、マイク）はW7-5まで確かめていない
+- [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
-- [ ] T7-2 【エージェント】`SpeechRecognizer`を作る：`StubSpeechRecognizer`（WAVの長さに応じた決まった文。短すぎれば空）と`GoogleSpeechRecognizer`（V2 `Recognize`、ja-JP、サービスアカウントの鍵からのアクセストークン、時間切れ）、`health.stt`への反映。ja-JPに対応するモデルとリージョンをLocations APIで一覧にするスクリプト（`scripts/stt_locations.ts`）。APIの形は公式ドキュメントで確かめる
+  - 実施: Opus・high
+  - メモ: `apps/backend/src/input_sources.ts`（`devices.ts`は削除）。`PUT /admin/input-source`・`/admin/mic`は204、一覧にない入力元と形の違う本文は400。できごと（`input_source`・`mic`）は、APIとターミナルのどちらから切り替えても出るよう、`InputSourceRegistry`の通知から出す。`OperatorConsole`に`m`（マイクの一時停止・再開）、状態の1行に`mic`・`stt`を足した。管理CLIに`source`・`mic`を足した
+- [x] T7-2 【エージェント】`SpeechRecognizer`を作る：`StubSpeechRecognizer`（WAVの長さに応じた決まった文。短すぎれば空）と`GoogleSpeechRecognizer`（V2 `Recognize`、ja-JP、サービスアカウントの鍵からのアクセストークン、時間切れ）、`health.stt`への反映。ja-JPに対応するモデルとリージョンをLocations APIで一覧にするスクリプト（`scripts/stt_locations.ts`）。APIの形は公式ドキュメントで確かめる
   - 依存: T6-2
-- [ ] T7-3 【エージェント】`ConversationSession`に聞き取り中と音声の発話を加える：`listening`の状態、`voice`の受け付けの判定（入力元・状態・マイクの一時停止）、STT→禁止語→1回目、空なら`idle`、STTの失敗。会話ログの項目（`kind`・`source`・`via`・`stt`・`error: "stt_unavailable"`。v5の行も読めること）
+  - 実施: Opus・high
+  - メモ: `apps/backend/src/stt/`（`engine.ts`・`stub.ts`と`stub_utterances.json`・`google.ts`・`google_auth.ts`）。認証はWebCryptoでJWT（RS256）に署名して交換し、期限の1分前まで使い回す（ライブラリなし）。`health.stt`はLocations APIのget（課金なし）で問い合わせ、成功は1分使い回す。Googleの設定が足りなければ`stt`はつねに`false`で起動時に警告。スタブは`r`で止める。WebFetchが使えず公式の参照ページを全文で読めなかったため、本文の項目名（`config.autoDecodingConfig`・`languageCodes`・`model`・`content`、応答の`results[].alternatives[].transcript`、Locationsの`metadata.languages.models[言語].modelFeatures[モデル].modelFeature[]`）は検索で得た公式の要約と既知の形による。T7-6で実際のAPIで確かめる（`bun run stt:locations --json`）。データロギングはリクエストの項目ではなくプロジェクトの設定（コンソール）でオプトインするものと読めたため、`stt.google.dataLogging`は記録として持つだけにした
+- [x] T7-3 【エージェント】`ConversationSession`に聞き取り中と音声の発話を加える：`listening`の状態、`voice`の受け付けの判定（入力元・状態・マイクの一時停止）、STT→禁止語→1回目、空なら`idle`、STTの失敗。会話ログの項目（`kind`・`source`・`via`・`stt`・`error: "stt_unavailable"`。v5の行も読めること）
   - 依存: T7-1, T7-2
-- [ ] T7-4 【エージェント】機体に`VoiceCapture`を作る：`VoiceDetector`（`SileroDetector`は`@ricky0123/vad-web`のモデルとWASMを同梱、`LevelDetector`）、聞く条件（待機中・入力元・マイクの一時停止・再生中と余裕の時間）、`listening`・`voice`の送信、16kHzモノラルのWAV、最大の長さでの打ち切り。聞き取り中の顔（S02h）と、その文言を辞書へ移す
+  - 実施: Opus・high
+  - メモ: 機体の声は、入力元が`robot`・マイクが一時停止でない・STT・LLM・VOICEVOXがすべて応答しているときだけ受け付ける（`listening: true`も同じ条件）。STTの間も`listening`のまま（2つ目の声と取り消しは無視）。`listening`のまま20秒`voice`が来なければ`idle`（`DEFAULT_LISTENING_TIMEOUT_MS`。設定には出していない）。入力元・マイク・応答の有無が変わったときと機体の切断で、聞き取り中なら`idle`に戻す（`inputConditionsChanged`）。STTの間にLLMが落ちたら、文字にした発言を`llm_unavailable`で残す。`stt_unavailable`の行（入力が空）は表示用の履歴に戻さない。`rawFirst`・`search`・`model`・`antiLoop`はT8-3・T8-4で足す
+- [x] T7-4 【エージェント】機体に`VoiceCapture`を作る：`VoiceDetector`（`SileroDetector`は`@ricky0123/vad-web`のモデルとWASMを同梱、`LevelDetector`）、聞く条件（待機中・入力元・マイクの一時停止・再生中と余裕の時間）、`listening`・`voice`の送信、16kHzモノラルのWAV、最大の長さでの打ち切り。聞き取り中の顔（S02h）と、その文言を辞書へ移す
   - 依存: T7-3
   - 画面: S02h
-- [ ] T7-5 【エージェント】consoleに、ログの表示専用（S01h）を加える：入力元による表示の切り替え（自分なら入力ページ、他のconsoleならS01g、`robot`ならS01h）、`(mic)`の印、状態行の「聞いています」「マイク停止中」、S01f・S02eの判定に`health.stt`を足す。その文言を辞書へ移す
+  - 実施: Opus・high
+  - メモ: `apps/robot/src/voice/`（`VoiceCapture`・`listenGate`・`VoiceDetector`・`SileroDetector`・`LevelDetector`と`LevelSegmenter`・`capture.worklet.js`・`wav.ts`）。`@ricky0123/vad-web` 0.0.31（onnxruntime-web 1.31.1）、モデルは`v5`。vad-webは決まったファイル名で読むため、`vite.config.ts`のプラグインでモデル・ワークレット・ORTのWASMとmjsを`/vad/`に名前を変えずに出す（開発サーバーでも配ることを確かめた。WASMは約15MB）。ORTは1スレッド。マイクは1回だけ開き、止めている間も閉じない。声と判断したら（`onSpeechRealStart`）`listening: true`、`voice`を送ったら結果（聞き取り中から別の状態）が届くまで聞かない（届かなければ20秒で戻す）。STTの応答の有無は、入力元が`robot`のときだけS02eの判定に使う。聞き取り中の目の半径は`facial.eyes.listeningInnerRadius`（96。モックの値）。S02hは文字を出さない画面のため、辞書へ移す文言はない。設定の`voice`に`minSpeechMs`・`preSpeechPadMs`を足した。走行中の停止はPhase 9。実際のマイクでの動きはW7-5
+- [x] T7-5 【エージェント】consoleに、ログの表示専用（S01h）を加える：入力元による表示の切り替え（自分なら入力ページ、他のconsoleならS01g、`robot`ならS01h）、`(mic)`の印、状態行の「聞いています」「マイク停止中」、S01f・S02eの判定に`health.stt`を足す。その文言を辞書へ移す
   - 依存: T7-3
   - 画面: S01h, S01f
+  - 実施: Opus・high
+  - メモ: `notice.ts`（入力元が`robot`ならS01gにせず、STTが落ちていればS01f。consoleが入力元ならSTTは見ない）と`isViewOnly`、`main.ts`（S01hでは入力欄を隠してキーボードを閉じ、ログをタップしてもフォーカスしない。下端に`# console.locked`の行）、`LogView`の`(mic)`、`StatusLine`の`listening_voice`・`mic_paused`（待機中・聞き取り中は「聞いています」、一時停止中は「マイク停止中」、考え中・話し中はそのまま）。S02eの判定はT7-4で足した。辞書に`status.listening_voice`・`status.mic_paused`・`console.locked`・`console.heard_mark`を移した（`status.hearing`はS01hで使わないため移していない）。検索の行・区切りの行はT8-5
 - [ ] T7-6 【ユーザー】Google Cloudのプロジェクトを作り、Speech-to-Text APIを有効にして、サービスアカウントの鍵を作る（リポジトリの外に置き、パスを`config/backend.local.json`に書く）。予算のアラートを設定し、無料枠を超えたときに課金されるか止まるかを確かめる。`scripts/stt_locations.ts`の結果から、モデル・リージョン・データロギングの有無を決める
   - 依存: T7-2
 - [ ] T7-7 【エージェント】`CONTRIBUTING.md`に、STTの設定（鍵の置き場所、モデルの確かめ方）と、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く

@@ -44,6 +44,13 @@ describe("shapes（モックS02a〜S02dとの対応）", () => {
     ]);
   });
 
+  test("聞き取り中は内側の円を少し大きくする（S02h、モックの半径96）", () => {
+    expect(circles(eyeShapes("listening", 616, "right", facial))).toEqual([
+      [616, 149, 111],
+      [616, 149, 96],
+    ]);
+  });
+
   test("curiousは内側の円が右上を見て、片目だけ小さい", () => {
     expect(circles(eyeShapes("curious", 184, "left", facial))[1]).toEqual([202, 131, 70]);
     expect(circles(eyeShapes("curious", 616, "right", facial))[1]).toEqual([634, 131, 52]);
@@ -184,6 +191,15 @@ describe("FaceState", () => {
       0,
     );
 
+  test("聞き取り中は、まばたきせずに注目の目を出し続ける", () => {
+    const face = make();
+    face.setState("LISTENING", 0);
+    for (const t of [0, 3000, 7000, 12_000]) {
+      expect(face.scene(t, 0)).toMatchObject({ eyes: "listening", mouthRatio: 1 });
+    }
+    expect(face.animating).toBe(false);
+  });
+
   test("考え中は内側の円が回り、prefers-reduced-motionでは止まる", () => {
     const face = make();
     face.setState("LOADING", 0);
@@ -277,6 +293,13 @@ describe("displayStateFor", () => {
     expect(displayStateFor(true, status("idle"))).toBe("IDLE");
     expect(displayStateFor(true, status("thinking"))).toBe("LOADING");
     expect(displayStateFor(true, status("speaking"))).toBe("SPEAKING");
+    expect(displayStateFor(true, status("listening"))).toBe("LISTENING");
+  });
+
+  test("STTが落ちているときは、入力元がrobotのときだけSLEEP", () => {
+    expect(displayStateFor(true, status("idle", { stt: false }))).toBe("IDLE");
+    const robot = { ...status("idle", { stt: false }), inputSource: "robot" };
+    expect(displayStateFor(true, robot)).toBe("SLEEP");
   });
 
   test("切断中・statusがまだない・LLMかVOICEVOXが落ちているときはSLEEP", () => {

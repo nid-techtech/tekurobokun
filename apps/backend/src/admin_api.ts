@@ -1,8 +1,10 @@
 // AdminApi：管理用API（imple 3節・4節）。127.0.0.1だけで待ち受け、トンネルには載せない。
 // HTTPのJSONと、状態とできごとを流すWebSocket（/admin/events）。
 //
-// Phase 6で受け持つのは、状態・登録コードの発行・端末の無効化・できごと。
-// 入力元とマイク（Phase 7）、会話のリセット（Phase 8）、モデルの別名（Phase 8）は、それぞれの項目で足す。
+// 受け持つのは、状態・登録コードの発行・端末の無効化・入力元の切り替え・マイクの一時停止と再開・できごと。
+// 会話のリセットとモデルの別名（Phase 8）は、それぞれの項目で足す。
+// 入力元とマイクのできごと（input_source・mic）は、どこから切り替えても出るよう、
+// InputSourceRegistryの通知から出す（index.ts）。ここでは切り替えるだけ。
 //
 // ブラウザからの不正な呼び出し（DNSリバインディング・別のサイトからの要求）を防ぐため、
 // Hostが127.0.0.1・localhostでない要求と、Originが手元（localhost系）でない要求は断る。
@@ -14,6 +16,8 @@ import {
   type AdminStatus,
   type PairingCode,
   pairingQrText,
+  parseInputSourceRequest,
+  parseMicRequest,
 } from "@tekurobokun/protocol";
 import type { Server as BunServer, ServerWebSocket } from "bun";
 import type { DeviceAuth } from "./device_auth.ts";
@@ -32,12 +36,28 @@ export type AdminApiOptions = {
   status: () => AdminStatus;
   /** 端末を無効にしたあと、その端末の接続を切る */
   onRevoked?: (id: string) => void;
+  /** 入力元とマイクの切り替え（InputSourceRegistry） */
+  sources: {
+    /** 一覧にない入力元ならfalse */
+    setActive(source: string): boolean;
+    setMicPaused(paused: boolean): void;
+  };
   now?: () => Date;
   log?: (line: string) => void;
 };
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const error = (status: number, message: string) => json({ error: message }, status);
+const noContent = () => new Response(null, { status: 204 });
+
+/** 本文のJSON。読めなければnull。 */
+async function readJson(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
 
 /** Host・Originが手元のものか。 */
 export function isLocalRequest(req: Request): boolean {
@@ -130,6 +150,20 @@ export class AdminApi {
       this.log(`pairing code issued (expires ${body.expiresAt})`);
       return json(body, 201);
     }
+    if (pathname === ADMIN_PATHS.inputSource) {
+      if (method !== "PUT") return error(405, "method not allowed");
+      const body = parseInputSourceRequest(await readJson(req));
+      if (!body) return error(400, "expected { source: string }");
+      if (!this.options.sources.setActive(body.source)) return error(400, "no such input source");
+      return noContent();
+    }
+    if (pathname === ADMIN_PATHS.mic) {
+      if (method !== "PUT") return error(405, "method not allowed");
+      const body = parseMicRequest(await readJson(req));
+      if (!body) return error(400, "expected { paused: boolean }");
+      this.options.sources.setMicPaused(body.paused);
+      return noContent();
+    }
     const prefix = `${ADMIN_PATHS.devices}/`;
     if (pathname.startsWith(prefix)) {
       if (method !== "DELETE") return error(405, "method not allowed");
@@ -138,7 +172,7 @@ export class AdminApi {
       this.options.onRevoked?.(id);
       this.event("unpaired", id);
       this.publishStatus();
-      return new Response(null, { status: 204 });
+      return noContent();
     }
     return error(404, "not found");
   }

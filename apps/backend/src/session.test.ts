@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import type { BroadcastMessage, Health, SpeechMessage, Turn } from "@tekurobokun/protocol";
 import { type ContentFilter, WordListFilter } from "./content_filter.ts";
 import type { LogEntry } from "./conversation_log.ts";
-import { InputDeviceRegistry } from "./devices.ts";
 import { type DialogueEngine, type DialogueResult, LlmError } from "./dialogue/engine.ts";
-import { ConversationSession, type Timers } from "./session.ts";
+import { InputSourceRegistry } from "./input_sources.ts";
+import { ConversationSession, DEFAULT_LISTENING_TIMEOUT_MS, type Timers } from "./session.ts";
+import { type Recognition, type SpeechRecognizer, SttError } from "./stt/engine.ts";
 import { type Speech, splitSentences, type TtsEngine, TtsError } from "./tts/engine.ts";
 
 /** 合成の結果を外から渡すまで待つTtsEngine。1文の長さは1000ms。 */
@@ -24,6 +25,26 @@ class ManualTts implements TtsEngine {
   }
   fail(): void {
     this.pending.shift()?.reject(new TtsError("down"));
+  }
+}
+
+/** 文字にした結果を外から渡すまで待つSpeechRecognizer。 */
+class ManualStt implements SpeechRecognizer {
+  calls: Uint8Array[] = [];
+  private pending: { resolve: (r: Recognition) => void; reject: (e: Error) => void }[] = [];
+
+  recognize(wav: Uint8Array): Promise<Recognition> {
+    this.calls.push(wav);
+    return new Promise((resolve, reject) => this.pending.push({ resolve, reject }));
+  }
+  async probe(): Promise<boolean> {
+    return true;
+  }
+  answer(text: string, ms = 700): void {
+    this.pending.shift()?.resolve({ text, ms });
+  }
+  fail(): void {
+    this.pending.shift()?.reject(new SttError("down"));
   }
 }
 
@@ -73,20 +94,25 @@ function setup(
   options: {
     llm?: boolean;
     tts?: boolean;
+    stt?: boolean;
     robot?: boolean;
+    /** 起動時の入力元（既定tablet） */
+    active?: string;
     displayTurns?: number;
     filter?: ContentFilter;
   } = {},
 ) {
   const dialogue = new ManualDialogue();
   const tts = new ManualTts();
+  const stt = new ManualStt();
   const clock = new ManualClock();
-  const devices = new InputDeviceRegistry(["tablet", "phone"], "tablet");
+  const sources = new InputSourceRegistry(["tablet", "phone"], options.active ?? "tablet");
   const health = {
     value: {
       backend: true,
       llm: options.llm ?? true,
       tts: options.tts ?? true,
+      stt: options.stt ?? true,
       robot: options.robot ?? false,
     } as Health,
     snapshot() {
@@ -98,6 +124,9 @@ function setup(
     markTtsDown() {
       this.value.tts = false;
     },
+    markSttDown() {
+      this.value.stt = false;
+    },
   };
   const emitted: BroadcastMessage[] = [];
   const speeches: SpeechMessage[] = [];
@@ -106,7 +135,8 @@ function setup(
     dialogue,
     filter: options.filter,
     tts,
-    devices,
+    stt,
+    sources,
     health,
     emit: (m) => emitted.push(m),
     sendToRobot: (m) => speeches.push(m),
@@ -116,7 +146,7 @@ function setup(
     timers: clock,
     newId: () => `t${++id}`,
   });
-  return { session, dialogue, tts, clock, devices, health, emitted, speeches };
+  return { session, dialogue, tts, stt, clock, sources, health, emitted, speeches };
 }
 
 /** 機体ありで発言し、返事を得て話し中に入ったところまで進める。 */
@@ -211,8 +241,8 @@ describe("ConversationSession", () => {
   });
 
   test("切り替えた端末から受け付ける", async () => {
-    const { session, dialogue, devices } = setup();
-    devices.setActive("phone");
+    const { session, dialogue, sources } = setup();
+    sources.setActive("phone");
     const done = session.handleUtterance("phone", "スマホから");
     dialogue.answer("a");
     expect(await done).toBe("accepted");
@@ -437,8 +467,9 @@ describe("ConversationSession（会話ログ）", () => {
     const session = new ConversationSession({
       dialogue: s.dialogue,
       tts: s.tts,
+      stt: s.stt,
       filter: options.filter,
-      devices: s.devices,
+      sources: s.sources,
       health: s.health,
       emit: (m) => s.emitted.push(m),
       sendToRobot: (m) => s.speeches.push(m),
@@ -460,9 +491,12 @@ describe("ConversationSession（会話ログ）", () => {
     await done;
     expect(entries).toEqual([
       {
+        kind: "turn",
         at: "2026-11-14T10:02:11.000+09:00",
-        device: "tablet",
+        source: "tablet",
+        via: "text",
         input: "こんにちは",
+        stt: null,
         thinkingMs: 1200,
         raw: "やあ。",
         say: "やあ。",
@@ -502,16 +536,16 @@ describe("ConversationSession（会話ログ）", () => {
   });
 
   test("切り替えた端末からの発言は、その端末名で残す（手順8）", async () => {
-    const { session, dialogue, devices, entries } = logged();
-    devices.setActive("phone");
+    const { session, dialogue, sources, entries } = logged();
+    sources.setActive("phone");
     const done = session.handleUtterance("phone", "スマホから");
     dialogue.answer("a");
     await done;
-    expect(entries[0]?.device).toBe("phone");
+    expect(entries[0]?.source).toBe("phone");
   });
 
   test("LLMが落ちている状態で届いた発言、LLMの失敗は、error付きで残す（手順9）", async () => {
-    const failedFields: Omit<LogEntry, "at" | "device" | "input"> = {
+    const failedFields: Omit<LogEntry, "kind" | "at" | "source" | "via" | "input" | "stt"> = {
       thinkingMs: null,
       raw: null,
       say: null,
@@ -523,9 +557,12 @@ describe("ConversationSession（会話ログ）", () => {
     expect(await down.session.handleUtterance("tablet", "こんにちは")).toBe("llm_unavailable");
     expect(down.entries).toEqual([
       {
+        kind: "turn",
         at: "2026-11-14T10:02:11.000+09:00",
-        device: "tablet",
+        source: "tablet",
+        via: "text",
         input: "こんにちは",
+        stt: null,
         ...failedFields,
       },
     ]);
@@ -570,5 +607,239 @@ describe("ConversationSession（会話ログ）", () => {
     await done;
     expect(dialogue.calls[0]?.history).toEqual([]);
     expect(session.history().map((t) => t.text)).toEqual(["前回の発言", "こんにちは"]);
+  });
+});
+
+describe("ConversationSession（機体のマイク）", () => {
+  const wav = new Uint8Array([1, 2, 3, 4]);
+  const statuses = (emitted: BroadcastMessage[]) =>
+    emitted.filter((m) => m.type === "status").map((m) => m.type === "status" && m.session);
+  /** 文字にした結果を受け取ってから、返事を求めるところまで進める */
+  const settle = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
+
+  function robotSetup(options: Parameters<typeof setup>[0] = {}) {
+    const entries: LogEntry[] = [];
+    const s = setup({ active: "robot", robot: true, ...options });
+    let id = 0;
+    const session = new ConversationSession({
+      dialogue: s.dialogue,
+      tts: s.tts,
+      stt: s.stt,
+      sources: s.sources,
+      health: s.health,
+      emit: (m) => s.emitted.push(m),
+      sendToRobot: (m) => s.speeches.push(m),
+      displayTurns: 50,
+      speakingGraceMs: 5000,
+      now: () => new Date(s.clock.ms),
+      timers: s.clock,
+      newId: () => `v${++id}`,
+      record: (e) => entries.push(e),
+    });
+    return { ...s, session, entries };
+  }
+
+  test("listening→聞き取り中→voice→STT→考え中→返事→話し中。(mic)の発言として残す", async () => {
+    const { session, stt, dialogue, emitted, entries, clock } = robotSetup();
+    session.handleListening(true);
+    expect(session.session).toBe("listening");
+    expect(session.status()).toMatchObject({ inputSource: "robot", micPaused: false });
+    clock.advance(1500);
+    const done = session.handleVoice(wav);
+    expect(stt.calls).toEqual([wav]);
+    // 文字にしている間は聞き取り中のまま。取り消しも、2つ目の声も受け付けない
+    session.handleListening(false);
+    expect(session.session).toBe("listening");
+    expect(await session.handleVoice(wav)).toBe("busy");
+    stt.answer(" こんにちは ", 640);
+    await settle();
+    expect(session.session).toBe("thinking");
+    expect(dialogue.calls[0]?.text).toBe("こんにちは");
+    dialogue.answer("やあ。");
+    expect(await done).toBe("accepted");
+    expect(session.session).toBe("speaking");
+    expect(statuses(emitted)).toEqual(["listening", "thinking", "speaking"]);
+    const started = emitted.find((m) => m.type === "turn_started");
+    expect(started).toMatchObject({
+      turn: {
+        source: "robot",
+        via: "mic",
+        text: "こんにちは",
+        at: "2026-11-14T10:02:12.500+09:00",
+      },
+    });
+    expect(entries).toEqual([
+      {
+        kind: "turn",
+        at: "2026-11-14T10:02:12.500+09:00",
+        source: "robot",
+        via: "mic",
+        input: "こんにちは",
+        stt: { ms: 640 },
+        thinkingMs: 1200,
+        raw: "やあ。",
+        say: "やあ。",
+        emotion: "happy",
+        filtered: "none",
+        error: null,
+      },
+    ]);
+  });
+
+  test("listeningなしでvoiceが届いても、聞き取り中にしてから文字にする", async () => {
+    const { session, stt, dialogue, emitted } = robotSetup({ robot: false });
+    const done = session.handleVoice(wav);
+    expect(session.session).toBe("listening");
+    stt.answer("やあ");
+    await settle();
+    dialogue.answer("こんにちは。");
+    await done;
+    expect(statuses(emitted)).toEqual(["listening", "thinking", "idle"]);
+  });
+
+  test("入力元がrobotでない・マイクの一時停止中・待機中でない声は、STTに渡さず記録しない", async () => {
+    const other = robotSetup({ active: "tablet" });
+    other.session.handleListening(true);
+    expect(other.session.session).toBe("idle");
+    expect(await other.session.handleVoice(wav)).toBe("inactive_device");
+
+    const paused = robotSetup();
+    paused.sources.setMicPaused(true);
+    paused.session.handleListening(true);
+    expect(paused.session.session).toBe("idle");
+    expect(await paused.session.handleVoice(wav)).toBe("mic_paused");
+    expect(paused.session.status().micPaused).toBe(true);
+
+    const busy = robotSetup();
+    busy.sources.setActive("tablet");
+    const typing = busy.session.handleUtterance("tablet", "文字");
+    busy.sources.setActive("robot");
+    expect(busy.session.session).toBe("thinking");
+    busy.session.handleListening(true);
+    expect(busy.session.session).toBe("thinking");
+    expect(await busy.session.handleVoice(wav)).toBe("busy");
+    busy.dialogue.answer("a。");
+    await typing;
+    expect(busy.session.session).toBe("speaking");
+    expect(await busy.session.handleVoice(wav)).toBe("busy");
+
+    for (const s of [other, paused, busy]) expect(s.stt.calls).toHaveLength(0);
+    expect(busy.entries.map((e) => e.via)).toEqual(["text"]);
+  });
+
+  test("STT・LLM・VOICEVOXのどれかが落ちていれば、聞かず、声も渡さない", async () => {
+    for (const down of [{ stt: false }, { llm: false }, { tts: false }]) {
+      const s = robotSetup(down);
+      s.session.handleListening(true);
+      expect(s.session.session).toBe("idle");
+      await s.session.handleVoice(wav);
+      expect(s.stt.calls).toHaveLength(0);
+      expect(s.entries).toHaveLength(0);
+    }
+  });
+
+  test("STTの結果が空なら、記録せずに待機中へ戻る", async () => {
+    const { session, stt, dialogue, entries, emitted } = robotSetup();
+    session.handleListening(true);
+    const done = session.handleVoice(wav);
+    stt.answer("  ");
+    expect(await done).toBe("empty");
+    expect(session.session).toBe("idle");
+    expect(dialogue.calls).toHaveLength(0);
+    expect(entries).toHaveLength(0);
+    expect(emitted.some((m) => m.type === "turn_started")).toBe(false);
+    expect(statuses(emitted)).toEqual(["listening", "idle"]);
+  });
+
+  test("STTが失敗したら、sttをfalseにして待機中へ戻り、error付きで残す", async () => {
+    const { session, stt, health, entries } = robotSetup();
+    const done = session.handleVoice(wav);
+    stt.fail();
+    expect(await done).toBe("stt_unavailable");
+    expect(session.session).toBe("idle");
+    expect(health.value.stt).toBe(false);
+    expect(entries).toEqual([
+      {
+        kind: "turn",
+        at: "2026-11-14T10:02:11.000+09:00",
+        source: "robot",
+        via: "mic",
+        input: "",
+        stt: null,
+        thinkingMs: null,
+        raw: null,
+        say: null,
+        emotion: null,
+        filtered: "none",
+        error: "stt_unavailable",
+      },
+    ]);
+    // 落ちている間は聞かない。戻れば、また聞く
+    session.handleListening(true);
+    expect(session.session).toBe("idle");
+    health.value.stt = true;
+    session.handleListening(true);
+    expect(session.session).toBe("listening");
+  });
+
+  test("文字にしている間にLLMが落ちたら、文字にした発言をerror付きで残して待機中へ", async () => {
+    const { session, stt, health, entries, dialogue } = robotSetup();
+    const done = session.handleVoice(wav);
+    health.value.llm = false;
+    stt.answer("こんにちは", 500);
+    expect(await done).toBe("llm_unavailable");
+    expect(session.session).toBe("idle");
+    expect(dialogue.calls).toHaveLength(0);
+    expect(entries[0]).toMatchObject({
+      input: "こんにちは",
+      via: "mic",
+      stt: { ms: 500 },
+      error: "llm_unavailable",
+    });
+  });
+
+  test("取り消し・時間切れ・入力元の切り替え・マイクの一時停止・機体の切断で、聞き取り中から待機中へ", () => {
+    const { session, sources, clock } = robotSetup();
+    session.handleListening(true);
+    session.handleListening(false);
+    expect(session.session).toBe("idle");
+    expect(clock.pending).toBe(0);
+
+    session.handleListening(true);
+    clock.advance(DEFAULT_LISTENING_TIMEOUT_MS - 1);
+    expect(session.session).toBe("listening");
+    clock.advance(1);
+    expect(session.session).toBe("idle");
+
+    session.handleListening(true);
+    sources.setActive("tablet");
+    session.inputConditionsChanged();
+    expect(session.session).toBe("idle");
+    sources.setActive("robot");
+
+    session.handleListening(true);
+    sources.setMicPaused(true);
+    session.inputConditionsChanged();
+    expect(session.session).toBe("idle");
+    sources.setMicPaused(false);
+
+    session.handleListening(true);
+    session.robotDisconnected();
+    expect(session.session).toBe("idle");
+    expect(clock.pending).toBe(0);
+  });
+
+  test("文字にしている間は、入力元を切り替えても結果を待つ", async () => {
+    const { session, sources, stt, dialogue } = robotSetup({ robot: false });
+    const done = session.handleVoice(wav);
+    sources.setActive("tablet");
+    session.inputConditionsChanged();
+    expect(session.session).toBe("listening");
+    stt.answer("やあ");
+    await settle();
+    dialogue.answer("a");
+    expect(await done).toBe("accepted");
   });
 });

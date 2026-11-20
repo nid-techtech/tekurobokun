@@ -11,6 +11,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.31",
     "@tauri-apps/api": "^2.12",
     "@tauri-apps/plugin-opener": "^2",
     "@tekurobokun/i18n": "workspace:*",

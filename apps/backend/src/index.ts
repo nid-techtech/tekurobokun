@@ -1,20 +1,24 @@
 // バックエンドの起動。`--stub`を付けると、LLMとVOICEVOXなしで動く（imple 10節）。
 //   bun apps/backend/src/index.ts [--stub]
 
-import { type AdminStatus, pairingQrText, ROBOT_SOURCE } from "@tekurobokun/protocol";
+import { type AdminStatus, pairingQrText } from "@tekurobokun/protocol";
 import { AdminApi } from "./admin_api.ts";
 import { CONFIG_DIR, loadBackendConfig, loadPersona, REPO_ROOT } from "./config.ts";
 import { loadFilterConfig, WordListFilter } from "./content_filter.ts";
 import { ConversationLog } from "./conversation_log.ts";
 import { DeviceAuth, FileDeviceStore } from "./device_auth.ts";
-import { InputDeviceRegistry } from "./devices.ts";
 import { buildSystemPrompt, type DialogueEngine } from "./dialogue/engine.ts";
 import { LlamaDialogueEngine } from "./dialogue/llama.ts";
 import { DEFAULT_STUB_DATA, StubDialogueEngine } from "./dialogue/stub.ts";
 import { HealthMonitor, httpProbe } from "./health.ts";
+import { InputSourceRegistry } from "./input_sources.ts";
 import { OperatorConsole } from "./operator.ts";
 import { Server } from "./server.ts";
 import { ConversationSession } from "./session.ts";
+import { type SpeechRecognizer, unavailableRecognizer } from "./stt/engine.ts";
+import { GoogleSpeechRecognizer, missingGoogleSettings } from "./stt/google.ts";
+import { GoogleAccessToken, keyFileLoader } from "./stt/google_auth.ts";
+import { StubSpeechRecognizer } from "./stt/stub.ts";
 import { StubAvailability } from "./stub_availability.ts";
 import { toJstIso } from "./time.ts";
 import type { TtsEngine } from "./tts/engine.ts";
@@ -26,17 +30,32 @@ const log = (line: string) => console.log(`[backend] ${line}`);
 
 const config = await loadBackendConfig();
 
+/** 設定のSTT。Googleの設定が足りなければ、つねに失敗するもの（health.sttはfalse）。 */
+function createSpeechRecognizer(): SpeechRecognizer {
+  if (config.stt.provider === "stub") return new StubSpeechRecognizer();
+  const missing = missingGoogleSettings(config.stt);
+  if (missing.length > 0) {
+    log(`warning: stt is not configured (${missing.join(", ")}); the robot mic is unavailable`);
+    return unavailableRecognizer(`not configured: ${missing.join(", ")}`);
+  }
+  const { keyFile } = config.stt.google;
+  const token = new GoogleAccessToken({ loadKey: keyFileLoader(keyFile) });
+  return new GoogleSpeechRecognizer({ config: config.stt, token });
+}
+
 let dialogue: DialogueEngine;
 let tts: TtsEngine;
+let stt: SpeechRecognizer;
 let health: HealthMonitor;
-/** スタブでLLM・VOICEVOXの停止を再現する切り替え（スタブのときだけ） */
+/** スタブでLLM・VOICEVOX・STTの停止を再現する切り替え（スタブのときだけ） */
 const availability = stub ? new StubAvailability() : null;
 if (availability) {
   const av = availability;
   dialogue = new StubDialogueEngine(undefined, () => av.isUp("llm"));
   tts = new StubTtsEngine({ isUp: () => av.isUp("tts") });
+  stt = new StubSpeechRecognizer({ isUp: () => av.isUp("stt") });
   health = new HealthMonitor(
-    { llm: av.probe("llm"), tts: av.probe("tts") },
+    { llm: av.probe("llm"), tts: av.probe("tts"), stt: av.probe("stt") },
     config.healthIntervalMs,
   );
 } else {
@@ -44,10 +63,12 @@ if (availability) {
   if (persona === null) log(`warning: ${CONFIG_DIR}persona.md not found; using reply format only`);
   dialogue = new LlamaDialogueEngine(config.llm, await buildSystemPrompt(persona));
   tts = new VoicevoxTtsEngine(config.tts);
+  stt = createSpeechRecognizer();
   health = new HealthMonitor(
     {
       llm: httpProbe(`${config.llm.baseUrl}/health`),
       tts: httpProbe(`${config.tts.baseUrl}/version`),
+      stt: () => stt.probe(),
     },
     config.healthIntervalMs,
   );
@@ -58,11 +79,8 @@ const filterConfig = await loadFilterConfig();
 if (stub) filterConfig.words.push(...DEFAULT_STUB_DATA.filterWords);
 const filter = new WordListFilter(filterConfig);
 
-// 入力元の一覧は、機体のマイク（robot）と設定のconsole。数字キーの1がrobot（Phase 7でInputSourceRegistryに置き換える）。
-const devices = new InputDeviceRegistry(
-  [ROBOT_SOURCE, ...config.inputSources.consoles],
-  config.inputSources.active,
-);
+// 入力元は、機体のマイク（robot）と設定のconsole。数字キーの1がrobot。
+const sources = new InputSourceRegistry(config.inputSources.consoles, config.inputSources.active);
 // 登録済みの端末（data/devices.json）。スタブでも同じファイルを使う（切り替えのたびに登録し直さないため）。
 const devicesFile = `${REPO_ROOT}data/devices.json`;
 const auth = new DeviceAuth({
@@ -95,7 +113,8 @@ const session = new ConversationSession({
   filter,
   dialogue,
   tts,
-  devices,
+  stt,
+  sources,
   health,
   emit: (message) => {
     server.broadcast(message);
@@ -134,11 +153,12 @@ const admin = new AdminApi({
   publicUrl: config.publicUrl,
   status: adminStatus,
   onRevoked: (id) => server.disconnectDevice(id),
+  sources,
   log,
 });
 
 const operator = new OperatorConsole({
-  devices,
+  sources,
   status: () => session.status(),
   issuePairingCode: () => {
     const issued = auth.issueCode();
@@ -155,13 +175,17 @@ const operator = new OperatorConsole({
   },
 });
 
-// 接続・応答の有無と有効な端末が変わったら、全員にstatusを送り、ターミナルに状態を出す。
+// 接続・応答の有無と入力元・マイクが変わったら、全員にstatusを送り、ターミナルに状態を出す。
 health.onChange(() => {
+  session.inputConditionsChanged();
   session.broadcastStatus();
   admin.publishStatus();
   operator.showStatus();
 });
-devices.onChange(() => {
+sources.onChange((change) => {
+  if (change.kind === "source") admin.event("input_source", change.source);
+  else admin.event("mic", change.paused ? "paused" : "resumed");
+  session.inputConditionsChanged();
   session.broadcastStatus();
   admin.publishStatus();
   operator.showStatus();
@@ -175,6 +199,13 @@ log(
   `llm ${stub ? "stub" : `${config.llm.baseUrl} (${config.llm.activeAlias}: ${config.llm.model})`}`,
 );
 log(`tts ${stub ? "stub" : `${config.tts.baseUrl} (speaker ${config.tts.speaker})`}`);
+log(
+  `stt ${
+    stub || config.stt.provider === "stub"
+      ? "stub"
+      : `google ${config.stt.google.location}/${config.stt.google.model} (data logging ${config.stt.google.dataLogging ? "on" : "off"} in the project)`
+  }`,
+);
 log(`filter: ${filterConfig.words.length} words, ${filterConfig.replies.length} replies`);
 log(`conversation log: ${logDir} (restored ${session.history().length} turns)`);
 log(`admin api: http://127.0.0.1:${admin.port}/admin/status (public url ${config.publicUrl})`);
@@ -182,6 +213,6 @@ log(`devices: ${devicesFile} (${auth.devices().length} registered)`);
 if (operator.attach(process.stdin)) {
   for (const line of operator.helpLines()) console.log(line);
 } else {
-  log("warning: stdin is not a terminal; device switching keys are disabled");
+  log("warning: stdin is not a terminal; input source and mic keys are disabled");
 }
 operator.showStatus();

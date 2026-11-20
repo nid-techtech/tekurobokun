@@ -297,3 +297,12 @@ body {
 .pair-head::after {
   content: " % ";
 }
+
+/* ===== ログ表示専用（S01h） ===== */
+.lockline {
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-top: var(--stroke-thin) solid var(--color-rule-faint);
+}
+.sh .mic {
+  color: var(--color-accent);
+}

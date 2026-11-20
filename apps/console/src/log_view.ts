@@ -1,5 +1,6 @@
-// LogView：シェル風のログ（S01a〜S01e）。
-// 来場者の発言は時刻つきのプロンプト行、返事は「finished thinking in」の行と「>」の行。
+// LogView：シェル風のログ（S01a〜S01e、S01h）。
+// 来場者の発言は時刻つきのプロンプト行（機体のマイクで聞いた発言は「(mic)」付き）、
+// 返事は「finished thinking in」の行と「>」の行。
 // 考え中は末尾に「is thinking」と点字のスピナー。話し中は最後の返事の行の末尾でカーソルが点滅する。
 // ログは消さず、下に追加して末尾へスクロールする。
 
@@ -60,10 +61,17 @@ export class LogView {
     if (this.groups.has(turn.id)) return;
     this.empty?.remove();
     this.empty = null;
+    const mic =
+      turn.via === "mic"
+        ? [
+            h("span", { class: "mic", text: m["console.heard_mark"]() }),
+            document.createTextNode(" "),
+          ]
+        : [];
     const group = h(
       "div",
       { class: "sh-turn" },
-      h("div", { class: "sh" }, ...promptHead(turn.at, this.prompt()), turn.text),
+      h("div", { class: "sh" }, ...promptHead(turn.at, this.prompt()), ...mic, turn.text),
     );
     this.groups.set(turn.id, group);
     this.el.insertBefore(group, this.thinking);

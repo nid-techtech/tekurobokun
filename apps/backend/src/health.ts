@@ -30,7 +30,8 @@ export class HealthMonitor {
   ) {}
 
   snapshot(): Health {
-    return { backend: true, llm: this.llm, tts: this.tts, robot: this.robot };
+    // STTの応答の有無はPhase 7で問い合わせる。それまでは常にtrue（STTを使わない）。
+    return { backend: true, llm: this.llm, tts: this.tts, stt: true, robot: this.robot };
   }
 
   /** 値が変わったときに呼ばれる処理を登録する。戻り値で登録を外す。 */

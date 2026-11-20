@@ -268,8 +268,9 @@ describe("displayStateFor", () => {
     ({
       type: "status",
       session,
-      activeDevice: "tablet",
-      health: { backend: true, llm: true, tts: true, robot: true, ...health },
+      inputSource: "tablet",
+      micPaused: false,
+      health: { backend: true, llm: true, tts: true, stt: true, robot: true, ...health },
     }) as StatusMessage;
 
   test("statusから表示状態を決める", () => {

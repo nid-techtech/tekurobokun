@@ -62,6 +62,12 @@ export class FaceState {
     this.emotionUntil = Number.POSITIVE_INFINITY;
   }
 
+  /** 待機中の顔に、感情の目をしばらく出す（登録できたときの笑った顔。S02g）。 */
+  flashEmotion(emotion: Emotion, nowMs: number, durationMs: number): void {
+    this.emotion = emotion;
+    this.emotionUntil = nowMs + durationMs;
+  }
+
   /** 描画頻度を上げるべきか（形が毎フレーム変わりうる状態か）。 */
   get animating(): boolean {
     if (this.state === "SLEEP") return !this.reducedMotion();

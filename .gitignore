@@ -8,6 +8,8 @@ apps/robot/src-tauri/target/
 
 # 実行時のデータとローカル設定
 logs/
+# 登録済みの端末とトークンのハッシュ、検索回数
+data/
 config/*.local.json
 apps/robot/src/config/config.local.json
 .env

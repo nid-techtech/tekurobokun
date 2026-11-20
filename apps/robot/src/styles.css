@@ -20,6 +20,7 @@ body {
    row-reverseで右端を揃え、margin-right:autoで短い文は左寄せ、長い文は左側を切り捨てる。 */
 #caption-overlay {
   position: fixed;
+  z-index: 2;
   display: flex;
   flex-direction: row-reverse;
   overflow: hidden;
@@ -38,9 +39,38 @@ body {
   display: none;
 }
 
+/* 登録の画面（S02g）。キャンバス（800×600。大きさはJSがstyleに入れる）の上に重ね、字幕の行の下にカメラの映像、その上にQRを合わせる枠 */
+#pairing-scanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background-color: var(--color-face-ink);
+}
+
+#pairing-scanner[hidden] {
+  display: none;
+}
+
+.pairing-camera {
+  position: absolute;
+  object-fit: cover;
+  background-color: var(--color-keyboard);
+}
+
+.pairing-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--color-accent);
+}
+
 /* B7: `/`キーでトグルするデバッグHUD。FacialEngineの描画には関与しない独立オーバーレイ */
 #debug-hud {
   position: fixed;
+  z-index: 3;
   top: 0;
   left: 0;
   margin: 0;

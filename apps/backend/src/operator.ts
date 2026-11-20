@@ -2,6 +2,7 @@
 // 数字キー`1`〜`9`（端末一覧の順）で入力を受け付ける端末を切り替え、現在の状態を1行で表示する。
 // 端末の切り替えはここからだけ行う（入力ページ・機体には切り替えの操作を置かない）。
 // スタブ（--stub）のときは、`l`・`t`でLLM・VOICEVOXの停止と復旧を再現できる（W4-2）。
+// `p`で登録コードを発行して表示する（開発用。本番はランチャーで出す）。
 //
 // キーの解釈（handleKey）と状態の1行（statusLine）は端末の入出力と分け、テストできるようにする。
 
@@ -21,8 +22,11 @@ export type OperatorConsoleOptions = {
   status: () => StatusMessage;
   /** スタブのときだけ渡す。止める・戻すの切り替えのあと、recheckでヘルスを問い合わせ直す */
   stub?: { availability: StubAvailability; recheck: () => Promise<void> };
+  /** 登録コードを発行する（`p`）。なければ`p`は使えない */
+  issuePairingCode?: () => { code: string; expiresAt: Date; qr: string };
   /** ターミナルへ1行出す */
   write: (line: string) => void;
+  now?: () => Date;
   /** Ctrl+Cで呼ぶ（バックエンドを終える） */
   quit: () => void;
 };
@@ -65,8 +69,9 @@ export class OperatorConsole {
   /** キー操作の説明。起動時と`h`・`?`で出す。 */
   helpLines(): string[] {
     const n = Math.min(this.options.devices.list().length, 9);
+    const pair = this.options.issuePairingCode ? ", p pairing code" : "";
     const lines = [
-      `[operator] keys: 1-${n} switch input device, s show status, h help, Ctrl+C quit`,
+      `[operator] keys: 1-${n} switch input source${pair}, s show status, h help, Ctrl+C quit`,
     ];
     if (this.options.stub) lines.push("[operator] stub keys: l stop/start llm, t stop/start tts");
     return lines;
@@ -96,6 +101,13 @@ export class OperatorConsole {
     const lower = key.toLowerCase();
     if (lower === "s" || key === "\r" || key === "\n") {
       this.showStatus();
+      return;
+    }
+    if (lower === "p" && this.options.issuePairingCode) {
+      const { code, expiresAt, qr } = this.options.issuePairingCode();
+      const now = (this.options.now ?? (() => new Date()))();
+      const sec = Math.max(0, Math.round((expiresAt.getTime() - now.getTime()) / 1000));
+      this.options.write(`[operator] pairing code ${code} (expires in ${sec}s) qr=${qr}`);
       return;
     }
     if (lower === "h" || key === "?") {

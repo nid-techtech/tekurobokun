@@ -1,6 +1,11 @@
 {
   "backend": {
-    "url": "ws://127.0.0.1:8787/ws"
+    "url": null,
+    "token": null
+  },
+  "pairing": {
+    "scanIntervalMs": 300,
+    "okHoldMs": 2000
   },
   "drive": {
     "forwardSpeed": 40,

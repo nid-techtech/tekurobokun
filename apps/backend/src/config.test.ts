@@ -19,7 +19,19 @@ describe("loadBackendConfig", () => {
     expect(config.console.autosendMs).toBe(3000);
     expect(config.console.fontSizePx).toBe(18);
     expect(config.console.bottomInsetPx).toBe(0);
-    expect(config.devices.list).toContain(config.devices.active);
+    expect(config.inputSources.active).toBe("robot");
+    expect(config.inputSources.consoles).toEqual(["tablet", "phone"]);
+    expect(config.host).toBe("127.0.0.1");
+    expect(config.admin.port).toBe(8788);
+    expect(config.pairing).toEqual({
+      codeTtlMs: 60000,
+      maxFailures: 5,
+      failureWindowMs: 60000,
+      lockMs: 300000,
+    });
+    // いまの別名のモデルの値で解決する
+    expect(config.llm.activeAlias).toBe("main");
+    expect(config.llm.model).toBe(config.llm.models.main.model);
   });
 
   test("local.jsonで項目ごとに上書きする", async () => {
@@ -31,12 +43,13 @@ describe("loadBackendConfig", () => {
       );
       writeFileSync(
         `${dir}backend.local.json`,
-        JSON.stringify({ llm: { baseUrl: "http://192.168.0.10:8080/", model: "qwen3-4b" } }),
+        JSON.stringify({ llm: { baseUrl: "http://192.168.0.10:8080/", activeAlias: "sub" } }),
       );
       const config = await loadBackendConfig(dir);
       expect(config.llm.baseUrl).toBe("http://192.168.0.10:8080");
       expect(config.llm.model).toBe("qwen3-4b");
       expect(config.llm.contextTurns).toBe(4);
+      expect(config.llm.activeAlias).toBe("sub");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -54,7 +67,18 @@ describe("parseBackendConfig", () => {
       parseBackendConfig({ ...raw, llm: { ...(raw.llm as object), baseUrl: "localhost" } }),
     ).toThrow("llm.baseUrl");
     expect(() =>
-      parseBackendConfig({ ...raw, devices: { list: ["tablet"], active: "phone" } }),
-    ).toThrow("devices.active");
+      parseBackendConfig({ ...raw, inputSources: { consoles: ["tablet"], active: "phone" } }),
+    ).toThrow("inputSources.active");
+    expect(() =>
+      parseBackendConfig({ ...raw, inputSources: { consoles: ["robot"], active: "robot" } }),
+    ).toThrow("inputSources.consoles");
+    expect(() => parseBackendConfig({ ...raw, admin: { port: 8787 } })).toThrow("admin.port");
+    expect(() =>
+      parseBackendConfig({ ...raw, llm: { ...(raw.llm as object), activeAlias: "third" } }),
+    ).toThrow("llm.activeAlias");
+    expect(() => parseBackendConfig({ ...raw, host: "" })).toThrow("host");
+    expect(() =>
+      parseBackendConfig({ ...raw, stt: { ...(raw.stt as object), provider: "whisper" } }),
+    ).toThrow("stt.provider");
   });
 });

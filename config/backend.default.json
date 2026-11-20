@@ -1,21 +1,65 @@
 {
+  "host": "127.0.0.1",
   "port": 8787,
+  "publicUrl": "http://localhost:8787",
+  "admin": {
+    "port": 8788
+  },
   "llm": {
     "baseUrl": "http://127.0.0.1:8080",
-    "model": "qwen3-4b",
+    "models": {
+      "main": {
+        "model": "qwen3-8b",
+        "maxTokens": 256,
+        "temperature": 0.7
+      },
+      "sub": {
+        "model": "qwen3-4b",
+        "maxTokens": 256,
+        "temperature": 0.7
+      }
+    },
+    "activeAlias": "main",
     "contextTurns": 4,
     "jsonSchema": true,
-    "maxTokens": 256,
-    "temperature": 0.7,
     "timeoutMs": 60000
   },
   "tts": {
     "baseUrl": "http://127.0.0.1:50021",
     "speaker": 1
   },
-  "devices": {
-    "list": ["tablet", "phone"],
-    "active": "tablet"
+  "inputSources": {
+    "consoles": ["tablet", "phone"],
+    "active": "robot"
+  },
+  "pairing": {
+    "codeTtlMs": 60000,
+    "maxFailures": 5,
+    "failureWindowMs": 60000,
+    "lockMs": 300000
+  },
+  "stt": {
+    "provider": "google",
+    "timeoutMs": 10000,
+    "google": {
+      "projectId": "",
+      "location": "",
+      "model": "",
+      "keyFile": "",
+      "dataLogging": false
+    }
+  },
+  "search": {
+    "provider": "tavily",
+    "apiKey": "",
+    "maxResults": 3,
+    "timeoutMs": 8000
+  },
+  "dialogue": {
+    "questionLoopThreshold": 2
+  },
+  "session": {
+    "idleResetMs": 90000
   },
   "console": {
     "autosendMs": 3000,

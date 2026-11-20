@@ -1,9 +1,12 @@
 // バックエンドの起動。`--stub`を付けると、LLMとVOICEVOXなしで動く（imple 10節）。
 //   bun apps/backend/src/index.ts [--stub]
 
+import { type AdminStatus, pairingQrText, ROBOT_SOURCE } from "@tekurobokun/protocol";
+import { AdminApi } from "./admin_api.ts";
 import { CONFIG_DIR, loadBackendConfig, loadPersona, REPO_ROOT } from "./config.ts";
 import { loadFilterConfig, WordListFilter } from "./content_filter.ts";
 import { ConversationLog } from "./conversation_log.ts";
+import { DeviceAuth, FileDeviceStore } from "./device_auth.ts";
 import { InputDeviceRegistry } from "./devices.ts";
 import { buildSystemPrompt, type DialogueEngine } from "./dialogue/engine.ts";
 import { LlamaDialogueEngine } from "./dialogue/llama.ts";
@@ -13,6 +16,7 @@ import { OperatorConsole } from "./operator.ts";
 import { Server } from "./server.ts";
 import { ConversationSession } from "./session.ts";
 import { StubAvailability } from "./stub_availability.ts";
+import { toJstIso } from "./time.ts";
 import type { TtsEngine } from "./tts/engine.ts";
 import { StubTtsEngine } from "./tts/stub.ts";
 import { VoicevoxTtsEngine } from "./tts/voicevox.ts";
@@ -54,12 +58,33 @@ const filterConfig = await loadFilterConfig();
 if (stub) filterConfig.words.push(...DEFAULT_STUB_DATA.filterWords);
 const filter = new WordListFilter(filterConfig);
 
-const devices = new InputDeviceRegistry(config.devices.list, config.devices.active);
+// 入力元の一覧は、機体のマイク（robot）と設定のconsole。数字キーの1がrobot（Phase 7でInputSourceRegistryに置き換える）。
+const devices = new InputDeviceRegistry(
+  [ROBOT_SOURCE, ...config.inputSources.consoles],
+  config.inputSources.active,
+);
+// 登録済みの端末（data/devices.json）。スタブでも同じファイルを使う（切り替えのたびに登録し直さないため）。
+const devicesFile = `${REPO_ROOT}data/devices.json`;
+const auth = new DeviceAuth({
+  store: new FileDeviceStore(devicesFile),
+  pairing: config.pairing,
+  consoles: config.inputSources.consoles,
+  log,
+});
+await auth.load();
+
 const server = new Server({
+  host: config.host,
   port: config.port,
   staticDir: `${REPO_ROOT}apps/console/dist`,
   settings: config.console,
   health,
+  auth,
+  onPaired: (device) => {
+    admin.event("paired", `${device.role} ${device.name} ${device.id}`);
+    admin.publishStatus();
+  },
+  onConnectionsChanged: () => admin.publishStatus(),
   log,
 });
 // スタブのときは、試しの会話が本番の会話ログ（学習データ）に混ざらないよう、別のディレクトリに書く。
@@ -72,7 +97,11 @@ const session = new ConversationSession({
   tts,
   devices,
   health,
-  emit: (message) => server.broadcast(message),
+  emit: (message) => {
+    server.broadcast(message);
+    // 会話の状態が変わったら、管理用APIの購読者（ランチャー）にも流す。
+    if (message.type === "status") admin.publishStatus();
+  },
   sendToRobot: (message) => server.sendToRobot(message),
   displayTurns: config.historyDisplayTurns,
   speakingGraceMs: config.speakingGraceMs,
@@ -83,15 +112,45 @@ const session = new ConversationSession({
 session.restoreHistory(await conversationLog.loadRecent(config.historyDisplayTurns));
 server.attach(session);
 
+function adminStatus(): AdminStatus {
+  const { session: state, inputSource, micPaused, health: h } = session.status();
+  const now = toJstIso(new Date());
+  return {
+    session: state,
+    inputSource,
+    micPaused,
+    health: h,
+    llmModel: config.llm.activeAlias,
+    // 検索の回数はPhase 8（WebSearcher）で数える。
+    searchCount: { month: now.slice(0, 7), count: 0 },
+    devices: auth.devices((id) => server.isConnected(id)),
+    publicUrl: config.publicUrl,
+  };
+}
+
+const admin = new AdminApi({
+  port: config.admin.port,
+  auth,
+  publicUrl: config.publicUrl,
+  status: adminStatus,
+  onRevoked: (id) => server.disconnectDevice(id),
+  log,
+});
+
 const operator = new OperatorConsole({
   devices,
   status: () => session.status(),
+  issuePairingCode: () => {
+    const issued = auth.issueCode();
+    return { ...issued, qr: pairingQrText(config.publicUrl, issued.code) };
+  },
   stub: availability ? { availability, recheck: () => health.checkNow() } : undefined,
   write: (line) => console.log(line),
   quit: () => {
     log("quit");
     health.stop();
     server.stop();
+    admin.stop();
     process.exit(0);
   },
 });
@@ -99,20 +158,27 @@ const operator = new OperatorConsole({
 // 接続・応答の有無と有効な端末が変わったら、全員にstatusを送り、ターミナルに状態を出す。
 health.onChange(() => {
   session.broadcastStatus();
+  admin.publishStatus();
   operator.showStatus();
 });
 devices.onChange(() => {
   session.broadcastStatus();
+  admin.publishStatus();
   operator.showStatus();
 });
 
 server.start();
+admin.start();
 await health.start();
-log(`${stub ? "stub mode, " : ""}listening on http://localhost:${server.port}/`);
-log(`llm ${stub ? "stub" : `${config.llm.baseUrl} (${config.llm.model})`}`);
+log(`${stub ? "stub mode, " : ""}listening on http://${config.host}:${server.port}/`);
+log(
+  `llm ${stub ? "stub" : `${config.llm.baseUrl} (${config.llm.activeAlias}: ${config.llm.model})`}`,
+);
 log(`tts ${stub ? "stub" : `${config.tts.baseUrl} (speaker ${config.tts.speaker})`}`);
 log(`filter: ${filterConfig.words.length} words, ${filterConfig.replies.length} replies`);
 log(`conversation log: ${logDir} (restored ${session.history().length} turns)`);
+log(`admin api: http://127.0.0.1:${admin.port}/admin/status (public url ${config.publicUrl})`);
+log(`devices: ${devicesFile} (${auth.devices().length} registered)`);
 if (operator.attach(process.stdin)) {
   for (const line of operator.helpLines()) console.log(line);
 } else {

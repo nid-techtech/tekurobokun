@@ -6,6 +6,7 @@ const health = (h: Partial<Health> = {}): Health => ({
   backend: true,
   llm: true,
   tts: true,
+  stt: true,
   robot: true,
   ...h,
 });
@@ -13,7 +14,7 @@ const health = (h: Partial<Health> = {}): Health => ({
 const input = (over: Partial<NoticeInput> = {}): NoticeInput => ({
   connected: true,
   welcomed: true,
-  status: { activeDevice: "tablet", health: health() },
+  status: { inputSource: "tablet", health: health() },
   device: "tablet",
   ...over,
 });
@@ -23,7 +24,7 @@ describe("noticeFor", () => {
     expect(noticeFor(input())).toBeNull();
     // 機体がいなくても、入力ページは使える
     expect(
-      noticeFor(input({ status: { activeDevice: "tablet", health: health({ robot: false }) } })),
+      noticeFor(input({ status: { inputSource: "tablet", health: health({ robot: false }) } })),
     ).toBeNull();
   });
 
@@ -35,21 +36,21 @@ describe("noticeFor", () => {
 
   test("LLM・VOICEVOXのどちらかが応答しないときもS01f（別の端末が有効でも、こちらを優先）", () => {
     for (const h of [{ llm: false }, { tts: false }]) {
-      expect(noticeFor(input({ status: { activeDevice: "tablet", health: health(h) } }))).toBe(
+      expect(noticeFor(input({ status: { inputSource: "tablet", health: health(h) } }))).toBe(
         "offline",
       );
-      expect(noticeFor(input({ status: { activeDevice: "phone", health: health(h) } }))).toBe(
+      expect(noticeFor(input({ status: { inputSource: "phone", health: health(h) } }))).toBe(
         "offline",
       );
     }
   });
 
   test("別の端末が有効ならS01g、自分に切り替われば戻る", () => {
-    expect(noticeFor(input({ status: { activeDevice: "phone", health: health() } }))).toBe(
+    expect(noticeFor(input({ status: { inputSource: "phone", health: health() } }))).toBe(
       "inactive",
     );
     expect(
-      noticeFor(input({ device: "phone", status: { activeDevice: "phone", health: health() } })),
+      noticeFor(input({ device: "phone", status: { inputSource: "phone", health: health() } })),
     ).toBeNull();
   });
 });

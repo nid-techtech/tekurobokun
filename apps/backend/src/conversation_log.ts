@@ -58,7 +58,7 @@ export function parseLogLine(line: string): LogEntry | null {
 
 /** 表示用の履歴の1件にする。返事がなければ（LLMが失敗した発言）、発言だけを出す。 */
 export function entryToTurn(entry: LogEntry, id: string): Turn {
-  const turn: Turn = { id, at: entry.at, device: entry.device, text: entry.input };
+  const turn: Turn = { id, at: entry.at, source: entry.device, via: "text", text: entry.input };
   if (entry.say !== null) {
     turn.reply = {
       say: entry.say,

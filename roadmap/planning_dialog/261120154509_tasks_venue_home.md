@@ -235,27 +235,46 @@ Phaseの推奨: Sonnet・high以上
 
 ## Phase 6: 登録とトークン
 Phaseの推奨: Opus・high以上
-- [ ] T6-1 【エージェント】`packages/protocol`に、v6のメッセージと管理用APIの型・検証関数を足す（imple 4節。`SessionState`・`Health`・`Turn`の変更、`pair`・`listening`・`voice`・`auth_required`・`paired`・`pair_failed`・`turn_search_started`・`turn_search_done`・`history_cleared`、管理用APIの要求・応答・できごと）。単体テストを足し、3つのアプリの型の参照を新しい型に合わせる（動作はv5のまま保つ）
+引き継ぎ: T6-1〜T6-9は完了。次はW6-1から。consoleの登録の失敗はモックに文言がないため入力を消すだけ（文言を足すなら仕様変更）。入力元の初期値が`robot`のため、Phase 7まではターミナルの数字キーでconsoleに切り替えてから話しかける
+- [x] T6-1 【エージェント】`packages/protocol`に、v6のメッセージと管理用APIの型・検証関数を足す（imple 4節。`SessionState`・`Health`・`Turn`の変更、`pair`・`listening`・`voice`・`auth_required`・`paired`・`pair_failed`・`turn_search_started`・`turn_search_done`・`history_cleared`、管理用APIの要求・応答・できごと）。単体テストを足し、3つのアプリの型の参照を新しい型に合わせる（動作はv5のまま保つ）
   - 依存: T1-4
-- [ ] T6-2 【エージェント】backendの設定にv6の項目を足す（imple 6節。`host`、`publicUrl`、`admin.port`、`inputSources`（`devices`を置き換え）、`pairing`、`stt`・`search`・`llm.models`・`dialogue`・`session`の雛形）。`.gitignore`に`data/`を足す
+  - 実施: Opus・high
+  - メモ: 型は`packages/protocol/src/types.ts`、検証は`parse.ts`（管理用APIの応答・できごと・要求の本文の検証を含む）。登録コードの正規化、QRの中身の作成と読み取り、WebSocketの接続先は`pairing.ts`。アプリ側は、`health.stt`を常に`true`、`micPaused`を常に`false`、`Turn.via`を`text`、`hello`の`token`を`null`として、動作をv5のまま保った
+- [x] T6-2 【エージェント】backendの設定にv6の項目を足す（imple 6節。`host`、`publicUrl`、`admin.port`、`inputSources`（`devices`を置き換え）、`pairing`、`stt`・`search`・`llm.models`・`dialogue`・`session`の雛形）。`.gitignore`に`data/`を足す
   - 依存: T6-1
-- [ ] T6-3 【エージェント】`DeviceAuth`を作る：登録コード（8文字・読み違えやすい文字を除く・60秒・1回限り・同時に1つ）、トークンの発行とハッシュでの保存（`data/devices.json`）、無効化、接続元ごとの失敗の制限（`CF-Connecting-IP`）。時計と乱数を差し替えられるようにして単体テストを書く
+  - 実施: Opus・high
+  - メモ: `llm.models`（`main`・`sub`）と`llm.activeAlias`を足し、起動時の別名の値で`LlmConfig`を解決して渡す（対話エンジンと比較スクリプトはT8-2・T8-6で広げる）。`stt.google`の項目と`search.apiKey`は空の雛形。`inputSources.active`の既定が`robot`のため、Phase 7までは`OperatorConsole`の数字キー（1が`robot`、2以降がconsole）で切り替えないとconsoleから入力できない
+- [x] T6-3 【エージェント】`DeviceAuth`を作る：登録コード（8文字・読み違えやすい文字を除く・60秒・1回限り・同時に1つ）、トークンの発行とハッシュでの保存（`data/devices.json`）、無効化、接続元ごとの失敗の制限（`CF-Connecting-IP`）。時計と乱数を差し替えられるようにして単体テストを書く
   - 依存: T6-2
-- [ ] T6-4 【エージェント】`AdminApi`（`127.0.0.1:8788`。状態、登録コードの発行、端末の一覧と無効化、`/admin/events`）と、開発用のCLI（`bun run admin`の`status`・`pair`・`exchange`・`devices`・`revoke`）を作る。`pair`のQRのSVGは`zxing-wasm/writer`で書き出す（使えるかを確かめ、使えなければ代わりを選んで実施メモに書く）。`OperatorConsole`の`p`で登録コードを表示する
+  - 実施: Opus・high
+  - メモ: `apps/backend/src/device_auth.ts`（`DeviceAuth`、`FileDeviceStore`・`MemoryDeviceStore`）。失効したコード・差し替えられたコードは`expired`、使用済みと間違いは`invalid`（機体は両方を「古いコード」と出す）。`unknown_device`はコードを推測する手がかりにならないため失敗に数えない。同じ名前で登録し直しても前のトークンは自動で無効にしない（一覧から解除する）。接続元の取り出し（`CF-Connecting-IP`）は`Server`で行う（T6-5）
+- [x] T6-4 【エージェント】`AdminApi`（`127.0.0.1:8788`。状態、登録コードの発行、端末の一覧と無効化、`/admin/events`）と、開発用のCLI（`bun run admin`の`status`・`pair`・`exchange`・`devices`・`revoke`）を作る。`pair`のQRのSVGは`zxing-wasm/writer`で書き出す（使えるかを確かめ、使えなければ代わりを選んで実施メモに書く）。`OperatorConsole`の`p`で登録コードを表示する
   - 依存: T6-3
-- [ ] T6-5 【エージェント】`Server`をトークンでの接続にする：公開用ポートの待ち受け先を設定から読む、`hello`のトークンの検証、未登録の接続には`auth_required`を送って`hello`・`pair`以外を捨てる、`pair`の処理、無効化した端末の接続を切る
+  - 実施: Opus・high
+  - メモ: `apps/backend/src/admin_api.ts`（Hostが127.0.0.1・localhostでない要求と、Originが手元でない要求を403で断る。DNSリバインディングと別のサイトからの要求への対策）、`scripts/admin.ts`、`scripts/lib/qr_svg.ts`。`zxing-wasm/writer`（3.1.7）でQRのSVGを書き出せた。既定ではWASMをCDNから取るため、`node_modules`のWASMを`wasmBinary`で渡す。端末の一覧は`GET /admin/status`の`devices`から出す。入力元・マイク・リセット・モデルの別名のAPIはT7-1・T8-2・T8-4で足す
+- [x] T6-5 【エージェント】`Server`をトークンでの接続にする：公開用ポートの待ち受け先を設定から読む、`hello`のトークンの検証、未登録の接続には`auth_required`を送って`hello`・`pair`以外を捨てる、`pair`の処理、無効化した端末の接続を切る
   - 依存: T6-4
-- [ ] T6-6 【エージェント】consoleに登録を加える：`Link`のトークン付きの`hello`とトークンの保存、`auth_required`でS01i、`PairForm`（登録コードの入力行）。S01iの文言（`pair.console_*`ほか）を辞書へ移す
+  - 実施: Opus・high
+  - メモ: 登録済みの接続だけに配信する（未登録の接続はトピックを購読しない）。トークンの役割・consoleの名前が`hello`と違えば`invalid`。`paired`のあと、端末は同じ接続でトークン付きの`hello`を送り直す。無効化はclose code 4001で切る。`bun run admin exchange`で、スタブのバックエンドに機体として登録できることを確かめた
+- [x] T6-6 【エージェント】consoleに登録を加える：`Link`のトークン付きの`hello`とトークンの保存、`auth_required`でS01i、`PairForm`（登録コードの入力行）。S01iの文言（`pair.console_*`ほか）を辞書へ移す
   - 依存: T6-5
   - 画面: S01i
-- [ ] T6-7 【エージェント】機体アプリのTauriを2.12以降に上げ、`on_permission_request`でカメラとマイクの要求だけを許可する（版とAPIは、インストール済みの版と公式ドキュメントで確かめる）
+  - 実施: Opus・high
+  - メモ: `apps/console/src/pair_form.ts`・`token_store.ts`（トークンは端末名ごとに`localStorage`の`tekurobokun.token.{device}`。使えなければメモリ）、`link.ts`（`paired`で保存して同じ接続で`hello`を送り直す。`invalid`・`revoked`で保存したトークンを消す）。モックに登録の失敗の文言がないため、失敗したら入力を消すだけにした（文言を足すなら仕様変更）。ブラウザでの見た目はW6-2・W6-4
+- [x] T6-7 【エージェント】機体アプリのTauriを2.12以降に上げ、`on_permission_request`でカメラとマイクの要求だけを許可する（版とAPIは、インストール済みの版と公式ドキュメントで確かめる）
   - 依存: T1-3
-- [ ] T6-8 【エージェント】機体に登録を加える：`RobotLink`のトークンとURLの保存とトークン付きの接続（開発用に`config.local.json`の`backend.url`・`backend.token`）、`PairingScanner`（`zxing-wasm/reader`を同梱、カメラの全面表示と枠、成功・古いコードの表示）。S02gの文言（`pair.robot_*`）を辞書へ移す。生成したQRの画像を読む単体テストを書く
+  - 実施: Opus・high
+  - メモ: tauri 2.12.7（tauri-build 2.7.6、wry 0.57.3）、`@tauri-apps/api`・`@tauri-apps/cli` 2.12.4、tauri-plugin-opener 2.7.3。インストール済みのソースで`tauri::Builder::on_permission_request(|webview, kind| PermissionResponse)`を確かめ、`Camera`・`Microphone`だけ`Allow`、ほかは`Deny`（Rustの単体テストつき）。実際のカメラ・マイクの許可はW6-4・W7-5で確かめる
+- [x] T6-8 【エージェント】機体に登録を加える：`RobotLink`のトークンとURLの保存とトークン付きの接続（開発用に`config.local.json`の`backend.url`・`backend.token`）、`PairingScanner`（`zxing-wasm/reader`を同梱、カメラの全面表示と枠、成功・古いコードの表示）。S02gの文言（`pair.robot_*`）を辞書へ移す。生成したQRの画像を読む単体テストを書く
   - 依存: T6-5, T6-7
   - 画面: S02g
-- [ ] T6-9 【エージェント】`CONTRIBUTING.md`に、登録の仕組み、開発用の管理CLI、開発機での登録の手順（カメラのない場合を含む）、`data/`を書く
+  - 実施: Opus・high
+  - メモ: `apps/robot/src/link/credentials.ts`（接続先とトークンを`localStorage`に保存。`config.local.json`の`backend.url`・`backend.token`の両方があれば優先）、`RobotLink`（QRの接続先が違えばつなぎ直して`pair`、断られたコードは送り直さない）、`apps/robot/src/pairing/`（`PairingScanner`、`qrReader`と、`zxing-wasm/writer`で作ったQRを読む単体テスト）。WASMはViteの`?url`で同梱し、`locateFile`で差し替えた（ビルドで`zxing_reader-*.wasm`が出ることを確認）。`config.default.json`の`backend.url`は`null`にした（未登録なら起動時からS02g）。未登録の判定は接続の有無より先にした（接続先がないと切断扱いでS02eになるため）。`pair_failed`はどの理由でも「古いコード」を出す。カメラでの読み取りはW6-4
+- [x] T6-9 【エージェント】`CONTRIBUTING.md`に、登録の仕組み、開発用の管理CLI、開発機での登録の手順（カメラのない場合を含む）、`data/`を書く
   - 推奨: Sonnet・medium以上
   - 依存: T6-6, T6-8
+  - 実施: Opus・high
+  - メモ: 「端末の登録」の節（仕組み、`data/`、管理用API、管理CLI、開発機での登録、LANから試すとき）を足し、機体アプリ・スタブ・端末名と入力元・設定の表（v6の項目）・リポジトリ構成を直した。「バックエンドPC（本番）」「展示当日の運用」はv5の手順のままで、Phase 11で書き直す旨を書いた
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上

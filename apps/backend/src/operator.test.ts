@@ -6,7 +6,7 @@ import { StubAvailability } from "./stub_availability.ts";
 
 function setup(options: { stub?: boolean; devices?: string[] } = {}) {
   const devices = new InputDeviceRegistry(options.devices ?? ["tablet", "phone"], "tablet");
-  const health: Health = { backend: true, llm: true, tts: true, robot: false };
+  const health: Health = { backend: true, llm: true, tts: true, stt: true, robot: false };
   const lines: string[] = [];
   let quits = 0;
   let rechecks = 0;
@@ -16,7 +16,8 @@ function setup(options: { stub?: boolean; devices?: string[] } = {}) {
     status: (): StatusMessage => ({
       type: "status",
       session: "idle",
-      activeDevice: devices.active(),
+      inputSource: devices.active(),
+      micPaused: false,
       health: { ...health },
     }),
     stub: options.stub
@@ -83,7 +84,7 @@ describe("OperatorConsole", () => {
     operator.handleKey("\r");
     expect(lines.filter((l) => l.startsWith("[operator] active="))).toHaveLength(2);
     operator.handleKey("h");
-    expect(lines.at(-1)).toContain("1-2 switch input device");
+    expect(lines.at(-1)).toContain("1-2 switch input source");
     operator.handleKey("\u0003");
     expect(quits()).toBe(1);
   });
@@ -105,6 +106,39 @@ describe("OperatorConsole", () => {
     expect(stub.availability.isUp("llm")).toBe(true);
     expect(stub.rechecks()).toBe(3);
     expect(stub.operator.helpLines()).toHaveLength(2);
+  });
+
+  test("pで登録コードを発行し、残り時間とQRの中身を出す（発行の関数があるときだけ）", () => {
+    const lines: string[] = [];
+    const now = new Date("2026-11-20T01:00:00Z");
+    const make = (issue?: () => { code: string; expiresAt: Date; qr: string }) =>
+      new OperatorConsole({
+        devices: new InputDeviceRegistry(["robot", "tablet"], "robot"),
+        status: () => ({
+          type: "status",
+          session: "idle",
+          inputSource: "robot",
+          micPaused: false,
+          health: { backend: true, llm: true, tts: true, stt: true, robot: false },
+        }),
+        issuePairingCode: issue,
+        write: (line) => lines.push(line),
+        quit: () => {},
+        now: () => now,
+      });
+    make().handleKey("p");
+    expect(lines).toEqual([]);
+
+    const operator = make(() => ({
+      code: "ABCD-EFGH",
+      expiresAt: new Date(now.getTime() + 60_000),
+      qr: "http://x/pair#ABCD-EFGH",
+    }));
+    expect(operator.helpLines()[0]).toContain("p pairing code");
+    operator.handleKey("P");
+    expect(lines).toEqual([
+      "[operator] pairing code ABCD-EFGH (expires in 60s) qr=http://x/pair#ABCD-EFGH",
+    ]);
   });
 
   test("TTYでなければキー入力を受け取らない。TTYなら生のモードで1文字ずつ処理する", () => {

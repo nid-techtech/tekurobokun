@@ -12,7 +12,7 @@ export type NoticeInput = {
   connected: boolean;
   /** welcomeで設定を受け取ったか */
   welcomed: boolean;
-  status: Pick<StatusMessage, "activeDevice" | "health"> | null;
+  status: Pick<StatusMessage, "inputSource" | "health"> | null;
   /** この端末の名前（URLの?device=） */
   device: string;
 };
@@ -20,6 +20,6 @@ export type NoticeInput = {
 export function noticeFor({ connected, welcomed, status, device }: NoticeInput): NoticeKind | null {
   if (!connected || !welcomed || !status) return "offline";
   if (!status.health.llm || !status.health.tts) return "offline";
-  if (status.activeDevice !== device) return "inactive";
+  if (status.inputSource !== device) return "inactive";
   return null;
 }

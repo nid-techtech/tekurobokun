@@ -144,11 +144,12 @@ describe("ConversationSession", () => {
         turn: {
           id: "t1",
           at: "2026-11-14T10:02:11.000+09:00",
-          device: "tablet",
+          source: "tablet",
+          via: "text",
           text: "こんにちは",
         },
       },
-      expect.objectContaining({ type: "status", session: "thinking", activeDevice: "tablet" }),
+      expect.objectContaining({ type: "status", session: "thinking", inputSource: "tablet" }),
     ]);
 
     dialogue.answer("やあ。");
@@ -162,7 +163,8 @@ describe("ConversationSession", () => {
       {
         id: "t1",
         at: "2026-11-14T10:02:11.000+09:00",
-        device: "tablet",
+        source: "tablet",
+        via: "text",
         text: "こんにちは",
         reply: { say: "やあ。", emotion: "happy", thinkingMs: 1200 },
       },
@@ -214,7 +216,7 @@ describe("ConversationSession", () => {
     const done = session.handleUtterance("phone", "スマホから");
     dialogue.answer("a");
     expect(await done).toBe("accepted");
-    expect(session.history()[0]?.device).toBe("phone");
+    expect(session.history()[0]?.source).toBe("phone");
   });
 
   test("LLMが失敗したら、llmをfalseにして待機中へ戻る", async () => {
@@ -555,7 +557,8 @@ describe("ConversationSession（会話ログ）", () => {
       {
         id: "log-1",
         at: "2026-11-14T10:00:00.000+09:00",
-        device: "tablet",
+        source: "tablet",
+        via: "text",
         text: "前回の発言",
         reply: { say: "前回の返事", emotion: "neutral", thinkingMs: 900 },
       },

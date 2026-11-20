@@ -65,7 +65,8 @@ describe("buildMessages", () => {
   const turn = (id: string, reply = true): Turn => ({
     id,
     at: "2026-11-14T10:00:00.000+09:00",
-    device: "tablet",
+    source: "tablet",
+    via: "text",
     text: `q${id}`,
     ...(reply ? { reply: { say: `a${id}`, emotion: "happy", thinkingMs: 10 } } : {}),
   });

@@ -123,7 +123,9 @@ export class ConversationSession {
     return {
       type: "status",
       session: this.state,
-      activeDevice: this.options.devices.active(),
+      inputSource: this.options.devices.active(),
+      // マイクの一時停止はPhase 7（InputSourceRegistry）で持つ。
+      micPaused: false,
       health: this.options.health.snapshot(),
     };
   }
@@ -168,7 +170,13 @@ export class ConversationSession {
 
     // LLMに渡す往復の候補。往復数はDialogueEngineが絞る。
     const context = this.llmContext();
-    const turn: Turn = { id: this.newId(), at: toJstIso(this.now()), device, text: text.trim() };
+    const turn: Turn = {
+      id: this.newId(),
+      at: toJstIso(this.now()),
+      source: device,
+      via: "text",
+      text: text.trim(),
+    };
     this.push(turn);
     this.state = "thinking";
     this.options.emit({ type: "turn_started", turn: structuredClone(turn) });
@@ -204,7 +212,7 @@ export class ConversationSession {
     const filter = this.options.filter;
     const input = filter?.check(turn.text);
     if (input?.hit && input.replacement) {
-      this.log(`filtered input from "${turn.device}"`);
+      this.log(`filtered input from "${turn.source}"`);
       // 禁止語を含む発言は、以後もLLMに渡さない。
       const { say, emotion } = input.replacement;
       return { thinkingMs: null, raw: null, say, emotion, filtered: "input", error: null };

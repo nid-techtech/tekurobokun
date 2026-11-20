@@ -90,7 +90,8 @@ describe("ConversationLog", () => {
     expect(turns[0]).toEqual({
       id: expect.any(String),
       at: "2026-11-14T10:02:11.000+09:00",
-      device: "tablet",
+      source: "tablet",
+      via: "text",
       text: "3",
       reply: { say: "やあ。", emotion: "happy", thinkingMs: 1200 },
     });
@@ -140,7 +141,8 @@ describe("parseLogLine・entryToTurn", () => {
     expect(entryToTurn(failed, "x")).toEqual({
       id: "x",
       at: failed.at,
-      device: "tablet",
+      source: "tablet",
+      via: "text",
       text: "こんにちは",
     });
   });

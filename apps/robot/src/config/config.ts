@@ -5,9 +5,23 @@
 
 import configDefault from "./config.default.json";
 
+/**
+ * 開発用の接続先とトークン（config.local.jsonに書いたときだけ使う）。
+ * 本番は、登録の画面（S02g）でQRを読み、接続先とトークンをlocalStorageに保存する。
+ */
 export interface BackendConfig {
   /** バックエンドのWebSocket（例：ws://192.168.0.10:8787/ws） */
-  url: string;
+  url: string | null;
+  /** `bun run admin exchange`で得たトークン */
+  token: string | null;
+}
+
+/** 登録の画面（S02g） */
+export interface PairingConfig {
+  /** カメラの画像からQRを探す間隔 */
+  scanIntervalMs: number;
+  /** 読み取れたとき、笑った顔と「つながりました」を出す時間 */
+  okHoldMs: number;
 }
 
 export interface DriveConfig {
@@ -107,6 +121,7 @@ export interface AudioConfig {
 
 export interface AppConfig {
   backend: BackendConfig;
+  pairing: PairingConfig;
   drive: DriveConfig;
   facial: FacialConfig;
   lipSync: LipSyncConfig;

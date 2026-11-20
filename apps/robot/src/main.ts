@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { initLocale } from "@tekurobokun/i18n";
+import { initLocale, m } from "@tekurobokun/i18n";
 import type { StatusMessage } from "@tekurobokun/protocol";
 import { AudioPlayer } from "./audio/AudioPlayer";
 import { CaptionOverlay } from "./caption/CaptionOverlay";
@@ -12,9 +12,12 @@ import { FacialEngine } from "./facial/FacialEngine";
 import { seededRandom } from "./facial/IdleAnimator";
 import { InputRouter } from "./input/InputRouter";
 import { BarcodeKeyboardSource } from "./input/InputSource";
+import { browserStorage, RobotCredentials } from "./link/credentials";
 import { RobotLink } from "./link/RobotLink";
+import { PairingScanner } from "./pairing/PairingScanner";
 
 // 機体アプリ：バックエンドから届くstatus・speechだけで顔と音声を決める（表示と音声再生だけの薄いクライアント）。
+// 未登録（接続先かトークンがない・断られた）なら、登録の画面（S02g）でQRを読む。
 // 走行（DriveStateMachine・シリアル通信）と音声スロット（数字キーでの再生）は、この版では配線しない。
 // コードは今後の版のために残す。
 
@@ -46,9 +49,18 @@ if (facialContainer) {
   });
 }
 
-const state: { connected: boolean; status: StatusMessage | null } = {
+const state: {
+  connected: boolean;
+  status: StatusMessage | null;
+  /** 登録の画面の案内：QRを見せてもらう・古いコードだった */
+  pairMessage: "show" | "expired";
+  /** 登録できたときの「つながりました」をこの時刻まで出す */
+  pairedUntil: number;
+} = {
   connected: false,
   status: null,
+  pairMessage: "show",
+  pairedUntil: 0,
 };
 
 // 字幕：考え中は来場者の発言、話し中は読み上げている文。
@@ -57,6 +69,16 @@ let userText: string | null = null;
 let currentCaption: string | null = null;
 
 function updateCaption(): void {
+  if (!link.paired) {
+    captionOverlay.setText(
+      state.pairMessage === "expired" ? m["pair.robot_expired"]() : m["pair.robot_show_qr"](),
+    );
+    return;
+  }
+  if (performance.now() < state.pairedUntil) {
+    captionOverlay.setText(m["pair.robot_ok"]());
+    return;
+  }
   captionOverlay.set(
     captionFor({
       session: state.status?.session ?? null,
@@ -67,11 +89,24 @@ function updateCaption(): void {
 }
 
 function updateFace(): void {
-  face.setState(displayStateFor(state.connected, state.status), performance.now());
+  // 未登録の間は、カメラの映像を全面に出す（顔は映像の下で待機のまま）。
+  const paired = link.paired;
+  if (paired) scanner.stop();
+  else scanner.start();
+  face.setState(
+    paired ? displayStateFor(state.connected, state.status) : "IDLE",
+    performance.now(),
+  );
   updateCaption();
 }
 
-const link = new RobotLink(config.backend.url, {
+// 接続先とトークン。開発用に、config.local.jsonのbackend.url・backend.tokenがあればそれを使う。
+const credentials = new RobotCredentials(browserStorage(), {
+  url: config.backend.url,
+  token: config.backend.token,
+});
+
+const link = new RobotLink(credentials, {
   onOpen: () => {
     state.connected = true;
     updateFace();
@@ -86,6 +121,26 @@ const link = new RobotLink(config.backend.url, {
   },
   onMessage: (message) => {
     switch (message.type) {
+      case "auth_required":
+        // 未登録・無効なトークン（RobotLinkがトークンを消す）。登録の画面へ。
+        state.status = null;
+        audio.stop();
+        updateFace();
+        return;
+      case "pair_failed":
+        state.pairMessage = "expired";
+        updateCaption();
+        return;
+      case "paired": {
+        // 笑った顔と「つながりました」を出してから、待機（S02a）へ。
+        const now = performance.now();
+        state.pairMessage = "show";
+        state.pairedUntil = now + config.pairing.okHoldMs;
+        face.flashEmotion("happy", now, config.pairing.okHoldMs);
+        setTimeout(updateCaption, config.pairing.okHoldMs);
+        updateFace();
+        return;
+      }
       case "status":
         state.status = message;
         // 話し中でなくなったら（タイムアウト・合成の失敗など）、残りの音声は捨てる。
@@ -121,6 +176,11 @@ audio.onSentenceEnd((item) => {
   link.send({ type: "playback_done", turnId: item.turnId, index: item.index });
 });
 
+const scanner = new PairingScanner(document.body, {
+  intervalMs: config.pairing.scanIntervalMs,
+  onCode: ({ publicUrl, code }) => link.pair(publicUrl, code),
+});
+
 updateFace();
 link.connect();
 
@@ -135,7 +195,8 @@ router.onDebugToggle(() => {
 function buildDebugSnapshot(): DebugSnapshot {
   return {
     params: {
-      backend: config.backend.url,
+      backend: link.url ?? "-",
+      paired: String(link.paired),
       connected: String(state.connected),
       session: state.status?.session ?? "-",
       display: face.displayState,

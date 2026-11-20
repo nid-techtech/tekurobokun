@@ -1,7 +1,7 @@
 // 入力ページ（apps/console）。URLの`?device=`で端末名を名乗る（既定はtablet）。
 // 表示はバックエンドから届くwelcome・status・turn_started・turn_repliedだけで決める。
-// つながらない・LLMかVOICEVOXが応答しないときはS01f、別の端末が有効なときはS01gの全面の案内を出し、
-// 状況が戻れば自動で元の表示に戻る（再接続はLinkが続ける）。
+// 未登録（auth_required）ならS01iの登録コードの入力、つながらない・LLMかVOICEVOXが応答しないときはS01f、
+// 別の端末が有効なときはS01gの全面の案内を出し、状況が戻れば自動で元の表示に戻る（再接続はLinkが続ける）。
 
 import "./styles.css";
 import { initLocale, m } from "@tekurobokun/i18n";
@@ -10,8 +10,10 @@ import { FullNotice } from "./full_notice.ts";
 import { Link } from "./link.ts";
 import { LogView } from "./log_view.ts";
 import { noticeFor } from "./notice.ts";
+import { PairForm } from "./pair_form.ts";
 import { PromptInput } from "./prompt_input.ts";
 import { type StatusKind, StatusLine } from "./status_line.ts";
+import { browserStorage, TokenStore } from "./token_store.ts";
 import { browserViewportFit } from "./viewport_fit.ts";
 
 const DEFAULT_DEVICE = "tablet";
@@ -23,10 +25,13 @@ const device = new URLSearchParams(window.location.search).get("device") || DEFA
 
 const state: {
   connected: boolean;
+  /** 未登録（auth_requiredを受けた）。welcomeで解ける */
+  unpaired: boolean;
   settings: ConsoleSettings | null;
   status: StatusMessage | null;
 } = {
   connected: false,
+  unpaired: false,
   settings: null,
   status: null,
 };
@@ -53,8 +58,10 @@ const input = new PromptInput(promptText(), 0, {
   onTextChange: () => render(),
 });
 
+const pairForm = new PairForm({ onSubmit: (code) => link.pair(code) });
+
 const root = document.querySelector<HTMLElement>("#app");
-root?.append(statusLine.el, log.el, notice.el, input.el);
+root?.append(statusLine.el, log.el, notice.el, pairForm.message, input.el, pairForm.row);
 
 function currentNotice() {
   return noticeFor({
@@ -65,8 +72,10 @@ function currentNotice() {
   });
 }
 
+const isUnpaired = () => state.connected && state.unpaired;
+
 function statusKind(): StatusKind {
-  if (currentNotice() === "offline") return "offline";
+  if (isUnpaired() || currentNotice() === "offline") return "offline";
   const session = state.status?.session ?? "idle";
   if (session === "thinking") return "thinking";
   if (session === "speaking") return "speaking";
@@ -74,12 +83,15 @@ function statusKind(): StatusKind {
 }
 
 function render(): void {
-  const kind = currentNotice();
+  // 未登録ならS01i。ログと入力ページの代わりに、登録コードの入力を出す。
+  const unpaired = isUnpaired();
+  const kind = unpaired ? null : currentNotice();
   const session = state.status?.session ?? "idle";
   const wasShown = notice.shown;
   notice.set(kind);
-  log.el.hidden = kind !== null;
-  input.setEnabled(kind === null && session === "idle");
+  pairForm.set(unpaired);
+  log.el.hidden = kind !== null || unpaired;
+  input.setEnabled(!unpaired && kind === null && session === "idle");
   // 案内を出している間は、入力欄のフォーカスを外して画面のキーボードを閉じる（S01f・S01g）。
   if (kind !== null && !wasShown) input.blur();
   log.setThinking(kind === null && session === "thinking");
@@ -96,7 +108,17 @@ function applySettings(settings: ConsoleSettings): void {
 
 function onMessage(message: ServerMessage): void {
   switch (message.type) {
+    case "auth_required":
+      state.unpaired = true;
+      break;
+    case "pair_failed":
+      pairForm.failed();
+      return;
+    case "paired":
+      // Linkがトークンを保存してhelloを送り直す。welcomeが届いたら元の表示に戻る。
+      return;
     case "welcome":
+      state.unpaired = false;
       applySettings(message.settings);
       log.reset(message.history);
       break;
@@ -115,19 +137,25 @@ function onMessage(message: ServerMessage): void {
   render();
 }
 
-const link = new Link(Link.urlFor(window.location), device, {
-  onMessage,
-  onOpen: () => {
-    state.connected = true;
-    render();
+const link = new Link(
+  Link.urlFor(window.location),
+  device,
+  new TokenStore(device, browserStorage()),
+  {
+    onMessage,
+    onOpen: () => {
+      state.connected = true;
+      render();
+    },
+    onClose: () => {
+      state.connected = false;
+      state.unpaired = false;
+      state.settings = null;
+      state.status = null;
+      render();
+    },
   },
-  onClose: () => {
-    state.connected = false;
-    state.settings = null;
-    state.status = null;
-    render();
-  },
-});
+);
 
 render();
 link.connect();

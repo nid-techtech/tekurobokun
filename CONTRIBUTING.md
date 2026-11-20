@@ -75,9 +75,11 @@ cd apps/robot
 bun run tauri dev
 ```
 
-`f`キーでフルスクリーン、`/`キーでデバッグHUD（接続先、接続の有無、会話の状態、表示状態、感情、音の大きさ、目・口の座標、再生中の文）を切り替えます。
+`f`キーでフルスクリーン、`/`キーでデバッグHUD（接続先、登録の有無、接続の有無、会話の状態、表示状態、感情、音の大きさ、目・口の座標、再生中の文）を切り替えます。
 
-機体アプリは、バックエンドのWebSocket（設定の`backend.url`）につなぎ、切れたら自動で再接続します。表示と音声の再生だけを行い、顔はバックエンドから届く状態で決まります。
+機体アプリは、登録で得たバックエンドの接続先とトークンでWebSocketにつなぎ、切れたら自動で再接続します（「端末の登録」）。表示と音声の再生だけを行い、顔はバックエンドから届く状態で決まります。
+
+- 未登録（接続先かトークンがない・断られた）：カメラの映像を全面に出し、QRを合わせる枠と「QRコードをカメラに見せてください」を出します。読み取れたら笑った顔と「つながりました」を出して待機に戻り、古いコードなら「古いコードです」と出します
 
 - 待機中：まばたきときょろきょろをします
 - 考え中：内側の円が回ります。左上に、来場者の発言が字幕で出ます
@@ -93,42 +95,38 @@ cd apps/robot
 bun run tauri dev
 ```
 
-ブラウザで`http://localhost:8787/?device=tablet`を開いて話しかけると、機体アプリが考え中の顔になり、返事を正弦波の音（文字数に応じた長さで、音量が揺れる）で読み上げながら口を動かします。機体アプリがつながっていないときは、入力ページは返事を出したらすぐ待機中に戻ります。
+入力ページと機体アプリは、はじめに登録します（「端末の登録」の「開発機での登録」）。入力元の初期値は機体のマイク（`robot`）なので、バックエンドのターミナルで`2`を押して`tablet`に切り替えます。ブラウザで`http://localhost:8787/?device=tablet`を開いて話しかけると、機体アプリが考え中の顔になり、返事を正弦波の音（文字数に応じた長さで、音量が揺れる）で読み上げながら口を動かします。機体アプリがつながっていないときは、入力ページは返事を出したらすぐ待機中に戻ります。
 
-**別のPCのバックエンドにつなぐ**：`apps/robot/src/config/config.local.json`（Git管理外）を置き、接続先を書きます。設定はビルドに取り込まれるため、書き換えたら機体アプリを起動し直します（`tauri build`で作ったアプリは、ビルドし直します）。
-
-```json
-{
-  "backend": { "url": "ws://192.168.0.10:8787/ws" }
-}
-```
+**別のPCのバックエンドにつなぐ**：そのバックエンドが出す登録のQRを読ませます。カメラがないときは、`apps/robot/src/config/config.local.json`（Git管理外）に接続先とトークンを書きます（「端末の登録」）。設定はビルドに取り込まれるため、書き換えたら機体アプリを起動し直します（`tauri build`で作ったアプリは、ビルドし直します）。
 
 #### 機体アプリの設定
 
 設定は`apps/robot/src/config/config.default.json`（Gitで管理）にあり、`config.local.json`に書いた項目だけを上書きします（上書きのしかたはバックエンドの設定ファイルと同じ）。`drive`と`audio`は、この版では使わない走行と音声スロットの設定です。
 
-| 項目                                | 内容                                                                                  | 初期値                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
-| `backend.url`                       | バックエンドのWebSocket                                                               | `ws://127.0.0.1:8787/ws` |
-| `facial.eyes`・`facial.mouth`       | 目・口の基本座標と線の太さ（800×600の座標。ヘボコン版の値）。口の角丸は`cornerRadius` | ヘボコン版の値・`14`     |
-| `lipSync.floor`・`lipSync.gain`     | 口の開き＝（音の大きさ（RMS）−`floor`）×`gain`（0〜1で頭打ち）                        | `0.01`・`6`              |
-| `lipSync.attack`・`lipSync.release` | 口を開くとき・閉じるときの追従の速さ（1フレームで目標に近づく割合）                   | `0.6`・`0.25`            |
-| `lipSync.minRatio`・`rangeRatio`    | 話し中の口の高さ＝基本の高さ×（`minRatio`＋口の開き×`rangeRatio`）                    | `0.45`・`0.85`           |
-| `idle.blinkMinMs`〜`blinkMaxMs`     | まばたきの間隔（この範囲の乱数）                                                      | `2500`〜`6500`           |
-| `idle.blinkDurationMs`              | まばたきの長さ                                                                        | `150`                    |
-| `idle.lookMinMs`〜`lookMaxMs`       | きょろきょろの間隔                                                                    | `6000`〜`14000`          |
-| `idle.lookDurationMs`               | よそ見している長さ                                                                    | `1400`                   |
-| `idle.lookOffsetX`                  | よそ見で内側の円をずらす量                                                            | `22`                     |
-| `idle.seed`                         | 乱数の種（`null`なら起動ごとに変わる。数を入れると毎回同じ並びになる）                | `null`                   |
-| `render.activeFps`・`idleFps`       | 描画頻度（話し中・考え中／待機中）。待機中は、形が変わらないフレームは描き直さない    | `30`・`10`               |
-| `render.loadingTurnMs`              | 考え中に内側の円が1周する時間                                                         | `1200`                   |
-| `render.emotionHoldMs`              | 話し終えてから、感情の目を通常の目に戻すまで                                          | `1500`                   |
-| `render.sleepMouthLevel`            | 眠っている顔の口の開き（話し中の口の開きと同じ0〜1の尺度）                            | `0.05`                   |
-| `render.sleepBobAmplitude`          | 眠っている顔が上下に揺れる幅（中心から片側）                                          | `10`                     |
-| `render.sleepBobCycleMs`            | 眠っている顔が上下に1往復する時間                                                     | `6400`                   |
-| `caption.x`・`caption.y`            | 字幕の左上の位置（800×600の座標。目の上端より上に収める）                             | `14`・`4`                |
-| `caption.maxWidth`                  | 字幕が1行に入る幅。超えた文は末尾側を出す                                             | `772`                    |
-| `caption.fontSize`・`lineHeight`    | 字幕の文字の大きさと行の高さ                                                          | `18`・`26`               |
+| 項目                                | 内容                                                                                  | 初期値               |
+| ----------------------------------- | ------------------------------------------------------------------------------------- | -------------------- |
+| `backend.url`・`backend.token`      | 開発用の接続先（WebSocket）とトークン。両方あれば、登録で保存したものより優先する     | `null`・`null`       |
+| `pairing.scanIntervalMs`            | 登録の画面で、カメラの画像からQRを探す間隔                                            | `300`                |
+| `pairing.okHoldMs`                  | 読み取れたとき、笑った顔と「つながりました」を出す時間                                | `2000`               |
+| `facial.eyes`・`facial.mouth`       | 目・口の基本座標と線の太さ（800×600の座標。ヘボコン版の値）。口の角丸は`cornerRadius` | ヘボコン版の値・`14` |
+| `lipSync.floor`・`lipSync.gain`     | 口の開き＝（音の大きさ（RMS）−`floor`）×`gain`（0〜1で頭打ち）                        | `0.01`・`6`          |
+| `lipSync.attack`・`lipSync.release` | 口を開くとき・閉じるときの追従の速さ（1フレームで目標に近づく割合）                   | `0.6`・`0.25`        |
+| `lipSync.minRatio`・`rangeRatio`    | 話し中の口の高さ＝基本の高さ×（`minRatio`＋口の開き×`rangeRatio`）                    | `0.45`・`0.85`       |
+| `idle.blinkMinMs`〜`blinkMaxMs`     | まばたきの間隔（この範囲の乱数）                                                      | `2500`〜`6500`       |
+| `idle.blinkDurationMs`              | まばたきの長さ                                                                        | `150`                |
+| `idle.lookMinMs`〜`lookMaxMs`       | きょろきょろの間隔                                                                    | `6000`〜`14000`      |
+| `idle.lookDurationMs`               | よそ見している長さ                                                                    | `1400`               |
+| `idle.lookOffsetX`                  | よそ見で内側の円をずらす量                                                            | `22`                 |
+| `idle.seed`                         | 乱数の種（`null`なら起動ごとに変わる。数を入れると毎回同じ並びになる）                | `null`               |
+| `render.activeFps`・`idleFps`       | 描画頻度（話し中・考え中／待機中）。待機中は、形が変わらないフレームは描き直さない    | `30`・`10`           |
+| `render.loadingTurnMs`              | 考え中に内側の円が1周する時間                                                         | `1200`               |
+| `render.emotionHoldMs`              | 話し終えてから、感情の目を通常の目に戻すまで                                          | `1500`               |
+| `render.sleepMouthLevel`            | 眠っている顔の口の開き（話し中の口の開きと同じ0〜1の尺度）                            | `0.05`               |
+| `render.sleepBobAmplitude`          | 眠っている顔が上下に揺れる幅（中心から片側）                                          | `10`                 |
+| `render.sleepBobCycleMs`            | 眠っている顔が上下に1往復する時間                                                     | `6400`               |
+| `caption.x`・`caption.y`            | 字幕の左上の位置（800×600の座標。目の上端より上に収める）                             | `14`・`4`            |
+| `caption.maxWidth`                  | 字幕が1行に入る幅。超えた文は末尾側を出す                                             | `772`                |
+| `caption.fontSize`・`lineHeight`    | 字幕の文字の大きさと行の高さ                                                          | `18`・`26`           |
 
 まばたきを`render.idleFps`の1コマより短くすると、見えないことがあります（初期値では1コマ100ms、まばたき150ms）。
 
@@ -143,7 +141,7 @@ bun run console:build    # 入力ページをビルドする（apps/console/dist
 bun run backend:stub     # バックエンドをスタブで起動する
 ```
 
-ブラウザで`http://localhost:8787/?device=tablet`を開きます。スタブは、約1.5秒考えてから決まった返事を順に返します。返事の中身は`apps/backend/src/dialogue/stub_replies.json`にあります。
+ブラウザで`http://localhost:8787/?device=tablet`を開き、登録コードを入れて登録します（「端末の登録」）。ターミナルで`2`を押して入力元を`tablet`にすると、話しかけられます。スタブは、約1.5秒考えてから決まった返事を順に返します。返事の中身は`apps/backend/src/dialogue/stub_replies.json`にあります。
 
 - 発言に「崩れ」を含めると形式の崩れた返事（感情は`neutral`になる）、「落ちて」を含めるとLLMの失敗を再現します
 - 禁止語の差し替えを確かめるため、スタブだけの禁止語「きんしご」を足しています。発言に「きんしご」を含めると入力の差し替え、「言わせて」を含めると禁止語を含む返事の差し替えを再現します
@@ -168,11 +166,71 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 
 開発サーバーは`/ws`をバックエンド（既定は`http://127.0.0.1:8787`）へ中継します。バックエンドのポートを変えたときは、環境変数`BACKEND_URL`で中継先を指定します。疑似ロケールは開発サーバーでだけ使えます（`?locale=pseudo`）。
 
-**端末名**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。入力を受け付けるのは、有効な端末1台だけです。起動時は`config/backend.*.json`の`devices.active`の端末が有効で、バックエンドを起動したターミナルの数字キーで切り替えます（「展示当日の運用」）。スタッフのスマホは`?device=phone`で開きます。有効でない端末には「いまは別の端末で受け付けています」の全面の案内が出ます。
+**端末名と入力元**：入力ページは、URLの`?device=`で端末名を名乗ります（省略すると`tablet`）。端末名は`config/backend.*.json`の`inputSources.consoles`にあるものだけ登録できます。入力を受け付けるのは、有効な入力元1つだけです。起動時は`inputSources.active`（初期値は機体のマイクの`robot`）が有効で、バックエンドを起動したターミナルの数字キーで切り替えます（`1`が`robot`、`2`以降が`inputSources.consoles`の順）。スタッフのスマホは`?device=phone`で開きます。入力元が自分でない入力ページには「いまは別の端末で受け付けています」の全面の案内が出ます（入力元が`robot`のときの表示はPhase 7で足します）。
 
 **全面の案内**：バックエンドにつながらないとき、LLMかVOICEVOXが応答しないときは、入力ページに「テクロボくんにつながっていません」の全面の案内が出て、キーボードが閉じます。つながれば自動で元の表示に戻ります。キーボードが自動で開かない端末では、ログの部分をタップすると開きます。
 
 **画面の高さ**：入力ページは、キーボードを除いて実際に見えている範囲（`visualViewport`）に画面の高さを合わせ、ブラウザがページをずらした分も打ち消します（`apps/console/src/viewport_fit.ts`）。PWAとして起動していないときは、最初のタップで全画面表示にします（全画面を抜けても、次のタップで戻ります）。
+
+### 端末の登録
+
+入力ページと機体アプリは、登録コードをトークンと交換して登録し、以後はトークンでつなぎます。トークンのない接続、知らない・無効にしたトークンの接続からは、会話のメッセージを受け付けません（入力ページは「この端末は登録されていません」、機体はカメラの登録の画面になります）。
+
+**仕組み**
+
+- 登録コードは`XXXX-XXXX`の8文字です。読み違えやすい文字（`0`・`O`・`1`・`I`・`L`）を使いません。有効なのは60秒・1回だけで、同時に有効なコードは1つです（新しく出すと、前のコードは使えなくなります）。コードは管理用APIからだけ出せます（本番はランチャー、開発中はバックエンドのターミナルの`p`か管理CLI）
+- 入力ページはコードを文字で入れます。機体は、QR（中身は`{publicUrl}/pair#XXXX-XXXX`）をカメラで読み、接続先とコードを取り出します
+- 交換で得たトークンは、入力ページは`localStorage`（端末名ごと）、機体はアプリの`localStorage`に保存します。バックエンドは、トークンのSHA-256だけを保存します。入力ページは名乗った端末名、機体は機体として登録したトークンでだけつながります
+- 失敗が続いたら、接続元ごとに受け付けません（初期値：1分に5回で5分）。接続元は、トンネル（cloudflared）が付ける`CF-Connecting-IP`ヘッダー、なければ接続のアドレスです。本番は公開用ポートを`127.0.0.1`で待ち受けるので、ヘッダーを偽って直接つなぐ経路はありません
+- 登録を解除する（トークンを無効にする）と、その端末の接続を切ります。端末はつなぎ直して断られ、登録の画面に戻ります
+
+**data/**：登録済みの端末は`data/devices.json`（Git管理外）にあります。1行が1台で、`id`・役割（`robot`・`console`）・名前・トークンのハッシュ・登録日時・無効にした日時です。無効にした行も残します。書くときは、一時ファイルに書いてから置き換えます。スタブのバックエンドも同じファイルを使います（切り替えるたびに登録し直さなくてよいように）。消すと、すべての端末が登録し直しになります。
+
+**管理用API**：バックエンドは、`127.0.0.1:8788`（`admin.port`）で管理用APIを待ち受けます。トンネルには載せません。Hostが`127.0.0.1`・`localhost`でない要求と、Originが手元でない要求は断ります（ブラウザ経由の不正な呼び出しを防ぐため）。
+
+| 呼び出し                     | 内容                                                             |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `GET /admin/status`          | 状態（会話の状態、入力元、接続・応答の有無、登録済みの端末など） |
+| `POST /admin/pairing-codes`  | 登録コードを出す（`code`・`expiresAt`・`qr`）                    |
+| `DELETE /admin/devices/{id}` | 登録を解除し、その端末の接続を切る                               |
+| `WS /admin/events`           | 状態と、できごと（`paired`・`unpaired`など）を流す               |
+
+**開発用の管理CLI**：バックエンドを起動しておき、別のPowerShellで使います。
+
+```powershell
+bun run admin status                     # 状態
+bun run admin pair                       # 登録コードを出し、QRをdata/pairing_qr.svgに書き出す（--out で場所を変える）
+bun run admin exchange                   # コードを出して、機体としてトークンに交換する（コードを渡すとそれを使う）
+bun run admin exchange --role console --device phone   # 入力ページの端末としてトークンに交換する
+bun run admin devices                    # 登録済みの端末（idと接続中かどうか）
+bun run admin revoke {id}                # 登録を解除する
+```
+
+バックエンドを起動したターミナルで`p`を押しても、登録コードとQRの中身を出せます。
+
+**開発機での登録**
+
+1. `bun run console:build`のあと、`bun run backend:stub`（または`bun run backend`）を起動します
+2. **入力ページ**：ブラウザで`http://localhost:8787/?device=tablet`を開くと、「この端末は登録されていません」と登録コードの入力行が出ます。ターミナルで`p`を押し（または`bun run admin pair`）、出たコードを60秒以内に入れて［登録］を押します。小文字・ハイフンなしでも受け付けます。登録できると、入力ページの表示に戻ります。失敗したときは入力が消えるので、新しいコードを出して入れ直します
+3. **機体アプリ（カメラがある）**：`apps/robot`で`bun run tauri dev`を起動すると、カメラの登録の画面になります。`bun run admin pair`で書き出した`data/pairing_qr.svg`をブラウザで開き、画面のQRをカメラに見せます。QRの接続先は`publicUrl`なので、同じPCなら初期値（`http://localhost:8787`）のままでかまいません
+4. **機体アプリ（カメラがない）**：`bun run admin exchange`を実行し、出た内容を`apps/robot/src/config/config.local.json`に書いて、機体アプリを起動し直します。開発用の`backend.url`・`backend.token`は、QRで登録して保存したものより優先します（QRでの登録を試すときは、この2つを消します）
+
+```json
+{
+  "backend": { "url": "ws://localhost:8787/ws", "token": "{exchangeで出たトークン}" }
+}
+```
+
+5. **登録の解除を確かめる**：`bun run admin devices`で`id`を調べ、`bun run admin revoke {id}`を実行します。その端末は登録の画面（入力ページは登録コードの入力、機体はカメラ）に戻ります
+
+**LANの別の端末から試す**：`config/backend.local.json`に、`host`を`0.0.0.0`、`publicUrl`を`http://{開発機のLANのIP}:8787`と書きます（QRの中身の接続先が、ほかの端末から届くURLになるように）。管理用APIは、`host`に関係なく`127.0.0.1`だけで待ち受けます。
+
+```json
+{
+  "host": "0.0.0.0",
+  "publicUrl": "http://192.168.0.10:8787"
+}
+```
 
 ### タブレットへのインストール
 
@@ -202,29 +260,36 @@ bun run console:dev      # Viteの開発サーバー（http://localhost:5173/、
 
 ```json
 {
-  "llm": { "baseUrl": "http://192.168.0.10:8080", "model": "qwen3-4b" }
+  "llm": { "baseUrl": "http://192.168.0.10:8080", "activeAlias": "sub" }
 }
 ```
 
-| 項目                               | 内容                                                                            | 初期値                             |
-| ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
-| `port`                             | 待ち受けのポート（入力ページとWebSocket）                                       | `8787`                             |
-| `llm.baseUrl`                      | llama-serverの接続先（OpenAI互換API）                                           | `http://127.0.0.1:8080`            |
-| `llm.model`                        | モデル名（llama-serverの`--alias`）                                             | `qwen3-4b`                         |
-| `llm.contextTurns`                 | LLMに渡す直近の往復数                                                           | `4`                                |
-| `llm.jsonSchema`                   | JSONスキーマ制約（`response_format`）を使うか                                   | `true`                             |
-| `llm.maxTokens`・`llm.temperature` | 生成の上限トークン数と温度                                                      | `256`・`0.7`                       |
-| `llm.timeoutMs`                    | LLMの応答を待つ上限                                                             | `60000`                            |
-| `tts.baseUrl`・`tts.speaker`       | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                   | `http://127.0.0.1:50021`・`1`      |
-| `devices.list`                     | 端末の一覧（順番は、端末を切り替える数字キーの順）                              | `["tablet", "phone"]`              |
-| `devices.active`                   | 起動時に入力を受け付ける端末                                                    | `tablet`                           |
-| `console.autosendMs`               | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                   | `3000`                             |
-| `console.fontSizePx`               | 入力ページの文字の大きさ                                                        | `18`                               |
-| `console.bottomInsetPx`            | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                    | `0`                                |
-| `console.prompt`                   | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える） | `user`・`nid-techtech`・`~/makers` |
-| `speakingGraceMs`                  | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                      | `5000`                             |
-| `healthIntervalMs`                 | llama-serverとVOICEVOXへの問い合わせの間隔                                      | `5000`                             |
-| `historyDisplayTurns`              | 入力ページに送る表示用の履歴の件数                                              | `50`                               |
+| 項目                                                    | 内容                                                                                          | 初期値                               |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `host`                                                  | 公開用ポートの待ち受け先。本番は`127.0.0.1`（トンネルだけが届く）。LANから試すときは`0.0.0.0` | `127.0.0.1`                          |
+| `port`                                                  | 公開用ポート（入力ページとWebSocket）                                                         | `8787`                               |
+| `publicUrl`                                             | 登録のQRに入れる公開URL。LANから試すときは`http://{LANのIP}:8787`                             | `http://localhost:8787`              |
+| `admin.port`                                            | 管理用API（`127.0.0.1`だけで待ち受ける）                                                      | `8788`                               |
+| `llm.baseUrl`                                           | llama-serverの接続先（OpenAI互換API）                                                         | `http://127.0.0.1:8080`              |
+| `llm.models.{main,sub}`                                 | 正・副のモデル名（llama-serverの`--alias`）と、生成の上限トークン数（`maxTokens`）・温度      | `qwen3-8b`・`qwen3-4b`、`256`・`0.7` |
+| `llm.activeAlias`                                       | 起動時に使うモデルの別名（`main`・`sub`）                                                     | `main`                               |
+| `llm.contextTurns`                                      | LLMに渡す直近の往復数                                                                         | `4`                                  |
+| `llm.jsonSchema`                                        | JSONスキーマ制約（`response_format`）を使うか                                                 | `true`                               |
+| `llm.timeoutMs`                                         | LLMの応答を待つ上限                                                                           | `60000`                              |
+| `tts.baseUrl`・`tts.speaker`                            | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                                 | `http://127.0.0.1:50021`・`1`        |
+| `inputSources.consoles`                                 | 入力ページの端末名（順番は、入力元を切り替える数字キーの`2`以降の順）                         | `["tablet", "phone"]`                |
+| `inputSources.active`                                   | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                  | `robot`                              |
+| `pairing.codeTtlMs`                                     | 登録コードの有効時間                                                                          | `60000`                              |
+| `pairing.maxFailures`・`failureWindowMs`・`lockMs`      | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない        | `5`・`60000`・`300000`               |
+| `stt`・`search`                                         | 音声認識（Google）と検索（Tavily）の設定の雛形。Phase 7・8で使い始める                        | 空                                   |
+| `dialogue.questionLoopThreshold`・`session.idleResetMs` | 質問のループを防ぐ指示と、履歴の区切り（Phase 8で使い始める）                                 | `2`・`90000`                         |
+| `console.autosendMs`                                    | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                 | `3000`                               |
+| `console.fontSizePx`                                    | 入力ページの文字の大きさ                                                                      | `18`                                 |
+| `console.bottomInsetPx`                                 | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                                  | `0`                                  |
+| `console.prompt`                                        | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える）               | `user`・`nid-techtech`・`~/makers`   |
+| `speakingGraceMs`                                       | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                                    | `5000`                               |
+| `healthIntervalMs`                                      | llama-serverとVOICEVOXへの問い合わせの間隔                                                    | `5000`                               |
+| `historyDisplayTurns`                                   | 入力ページに送る表示用の履歴の件数                                                            | `50`                                 |
 
 バックエンドは、`llm.baseUrl`の`/health`と`tts.baseUrl`の`/version`に定期的に問い合わせます。LLMかVOICEVOXが応答しない間は、発言を受け付けません（入力ページは全面の案内、機体は眠っている顔）。応答が戻れば、自動で受け付けに戻ります。機体アプリがつながっていない間は、音声を作らず、返事を出したらすぐ待機中に戻ります。
 
@@ -376,6 +441,8 @@ Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 バックエンドの接続先は、`config/backend.local.json`（Git管理外）で上書きします。仮のサーバーと本番で変わるのは、接続先とモデル名だけです。上の手順のポート（8080・50021）とモデル名（`qwen3-4b`）は、`config/backend.default.json`の初期値と同じなので、仮のサーバーでは上書きなしで`bun run backend`につながります（項目は「設定ファイル」）。
 
 ## バックエンドPC（本番）
+
+> この節と「展示当日の運用」は、v5（0.1.0）の手順です。v6（会場と自宅に分けた版）の本番の手順は、Phase 11で書き直します。
 
 本番のバックエンドPC（Windows 11、Ryzen 5 3500、RX480）には、「開発機の仮のサーバー」と同じ手順でサーバーを置きます。違いは、llama-serverをVulkan版のビルドにしてGPUで動かすことと、LANから入力ページにつなげるための設定です。ポート・`--alias`・フォルダの置き場所は、仮のサーバーと同じにします。PowerShellの管理者権限が要る手順には「（管理者）」と書いています。
 
@@ -562,16 +629,17 @@ bun run console:icons    # 入力ページ（apps/console/public/icons/：32・1
 ```
 tekurobokun/
 ├─ apps/
-│  ├─ backend/   バックエンド（Bun）。会話の制御、llama-server・VOICEVOXの呼び出し、入力ページの配信
+│  ├─ backend/   バックエンド（Bun）。会話の制御、llama-server・VOICEVOXの呼び出し、入力ページの配信、登録、管理用API
 │  ├─ console/   入力ページ（TypeScript＋Vite）
 │  └─ robot/     機体アプリ（Tauri 2＋TypeScript＋Vite＋p5.js）
 ├─ packages/
-│  ├─ protocol/  WebSocketのメッセージの型と検証関数（3つのアプリが共有）
+│  ├─ protocol/  WebSocketのメッセージと管理用APIの型・検証関数、登録コードとQRの中身の規則（アプリが共有）
 │  ├─ i18n/      Paraglide JS 2の辞書（原文：ja）と疑似ロケール、ロケールの判定
 │  └─ theme/     tokens.cssとフォント（M PLUS 1 Code・DotGothic16。OFLのライセンス文つき）
 ├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
+├─ data/         登録済みの端末とトークンのハッシュ（Git管理外）
 ├─ logs/         会話ログとモデル比較の結果（Git管理外）
-├─ scripts/      checkコマンドとその検査、モデル比較、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
+├─ scripts/      checkコマンドとその検査、モデル比較、開発用の管理CLI、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
 ├─ .github/      CIのワークフロー（checkコマンドを実行）
 ├─ docs/
 │  ├─ brand/     ブランドの資料とマスターSVG（roadmap/specs/の写し。編集しない）

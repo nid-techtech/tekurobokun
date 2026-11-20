@@ -3,32 +3,83 @@
 // 上書きはオブジェクトを再帰的に合わせ、配列と値はまるごと置き換える。
 
 import { fileURLToPath } from "node:url";
-import type { ConsoleSettings } from "@tekurobokun/protocol";
+import {
+  type ConsoleSettings,
+  LLM_ALIASES,
+  type LlmAlias,
+  ROBOT_SOURCE,
+} from "@tekurobokun/protocol";
 
 /** リポジトリのルート（apps/backend/src から3つ上）。 */
 export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 export const CONFIG_DIR = `${REPO_ROOT}config/`;
 
-export type LlmConfig = {
+/** モデルの別名（main・sub）ごとの、モデル名と生成のパラメータ */
+export type LlmModelConfig = {
+  model: string;
+  maxTokens: number;
+  temperature: number;
+};
+
+/** LLMへの問い合わせの設定（いまの別名のモデルの値で解決したもの） */
+export type LlmConfig = LlmModelConfig & {
   /** OpenAI互換APIの接続先（末尾の / なし）。`/v1/chat/completions`と`/health`を呼ぶ */
   baseUrl: string;
-  model: string;
   /** LLMに渡す直近の往復数 */
   contextTurns: number;
   /** JSONスキーマ制約（response_format）を使うか */
   jsonSchema: boolean;
-  maxTokens: number;
-  temperature: number;
   timeoutMs: number;
+};
+
+export type SttConfig = {
+  provider: "google" | "stub";
+  timeoutMs: number;
+  google: {
+    projectId: string;
+    location: string;
+    model: string;
+    /** サービスアカウントの鍵のパス（リポジトリの外に置く） */
+    keyFile: string;
+    dataLogging: boolean;
+  };
+};
+
+export type SearchConfig = {
+  provider: "tavily" | "stub";
+  apiKey: string;
+  maxResults: number;
+  timeoutMs: number;
+};
+
+export type PairingConfig = {
+  /** 登録コードの有効時間 */
+  codeTtlMs: number;
+  /** failureWindowMsの間にこの回数失敗したら、lockMsの間受け付けない */
+  maxFailures: number;
+  failureWindowMs: number;
+  lockMs: number;
 };
 
 export type TtsConfig = { baseUrl: string; speaker: number };
 
 export type BackendConfig = {
+  /** 公開用ポートの待ち受け先（本番は127.0.0.1。LANから試すときだけ0.0.0.0） */
+  host: string;
   port: number;
-  llm: LlmConfig;
+  /** QRに入れる公開URL（末尾の / なし） */
+  publicUrl: string;
+  /** 管理用API（127.0.0.1だけで待ち受ける） */
+  admin: { port: number };
+  llm: LlmConfig & { models: Record<LlmAlias, LlmModelConfig>; activeAlias: LlmAlias };
   tts: TtsConfig;
-  devices: { list: string[]; active: string };
+  /** 入力元。consolesは設定のconsoleの名前、activeは起動時の入力元（robotかconsoleの名前） */
+  inputSources: { consoles: string[]; active: string };
+  pairing: PairingConfig;
+  stt: SttConfig;
+  search: SearchConfig;
+  dialogue: { questionLoopThreshold: number };
+  session: { idleResetMs: number };
   console: ConsoleSettings;
   /** 話し中のタイムアウトの余裕（送った音声の長さの合計に足す） */
   speakingGraceMs: number;
@@ -69,6 +120,9 @@ const isNonNeg = (x: unknown) => typeof x === "number" && Number.isFinite(x) && 
 const isPort = (x: unknown) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 65535;
 const isCount = (x: unknown) => Number.isInteger(x) && (x as number) >= 0;
 const isUrl = (x: unknown) => isStr(x) && /^https?:\/\/[^/]+/.test(x as string);
+const isBoolean = (x: unknown) => typeof x === "boolean";
+const isNonEmpty = (x: unknown) => isStr(x) && (x as string) !== "";
+const oneOf = (list: readonly string[]) => (x: unknown) => list.includes(x as string);
 
 /** 設定の形を確かめる。崩れていれば、どの項目かを示す例外を投げる。 */
 export function parseBackendConfig(raw: unknown): BackendConfig {
@@ -79,35 +133,92 @@ export function parseBackendConfig(raw: unknown): BackendConfig {
   const url = (path: string) =>
     (pick(raw, path, isUrl, "an http(s) URL") as string).replace(/\/+$/, "");
 
-  const list = pick(
+  const b = (path: string) => pick(raw, path, isBoolean, "a boolean") as boolean;
+  const port = (path: string) => pick(raw, path, isPort, "a port number") as number;
+
+  const consoles = pick(
     raw,
-    "devices.list",
-    (x) => Array.isArray(x) && x.every(isStr),
-    "an array of strings",
+    "inputSources.consoles",
+    (x) => Array.isArray(x) && x.every(isNonEmpty),
+    "an array of non-empty strings",
   ) as string[];
-  const active = s("devices.active");
-  if (list.length > 0 && !list.includes(active)) {
-    throw new ConfigError(`config: devices.active "${active}" is not in devices.list`);
+  if (consoles.includes(ROBOT_SOURCE)) {
+    throw new ConfigError(`config: inputSources.consoles must not include "${ROBOT_SOURCE}"`);
+  }
+  if (new Set(consoles).size !== consoles.length) {
+    throw new ConfigError("config: inputSources.consoles has duplicates");
+  }
+  const active = s("inputSources.active");
+  if (active !== ROBOT_SOURCE && !consoles.includes(active)) {
+    throw new ConfigError(
+      `config: inputSources.active "${active}" must be "${ROBOT_SOURCE}" or one of inputSources.consoles`,
+    );
+  }
+
+  const model = (alias: LlmAlias): LlmModelConfig => ({
+    model: s(`llm.models.${alias}.model`),
+    maxTokens: c(`llm.models.${alias}.maxTokens`),
+    temperature: n(`llm.models.${alias}.temperature`),
+  });
+  const models = { main: model("main"), sub: model("sub") };
+  const activeAlias = pick(
+    raw,
+    "llm.activeAlias",
+    oneOf(LLM_ALIASES),
+    `one of ${LLM_ALIASES.join(", ")}`,
+  ) as LlmAlias;
+
+  const adminPort = port("admin.port");
+  const publicPort = port("port");
+  if (adminPort !== 0 && adminPort === publicPort) {
+    throw new ConfigError("config: admin.port must differ from port");
   }
 
   return {
-    port: pick(raw, "port", isPort, "a port number") as number,
+    host: pick(raw, "host", isNonEmpty, "a non-empty string") as string,
+    port: publicPort,
+    publicUrl: url("publicUrl"),
+    admin: { port: adminPort },
     llm: {
       baseUrl: url("llm.baseUrl"),
-      model: s("llm.model"),
+      ...models[activeAlias],
       contextTurns: c("llm.contextTurns"),
-      jsonSchema: pick(
-        raw,
-        "llm.jsonSchema",
-        (x) => typeof x === "boolean",
-        "a boolean",
-      ) as boolean,
-      maxTokens: c("llm.maxTokens"),
-      temperature: n("llm.temperature"),
+      jsonSchema: b("llm.jsonSchema"),
       timeoutMs: n("llm.timeoutMs"),
+      models,
+      activeAlias,
     },
     tts: { baseUrl: url("tts.baseUrl"), speaker: c("tts.speaker") },
-    devices: { list, active },
+    inputSources: { consoles, active },
+    pairing: {
+      codeTtlMs: n("pairing.codeTtlMs"),
+      maxFailures: c("pairing.maxFailures"),
+      failureWindowMs: n("pairing.failureWindowMs"),
+      lockMs: n("pairing.lockMs"),
+    },
+    stt: {
+      provider: pick(raw, "stt.provider", oneOf(["google", "stub"]), "google or stub") as
+        | "google"
+        | "stub",
+      timeoutMs: n("stt.timeoutMs"),
+      google: {
+        projectId: s("stt.google.projectId"),
+        location: s("stt.google.location"),
+        model: s("stt.google.model"),
+        keyFile: s("stt.google.keyFile"),
+        dataLogging: b("stt.google.dataLogging"),
+      },
+    },
+    search: {
+      provider: pick(raw, "search.provider", oneOf(["tavily", "stub"]), "tavily or stub") as
+        | "tavily"
+        | "stub",
+      apiKey: s("search.apiKey"),
+      maxResults: c("search.maxResults"),
+      timeoutMs: n("search.timeoutMs"),
+    },
+    dialogue: { questionLoopThreshold: c("dialogue.questionLoopThreshold") },
+    session: { idleResetMs: n("session.idleResetMs") },
     console: {
       autosendMs: n("console.autosendMs"),
       fontSizePx: n("console.fontSizePx"),

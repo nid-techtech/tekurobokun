@@ -25,6 +25,12 @@ export class CaptionOverlay {
     root.appendChild(this.container);
   }
 
+  /** 話し手の付かない1行を出す（登録の画面の案内。S02g）。 */
+  setText(text: string): void {
+    this.line.textContent = text;
+    this.container.hidden = false;
+  }
+
   /** 字幕を出す。nullなら消す。 */
   set(content: CaptionContent | null): void {
     if (!content) {

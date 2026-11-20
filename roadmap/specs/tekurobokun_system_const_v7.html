@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>テクロボくん システム構成（v6）</title>
+<title>テクロボくん システム構成（v7）</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400;700&display=swap">
@@ -66,13 +66,13 @@ code { font-family: var(--font); color: var(--accent); }
 <body>
 <div class="page">
   <header>
-    <h1>テクロボくん システム構成（v6）</h1>
-    <p class="lede">会場には機体とconsoleだけを置き、考える処理と声を作る処理は自宅のバックエンドPCに置く。会場と自宅は、Cloudflare Tunnel（tekurobo.nid-techtech.com）を通したHTTPS・WebSocketでつなぐ。音声認識はGoogle STT、検索はTavilyをバックエンドPCから呼ぶ。</p>
+    <h1>テクロボくん システム構成（v7）</h1>
+    <p class="lede">会場には機体とconsoleだけを置き、考える処理と声を作る処理は自宅のバックエンドPCに置く。会場と自宅は、Cloudflare Tunnel（tekurobo.nid-techtech.com）を通したHTTPS・WebSocketでつなぐ。音声認識はバックエンドPCの whisper-server（LLMと同じGPU）で行い、来場者の声は外に出さない。外部のサービスは検索のTavilyだけ。</p>
   </header>
 
   <figure>
     <div class="scroll">
-      <svg class="diagram" viewBox="0 0 1240 880" role="img" aria-label="会場の機体がマイクの音声を区切って Cloudflare Tunnel 経由で自宅のバックエンドPCに送る。バックエンドは Google STT で文字にし、llama-server に問い合わせ、必要なら Tavily で検索してもう一度問い合わせる。VOICEVOX で音声にして、表情・字幕・音声を機体へ返す。ランチャーがバックエンドPCのサービスを起動・監視し、会場のスタッフは Chrome Remote Desktop でランチャーを操作する。">
+      <svg class="diagram" viewBox="0 0 1240 880" role="img" aria-label="会場の機体がマイクの音声を区切って Cloudflare Tunnel 経由で自宅のバックエンドPCに送る。バックエンドは同じPCの whisper-server で文字にし、llama-server に問い合わせ、必要なら Tavily で検索してもう一度問い合わせる。VOICEVOX で音声にして、表情・字幕・音声を機体へ返す。ランチャーがバックエンドPCのサービスを起動・監視し、会場のスタッフは Chrome Remote Desktop でランチャーを操作する。">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path class="arrowhead-accent" d="M0 0L10 5L0 10z"/>
@@ -155,11 +155,6 @@ code { font-family: var(--font); color: var(--accent); }
         <text x="387" y="252" font-size="11" class="muted">WSS /ws（機体・console）</text>
         <text x="387" y="280" font-size="11" class="muted">管理用APIは載せない</text>
 
-        <rect class="box" x="375" y="430" width="220" height="96" rx="4"/>
-        <text x="387" y="454" font-size="15" font-weight="700">Google STT</text>
-        <text x="387" y="474" font-size="12">Speech-to-Text V2</text>
-        <text x="387" y="494" font-size="11" class="muted">ja-JP・1回の認識</text>
-        <text x="387" y="512" font-size="11" class="muted">（ストリーミングは使わない）</text>
 
         <rect class="box" x="375" y="560" width="220" height="96" rx="4"/>
         <text x="387" y="584" font-size="15" font-weight="700">Tavily</text>
@@ -179,7 +174,7 @@ code { font-family: var(--font); color: var(--accent); }
         <rect class="box" x="660" y="122" width="540" height="96" rx="4"/>
         <text x="672" y="144" font-size="15" font-weight="700">apps/launcher</text>
         <text x="810" y="144" font-size="11" class="muted">Tauri 2 ・サインイン時に自動起動</text>
-        <text x="672" y="166" font-size="12">5つのサービスの起動・停止・状態、正→副の切り替え（ハートビート）</text>
+        <text x="672" y="166" font-size="12">6つのサービスの起動・停止・状態、正→副の切り替え（ハートビート）</text>
         <text x="672" y="186" font-size="12">入力元の切り替え・マイクの一時停止・会話のリセット・登録コード（QR）</text>
         <text x="672" y="206" font-size="11" class="muted">backend の管理用API（127.0.0.1:8788）を呼ぶ</text>
 
@@ -201,7 +196,7 @@ code { font-family: var(--font); color: var(--accent); }
         <text x="1028" y="303" font-size="11" class="muted">入力元を1つに</text>
         <rect class="module" x="842" y="320" width="170" height="44"/>
         <text x="850" y="338" font-size="12">SpeechRecognizer</text>
-        <text x="850" y="355" font-size="11" class="muted">Google STT・スタブ</text>
+        <text x="850" y="355" font-size="11" class="muted">whisper・スタブ・決まり文句</text>
         <rect class="module" x="1020" y="320" width="170" height="44"/>
         <text x="1028" y="338" font-size="12">ConversationSession</text>
         <text x="1028" y="355" font-size="11" class="muted">状態・履歴・無音で区切る</text>
@@ -225,24 +220,36 @@ code { font-family: var(--font); color: var(--accent); }
         <text x="1028" y="511" font-size="11" class="muted">型を4者で共有</text>
         <text x="842" y="546" font-size="11" class="muted">HTTP：consoleを配信 ／ WebSocket：/ws</text>
 
+        <!-- whisper-server -->
+        <rect class="box" x="660" y="640" width="172" height="196" rx="4"/>
+        <text x="672" y="664" font-size="15" font-weight="700">whisper-server</text>
+        <text x="672" y="686" font-size="12">whisper.cpp（Vulkan）</text>
+        <text x="672" y="706" font-size="12">:8081</text>
+        <text x="672" y="726" font-size="12">large-v3-turbo q5_0</text>
+        <text x="672" y="752" font-size="11" class="muted">日本語・1回の認識</text>
+        <text x="672" y="770" font-size="11" class="muted">声は外に出さない</text>
+        <text x="672" y="796" font-size="11" class="muted">LLM の読み込み後に起動</text>
+        <text x="672" y="814" font-size="11" class="muted">LLM と同じ GPU</text>
+
         <!-- llama-server -->
-        <rect class="box" x="660" y="640" width="260" height="196" rx="4"/>
-        <text x="672" y="664" font-size="15" font-weight="700">llama-server ×2（同時に1つ）</text>
-        <text x="672" y="686" font-size="12">llama.cpp（Vulkan）・:8080</text>
-        <text x="672" y="706" font-size="12">正：Qwen3-8B Q4_K_M</text>
-        <text x="672" y="726" font-size="12">副：Qwen3-4B Q4_K_M</text>
-        <text x="672" y="752" font-size="11" class="muted">正が3回応答しなければ</text>
-        <text x="672" y="770" font-size="11" class="muted">正を終了して副を起動</text>
-        <text x="672" y="796" font-size="11" class="muted">比較：Qwen3.5-9B・4B</text>
-        <text x="672" y="814" font-size="11" class="muted">（比較スクリプトで）</text>
+        <rect class="box" x="844" y="640" width="172" height="196" rx="4"/>
+        <text x="856" y="664" font-size="15" font-weight="700">llama-server</text>
+        <text x="856" y="686" font-size="12">×2（同時に1つ）</text>
+        <text x="856" y="706" font-size="12">Vulkan・:8080</text>
+        <text x="856" y="726" font-size="12">正：Qwen3-8B Q4_K_M</text>
+        <text x="856" y="744" font-size="12">副：Qwen3-4B Q4_K_M</text>
+        <text x="856" y="770" font-size="11" class="muted">正が3回応答しなければ</text>
+        <text x="856" y="788" font-size="11" class="muted">正を終了して副を起動</text>
+        <text x="856" y="814" font-size="11" class="muted">比較：Qwen3.5-9B・4B</text>
 
         <!-- VOICEVOX -->
-        <rect class="box" x="940" y="640" width="260" height="196" rx="4"/>
-        <text x="952" y="664" font-size="15" font-weight="700">VOICEVOX ENGINE</text>
-        <text x="952" y="686" font-size="12">0.25.2・Windows CPU版</text>
-        <text x="952" y="706" font-size="12">localhost:50021</text>
-        <text x="952" y="732" font-size="11" class="muted">/audio_query</text>
-        <text x="952" y="750" font-size="11" class="muted">→ /synthesis → WAV</text>
+        <rect class="box" x="1028" y="640" width="172" height="196" rx="4"/>
+        <text x="1040" y="664" font-size="15" font-weight="700">VOICEVOX</text>
+        <text x="1040" y="686" font-size="12">ENGINE 0.25.2</text>
+        <text x="1040" y="706" font-size="12">Windows CPU版</text>
+        <text x="1040" y="726" font-size="12">localhost:50021</text>
+        <text x="1040" y="752" font-size="11" class="muted">/audio_query</text>
+        <text x="1040" y="770" font-size="11" class="muted">→ /synthesis → WAV</text>
 
         <!-- launcher が起動・監視 -->
         <line class="wire dashed" x1="735" y1="218" x2="735" y2="230" marker-end="url(#arrow_ink)"/>
@@ -270,10 +277,11 @@ code { font-family: var(--font); color: var(--accent); }
         <line class="wire dashed" x1="618" y1="110" x2="656" y2="128" marker-end="url(#arrow_ink)"/>
         <text x="522" y="798" font-size="10" class="muted">リモート操作</text>
 
-        <!-- backend ⇄ Google STT -->
+        <!-- backend ⇄ whisper-server -->
         <line class="flow" x1="842" y1="342" x2="638" y2="342"/>
-        <line class="flow" x1="638" y1="342" x2="638" y2="470"/>
-        <line class="flow" x1="638" y1="470" x2="599" y2="470" marker-end="url(#arrow)"/>
+        <line class="flow" x1="638" y1="342" x2="638" y2="620"/>
+        <line class="flow" x1="638" y1="620" x2="700" y2="620"/>
+        <line class="flow" x1="700" y1="620" x2="700" y2="636" marker-end="url(#arrow)"/>
         <text x="652" y="400" font-size="12" class="flow-label">②</text>
         <text x="652" y="418" font-size="11">WAV→文字</text>
 
@@ -300,7 +308,7 @@ code { font-family: var(--font); color: var(--accent); }
       <h2>会話1回の流れ</h2>
       <ol>
         <li>機体のマイクの音声を、無音で区切って1発話ずつバックエンドへ送る（WSS）。テクロボくんが話している間はマイクを止める</li>
-        <li><code>SpeechRecognizer</code> が Google STT で文字にする。禁止語を検査し、全員に「考え中」を知らせる</li>
+        <li><code>SpeechRecognizer</code> が whisper-server で文字にする。決まり文句（「ご視聴ありがとうございました」など）だけなら捨てて待機に戻る。禁止語を検査し、全員に「考え中」を知らせる</li>
         <li><code>DialogueEngine</code> が llama-server に人格・履歴を送り、<code>{say, emotion, search}</code> を受け取る</li>
         <li><code>search</code> があれば、<code>say</code>（「ちょっと調べてみるね」など）を先に話し、その間に <code>WebSearcher</code> が Tavily で検索して、結果を付けてもう一度③</li>
         <li><code>TtsEngine</code> が返事を文に分け、1文ずつ VOICEVOX で WAV にする</li>
@@ -315,6 +323,7 @@ code { font-family: var(--font); color: var(--accent); }
         <li>機体と console は、登録コード（ランチャーに出る、短命・1回限り）をトークンと交換して接続する。機体はQRをカメラで、console は文字で入れる</li>
         <li>管理用API（登録コードの発行、入力元の切り替え、マイクの一時停止、会話のリセット）は 127.0.0.1 だけで待ち受け、トンネルに載せない</li>
         <li>llama-server の正と副は同じポートで、同時には動かさない。backend は接続先を変えずに済む</li>
+        <li>whisper-server は llama-server と同じ GPU（8GB）に載せる。ランチャーは LLM の読み込みが終わってから起動し、正→副の切り替えでは止めない</li>
         <li>回線や外部サービスが止まると、機体は眠っている顔、console は「つながっていません」になる</li>
       </ul>
     </section>

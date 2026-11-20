@@ -1,26 +1,28 @@
-# tekurobokun 実装計画（会場と自宅に分けた版）
+# tekurobokun 実装計画（音声認識をwhisperにした版）
 
-対象：`roadmap/specs/tekurobokun_SPEC_v6.md`（プランアセット v6。v5からの変更は`development/261120153038_change_venue_home_split.md`。それ以前の変更は`timeline.md`を参照）。v5（0.1.0）の実装の上に積む。
+対象：`roadmap/specs/tekurobokun_SPEC_v7.md`（プランアセット v7。v6からの変更は`development/261121005459_change_stt_whisper.md`、v5からv6は`development/261120153038_change_venue_home_split.md`。それ以前の変更は`timeline.md`を参照）。v5（0.1.0）の実装の上に積む。
 
 ## 1. 方針
 
 - 目標は0.2.0（Phase 12）まで。Phase 1〜5はv5（展示版）で完了済み
 - 会話が通る最小の形から順に積む。各Phaseの終わりで、そのPhaseまでの機能が開発機で動く
-- **実機の検証はPhase 11にまとめる**（ユーザーの手元に開発機しかないため。changeの「実機を要する検証の配置」）。Phase 6〜10のwalkには、開発機で確かめられる項目だけを置く。実機とは、機体（Core m7）、Arduinoと履帯、タブレット・スマホ、バックエンドPC（RX 5700 XT）、名前付きトンネルと会場の回線を指す
-- 外部サービス（Google STT・Tavily）、LLM、VOICEVOXは、すべてスタブの実装を持つ。`--stub`でまとめてスタブにし、APIキーなしで開発機だけで全体を動かせる
-- **走行は、Phase 11で実機の停止の検証が通るまで、会場で使わない**。機体の設定の`drive.enabled`は既定で`false`
-- 正本：振る舞いはスペックシート、構成と会話1回の流れは`tekurobokun_system_const_v6.html`、値は`packages/theme/tokens.css`（`specs/`の写し）、画面構成は画面ごとのモック（`tekurobokun_mock_S01_v6.html`・`_S02_v6`・`_S03_v6`）、文言は`packages/i18n`の原文の辞書（移した時点で正本）
+- **実機の検証は、依存する実装がそろう最初のPhaseのwalkに置く**（v7。261121から自宅でバックエンドPCと機体の実機を使える。v6ではPhase 11にまとめていた）。実機とは、機体（Core m7、カメラ・マイク・スピーカー、Arduinoと履帯）、タブレット・スマホ、バックエンドPC（RX 5700 XT）、名前付きトンネルと会場の回線を指す。会場と同じ条件での通しだけをPhase 11に置く
+- **バックエンドPCでもClaude Codeを使う**。バックエンドPCで行う【エージェント】の項目は、本文の頭に「（バックエンドPCで）」と書く。機械が変わる項目の前で、引き継ぎメモとコミットメッセージを書いて停止し、ユーザーがコミット・push、もう一方の機械でpullしてから再開する。`config/*.local.json`と`data/`はGit管理外のため、機械ごとに置く
+- **Phase 7〜9の実機の接続は自宅のLAN**：バックエンドの公開用ポートを`0.0.0.0`で待ち受け、`publicUrl`をLANのアドレスにして登録する。各サービスは手で起動する。名前付きトンネルとランチャーでの起動はPhase 10から
+- 外部サービス（Tavily）、音声認識（`whisper-server`）、LLM、VOICEVOXは、すべてスタブの実装を持つ。`--stub`でまとめてスタブにし、APIキーなしで開発機だけで全体を動かせる
+- **走行は、Phase 9で実機の停止の検証が通るまで、会場で使わない**。機体の設定の`drive.enabled`は既定で`false`
+- 正本：振る舞いはスペックシート、構成と会話1回の流れは`tekurobokun_system_const_v7.html`、値は`packages/theme/tokens.css`（`specs/`の写し）、画面構成は画面ごとのモック（`tekurobokun_mock_S01_v7.html`・`_S02_v7`・`_S03_v7`）、文言は`packages/i18n`の原文の辞書（移した時点で正本）
 - モックの文言は、その画面を実装する項目で辞書へ移す（未使用キーの検査があるため、先にまとめて移さない）
 
 Phaseの一覧
 
-- Phase 1〜5：v5（土台、文字だけの会話、機体で話す、止まらない展示、字幕と公開の準備）。完了済み（Phase 5のユーザーの検証の一部はPhase 11・12へ移した）
+- Phase 1〜5：v5（土台、文字だけの会話、機体で話す、止まらない展示、字幕と公開の準備）。完了済み（Phase 5のユーザーの検証の一部はPhase 7・10・12へ移した）
 - Phase 6：登録とトークン（プロトコル・設定のv6の分、`DeviceAuth`、管理用API、トークンでの接続、S01i・S02g、Tauri 2.12）
-- Phase 7：機体のマイクで話す（入力元、`SpeechRecognizer`、聞き取り中、`VoiceCapture`、S01h・S02h）
-- Phase 8：調べて答える・話を広げる（`WebSearcher`、`search`と2回目の問い合わせ、質問のループを防ぐ、無音での区切り、S02i、比較スクリプト）
-- Phase 9：走らせる（押している間だけ動く走行、`SerialLink`の配線、走行中のマイクの停止）
-- Phase 10：ランチャー（`apps/launcher`、サービスの起動と監視、正→副の切り替え、S03a〜S03e、自動起動）
-- Phase 11：実機での検証と本番の準備（バックエンドPC、名前付きトンネル、機体・Arduino・タブレット・スマホ、会場と同じ条件での通し）
+- Phase 7：機体のマイクで話す（入力元、`SpeechRecognizer`と`whisper-server`、聞き取り中、`VoiceCapture`、S01h・S02h、音声認識の比較。バックエンドPCと機体の実機の準備、GPUのメモリの測定、実機での会話）
+- Phase 8：調べて答える・話を広げる（`WebSearcher`、`search`と2回目の問い合わせ、質問のループを防ぐ、無音での区切り、S02i、比較スクリプト。正のモデルの決定、実機での調べ中）
+- Phase 9：走らせる（押している間だけ動く走行、`SerialLink`の配線、走行中のマイクの停止。Arduinoと履帯での停止の確認）
+- Phase 10：ランチャー（`apps/launcher`、サービスの起動と監視、正→副の切り替え、S03a〜S03e、自動起動。名前付きトンネル、バックエンドPCの本番の準備、GPUでの切り替え、無人の立ち上げ）
+- Phase 11：会場と同じ条件での通し（モバイルルーター、スマホからのChrome Remote Desktop、応答時間の測定）
 - Phase 12：公開の準備（README、0.2.0のリリース準備）
 
 ## 2. リポジトリ構成
@@ -28,7 +30,7 @@ Phaseの一覧
 ```
 tekurobokun/
 ├─ apps/
-│  ├─ backend/   Bun。会話の制御、llama-server・VOICEVOX・Google STT・Tavilyの呼び出し、consoleの配信、登録、管理用API
+│  ├─ backend/   Bun。会話の制御、llama-server・`whisper-server`・VOICEVOX・Tavilyの呼び出し、consoleの配信、登録、管理用API
 │  ├─ console/   console（素のTypeScript＋Vite。PWA）
 │  ├─ robot/     機体アプリ（Tauri 2.12以降＋TypeScript＋Vite＋p5.js）
 │  │  └─ arduino/  ヘボコン版のスケッチ（中身を変えずにコピー）
@@ -38,15 +40,17 @@ tekurobokun/
 │  ├─ i18n/      Paraglide JS 2の辞書（原文：ja）と疑似ロケール
 │  └─ theme/     tokens.cssとフォント
 ├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
-├─ data/         登録済みの端末とトークン、検索回数（Git管理外）。新規
+├─ data/         登録済みの端末とトークン、検索回数、音声認識の比較の録音（`data/stt_bench/`）（Git管理外）
 ├─ logs/         会話ログ（Git管理外）
-├─ scripts/      checkコマンドの検査、比較スクリプト、開発用の管理CLI、STTのモデルの確認
+├─ scripts/      checkコマンドの検査、比較スクリプト（対話・音声認識）、開発用の管理CLI、whisper.cppの準備（`setup_whisper.ps1`）
 ├─ docs/
 └─ roadmap/
 ```
 
 - `scripts/register_backend_tasks.ps1`・`unregister_backend_tasks.ps1`（タスクスケジューラ）は、ランチャーの自動起動ができた時点（Phase 10）で消す
-- 秘密の値（トンネルのトークン、Googleのサービスアカウントの鍵のパス、TavilyのAPIキー）は`config/*.local.json`に置く。鍵のファイルそのものはリポジトリの外に置き、パスだけを書く
+- 秘密の値（トンネルのトークン、TavilyのAPIキー）は`config/*.local.json`に置く
+- `whisper-server`の実行ファイルとモデルは、リポジトリの外に置き、llama.cppとは別のフォルダにする（ggmlのDLLを混ぜない）。場所は設定に書く
+- v6で作ったGoogle STTの実装（`apps/backend/src/stt/google.ts`・`google_auth.ts`）、`scripts/stt_locations.ts`とそのテスト、`package.json`の`stt:locations`は、Phase 7（T7-8）で消す
 - `.gitignore`に`data/`を足す
 
 ## 3. コンポーネントの責務
@@ -61,7 +65,10 @@ v5から変わらないもの（`TtsEngine`、`ContentFilter`、`HealthMonitor`�
   - トークン：32バイトの乱数（base64url）。`data/devices.json`には、トークンのSHA-256と、端末の`id`・役割（`robot`・`console`）・名前・登録日時を保存する（トークンそのものは保存しない）
   - 失敗の制限：接続元ごとに、1分に5回失敗したら5分間受け付けない（値は設定）。接続元は`CF-Connecting-IP`ヘッダー、なければ接続のアドレス。本番は公開用ポートが`127.0.0.1`だけなので、ヘッダーを偽って直接つなぐ経路はない
 - `InputSourceRegistry`：v5の`InputDeviceRegistry`を置き換える。入力元は`robot`（機体のマイク）と、設定のconsoleの名前（`tablet`・`phone`）。有効な入力元は1つ。マイクの一時停止の状態も持つ。切り替えは管理用APIと`OperatorConsole`から
-- `SpeechRecognizer`：WAV→文字。`GoogleSpeechRecognizer`（V2 `Recognize`、ja-JP、モデル・リージョン・データロギングは設定）と`StubSpeechRecognizer`。Googleの認証は、サービスアカウントの鍵から署名したJWTでアクセストークンを得て、期限まで使い回す（ライブラリを入れるか、WebCryptoで書くかは着手時に決める）。応答の有無を`health.stt`に反映する
+- `SpeechRecognizer`：WAV→文字。`WhisperSpeechRecognizer`と`StubSpeechRecognizer`。応答の有無を`health.stt`に反映する
+  - `WhisperSpeechRecognizer`：`whisper-server`（既定`http://127.0.0.1:8081`）の`/inference`へWAVをmultipartで送る。言語は`ja`に固定し、翻訳しない。時間切れは設定。項目名と応答の形、音声なしの判断に使える値は、インストールした版のソースとREADMEで確かめる
+  - 捨てる結果：応答の文から前後の空白・句読点・記号を除き、空なら空。設定の決まり文句の一覧（`stt.whisper.hallucinations`）の1つと全体が一致したら空（部分一致にしないのは、本当にそう言った発話を捨てにくくするため）。`whisper-server`が音声なしと判断した結果（しきい値は`stt.whisper.noSpeechThreshold`）も空。捨てた数は、捨てた理由とともにbackendの標準出力に出す（会話ログには残さない）
+  - `health.stt`の確かめ方（専用の受け口があるか、軽い問い合わせで代えるか）は着手時に確かめる。ランチャーは`stt`をLLMの後に起動するため、起動直後は`health.stt`が`false`になり、機体はS02eになる（v6の「応答しないとき」と同じ扱い）
 - `WebSearcher`：検索語→結果の抜粋（タイトル・URL・本文の抜粋、既定3件）。`TavilyWebSearcher`（RESTを直接呼ぶ。`search_depth: basic`、`include_answer`なし）と`StubWebSearcher`。今月の回数を`data/usage.json`に数える（月はJST）
 - `DialogueEngine`：`{say, emotion, search}`を返す1回目と、検索結果の抜粋を付けて`{say, emotion}`を返す2回目。モデルの別名（`main`・`sub`）ごとの設定を持ち、いまの別名は管理用APIで受け取る。人格プロンプトの組み立て（自己認識→人格→質問のループを防ぐ指示）もここ
 - `ConversationSession`：状態に`listening`・`searching`を足す。発話の受け付け（入力元・状態・マイクの一時停止の判定）、STT、禁止語、1回目、検索、2回目、話し中の進行。だれも話さない時間でLLMの履歴を区切る。外部のAPIは直接呼ばない
@@ -92,12 +99,12 @@ v5から変わらないもの（`TtsEngine`、`ContentFilter`、`HealthMonitor`�
 
 ### apps/launcher（新規）
 
-- `ServiceSupervisor`（Rust）：5つのサービス（`llm.main`・`llm.sub`・`tts`・`backend`・`tunnel`）の起動・停止・再起動。子プロセスはWindowsのJob Object（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`）にまとめ、ランチャーが閉じても落ちても残さない。起動前にポートの使用を確かめ、使用中なら失敗にする。標準出力・標準エラーをサービスごとのファイル（`logs/launcher/`）に残す。状態（稼働中・待機・停止・読み込み中・起動待ち・失敗・応答なし）と稼働時間を持つ。［すべて起動］は依存の順（LLM・VOICEVOX → backend → tunnel）で、前のサービスの応答を待ってから次を起動し、失敗したら後ろを起動待ちのまま止める
-- `HealthWatcher`：正のLLMのハートビート（`/health`）と、`/admin/events`の`llm_timeout`を失敗として数え、続けて3回で切り替える。切り替えは、正のプロセスを終了し、ポートが空き、プロセスが消えてから一定時間（設定。VRAMの解放を待つ）待って、副を同じポートで起動し、`PUT /admin/llm-model`で`sub`を伝える。正に戻すのは手動
+- `ServiceSupervisor`（Rust）：6つのサービス（`llm.main`・`llm.sub`・`stt`・`tts`・`backend`・`tunnel`）の起動・停止・再起動。子プロセスはWindowsのJob Object（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`）にまとめ、ランチャーが閉じても落ちても残さない。起動前にポートの使用を確かめ、使用中なら失敗にする。標準出力・標準エラーをサービスごとのファイル（`logs/launcher/`）に残す。状態（稼働中・待機・停止・読み込み中・起動待ち・失敗・応答なし）と稼働時間を持つ。［すべて起動］は依存の順（`llm.main` → `stt`、VOICEVOXはLLMを待たずに起動 → backend → tunnel）で、前のサービスの応答を待ってから次を起動し、失敗したら後ろを起動待ちのまま止める。`stt`は`llm.main`の読み込みが終わってから起動する（GPUのメモリをLLMから先に確保するため）
+- `HealthWatcher`：正のLLMのハートビート（`/health`）と、`/admin/events`の`llm_timeout`を失敗として数え、続けて3回で切り替える。切り替えは、正のプロセスを終了し、ポートが空き、プロセスが消えてから一定時間（設定。VRAMの解放を待つ）待って、副を同じポートで起動し、`PUT /admin/llm-model`で`sub`を伝える。`stt`は止めずにそのまま使う。正に戻すのは手動
 - `AdminClient`：backendの管理用APIの呼び出しと、`/admin/events`の購読（切れたら再接続）
-- 画面（S03a〜S03e）：サービスの行、入力元のラジオ、マイクの一時停止と再開、会話のリセット、外部サービスの行（STTの状態・今月の検索回数）、端末の行と登録の解除、登録コードの面（QR・文字・残り時間、新しいコード、拡大表示）、できごとの一覧、警告の帯。QRは`zxing-wasm/writer`で作り、テーマに関係なく白地に黒で出す（writerが使えなければ別の軽いライブラリにする。着手時に確かめる）
+- 画面（S03a〜S03e）：サービスの行、入力元のラジオ、マイクの一時停止と再開、会話のリセット、外部サービスの行（今月の検索回数だけ。`stt`の状態はサービスの行で出す）、端末の行と登録の解除、登録コードの面（QR・文字・残り時間、新しいコード、拡大表示）、できごとの一覧、警告の帯。QRは`zxing-wasm/writer`で作り、テーマに関係なく白地に黒で出す（writerが使えなければ別の軽いライブラリにする。着手時に確かめる）
 - 自動起動：公式のautostartプラグインで、サインイン時に起動する。設定の「起動したら全部立ち上げる」が有効なら［すべて起動］を行う（プラグインの使い方は着手時に確かめる）
-- 設定：アプリの設定フォルダの`launcher.json`。雛形を`config/launcher.default.json`に置く（リポジトリの場所、各サービスの実行ファイル・引数・ポート・依存、ハートビートの間隔と回数、切り替えの待ち時間、起動したら全部立ち上げるか）
+- 設定：アプリの設定フォルダの`launcher.json`。雛形を`config/launcher.default.json`に置く（リポジトリの場所、各サービスの実行ファイル・引数・ポート・依存（`stt`は`whisper-server`の実行ファイル・モデル・ポート8081）、ハートビートの間隔と回数、切り替えの待ち時間、起動したら全部立ち上げるか）
 
 ### packages
 
@@ -181,6 +188,7 @@ interface DialogueEngine {
 }
 ```
 
+- `SpeechRecognizer`のインターフェースはv6のまま。決まり文句・音声なしで捨てた結果は`text: ""`で返す（空の発話として`idle`に戻る）
 - 1回目はJSONスキーマ制約に`search`（文字列か`null`）を足す。2回目は`search`のないスキーマ。崩れや範囲外は、本文を`say`、`emotion`を`neutral`、`search`を`null`
 - `results`が`null`（検索の失敗）なら、2回目に「検索できなかった。分からないことは分からないと言う」指示を付ける
 - 人格プロンプトは、`config/persona_self.md`（自己認識の事実。ユーザーが書く）→`config/persona.md`→（`antiLoop`のとき）質問のループを防ぐ指示、の順に組み立てる
@@ -205,13 +213,13 @@ interface DialogueEngine {
 
 ## 6. 設定ファイル
 
-`config/*.default.json`をGitで管理し、同名の`*.local.json`があれば項目ごとに上書きする（v5のまま）。v6で足す項目：
+`config/*.default.json`をGitで管理し、同名の`*.local.json`があれば項目ごとに上書きする（v5のまま）。v6・v7で足す項目：
 
 - `config/backend.default.json`
   - `host`（公開用ポートの待ち受け先。既定`127.0.0.1`）、`publicUrl`（QRに入れる公開URL。開発機では`http://{LANのIP}:8787`）、`admin.port`（8788）
   - `inputSources.consoles`（`["tablet", "phone"]`。v5の`devices.list`を置き換える）、`inputSources.active`（既定`robot`）
   - `pairing`：`codeTtlMs`（60000）、`maxFailures`（5）、`failureWindowMs`（60000）、`lockMs`（300000）
-  - `stt`：`provider`（`google`・`stub`）、`timeoutMs`、`google`（`projectId`・`location`・`model`・`keyFile`・`dataLogging`）
+  - `stt`：`provider`（`whisper`・`stub`。v7で`google`をやめた）、`timeoutMs`、`whisper`（`url`（既定`http://127.0.0.1:8081`）、`language`（`ja`）、`hallucinations`（捨てる決まり文句の一覧。既定に「ご視聴ありがとうございました」「チャンネル登録お願いします」などを置き、`*.local.json`で上書き）、`noSpeechThreshold`）。音声認識の比較の対象（モデルのファイルと名前）も`stt.bench`に置く。`whisper-server`の実行ファイルとモデルの場所・起動オプションは、Phase 9まではCONTRIBUTINGの手順で手で起動し、Phase 10からランチャーの設定（`launcher.json`）に書く
   - `search`：`provider`（`tavily`・`stub`）、`apiKey`、`maxResults`（3）、`timeoutMs`
   - `llm.models`：別名（`main`・`sub`）ごとのモデル名と生成のパラメータ。`llm.activeAlias`（起動時。既定`main`）。接続先はv5のまま1つ（`http://127.0.0.1:8080`）
   - `dialogue.questionLoopThreshold`（2）、`session.idleResetMs`（90000）
@@ -296,11 +304,14 @@ type ClearEntry = { kind: "history_cleared"; at: string; reason: "idle" | "manua
 
 ## 10. 開発と動作確認
 
-検証は3段階で行う。
+検証は4段階で行う。各Phaseのwalkは、この順に並べる。
 
-- **スタブ**：開発機で`apps/backend`を`--stub`で起動する。LLM・VOICEVOX・STT・検索がすべてスタブ。【エージェント】の検証はこの段階で行う。機体アプリは開発機で動かし、マイクは開発機のもの、走行は`RecordingDriveOutput`
-- **開発機で実際のAPI**（Phase 7〜10）：開発機の仮のサーバー（CPUのllama-serverとQwen3-4B、VOICEVOX）と、実際のGoogle STT・Tavilyで会話を通す。ランチャーの切り替えは、開発機のCPUの2つのllama-server（または、ハートビートに応える小さなスタブのプロセス）で確かめる
-- **本番**（Phase 11）：自宅のバックエンドPC（Windows 11、Ryzen 5 3500、RX 5700 XT 8GB）で、ランチャーから全サービスを起動する。会場の機体・タブレット・スマホは、モバイルルーターから名前付きトンネル経由でつなぐ
+- **スタブ**：開発機で`apps/backend`を`--stub`で起動する。LLM・VOICEVOX・STT・検索がすべてスタブ。【エージェント】の検証の多くはこの段階で行う。機体アプリは開発機で動かし、マイクは開発機のもの、走行は`RecordingDriveOutput`
+- **開発機で実際のAPI**：開発機の仮のサーバー（CPUのllama-serverとQwen3-4B、VOICEVOX、CPU版か小さいモデルの`whisper-server`）と、実際のTavilyで会話を通す。ランチャーの切り替えは、開発機のCPUの2つのllama-server（または、ハートビートに応える小さなスタブのプロセス）で確かめる
+- **自宅のバックエンドPCと機体の実機**（Phase 7〜10）：バックエンドPC（Windows 11、Ryzen 5 3500、RX 5700 XT 8GB）でGPUのllama-serverと`whisper-server`を動かし、機体の実機とタブレット・スマホを自宅のLANでつなぐ（Phase 10からは名前付きトンネルとランチャー）。バックエンドPCでのソフトの準備・測定・比較スクリプトはバックエンドPCのClaude Codeが、ハードウェアと実機の操作はユーザーが行う
+- **会場と同じ条件**（Phase 11）：機体・タブレット・スマホを、モバイルルーター（なければスマホのテザリング）から名前付きトンネル経由でつなぎ、スマホからChrome Remote Desktopでランチャーを操作する
+- **GPUのメモリ**：RX 5700 XT（8GB）に、llama-server（Qwen3-8B Q4_K_M、文脈4K）と`whisper-server`（large-v3-turbo q5_0）を同時に載せる（見積もり合計約7.3GB）。Phase 7で会話中の専用GPUメモリの最大値を測り、足りなければ文脈の長さを下げるか`-ctk q8_0 -ctv q8_0`で収める。Phase 8の正のモデルの決定はその範囲で行う
+- **whisper.cppの準備**：`scripts/setup_whisper.ps1`で、版を固定してソースを取り、`-DGGML_VULKAN=ON`でビルドし（Vulkan SDKとVisual Studioが要る。開発機ではVulkanなしのCPU版も選べる）、モデルを取得する。置き場所はリポジトリの外
 - **consoleのインストール**：本番では`https://{公開ホスト名}/?device=tablet`（スマホは`phone`）を開いてPWAとして入れ直す。v5のEdgeのflagsの登録は不要（消してよい）
 - **バックエンドPCのWindowsの設定**：自動サインイン、スリープの無効、展示期間のWindows Updateの一時停止はv5のまま。ポート8787の受信の許可はやめる（公開用ポートは`127.0.0.1`で待ち受け、外からはトンネルだけ）。Chrome Remote Desktopは、PINとGoogleアカウントの2段階認証を前提にする
-- **費用**：Google STTは予算のアラートを設定し、Tavilyは無料プランのまま使う。超えたときに止まるか課金されるかは、Phase 7・8のユーザーの項目で確かめる
+- **費用**：音声認識の費用はかからない。Tavilyは無料プランのまま使う。超えたときに止まるか課金されるかは、Phase 8のユーザーの項目で確かめる

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>テクロボくん モック S03（ランチャー）</title>
+<title>テクロボくん モック S02（機体のフェイシャル）</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -341,8 +341,8 @@ section.screen-group { display: grid; gap: var(--space-6); min-width: 0; }
 <body>
 <div class="page">
   <header class="mock-head">
-    <h1>テクロボくん モック S03（ランチャー）</h1>
-    <p class="note">見た目だけで、中身はありません。S03 はバックエンドPCのランチャー（ウィンドウ 1280×800）。</p>
+    <h1>テクロボくん モック S02（機体のフェイシャル）</h1>
+    <p class="note">見た目だけで、中身はありません。S02 は機体のフェイシャル（800×600。S02a 以外は半分に縮小）。</p>
     <div class="toolbar" role="group" aria-label="表示の切り替え">
       <button type="button" id="btn_theme_light" data-theme-set="light">ライト</button>
       <button type="button" id="btn_theme_dark" data-theme-set="dark">ダーク</button>
@@ -371,12 +371,15 @@ section.screen-group { display: grid; gap: var(--space-6); min-width: 0; }
         <li>聞き取り中は目で注目を示すだけで、途中の文字は出さない。無音で区切ってから1回で文字にする（S02h）</li>
         <li>機体の登録画面は、カメラを全面に出して QR を枠に合わせてもらう（S02g）</li>
         <li>機体は、ランチャーに出た QR コードをカメラで読み取って登録する。console は同じコードを文字で入れて登録する。コードは短命・1回限り（S02g・S01i・S03a）</li>
-        <li>LLM・VOICEVOX が応答しないときも、console は S01f、機体は S02e を出す</li>
-        <li>ランチャーはサービス5つ（llm.main・llm.sub・tts・backend・tunnel）の起動・停止・状態を1画面で持つ。正副の LLM は同じポートで、同時には動かさない（S03a）</li>
+        <li>LLM・音声認識（stt）・VOICEVOX が応答しないときも、console は S01f、機体は S02e を出す</li>
+        <li>ランチャーはサービス6つ（llm.main・llm.sub・stt・tts・backend・tunnel）の起動・停止・状態を1画面で持つ。正副の LLM は同じポートで、同時には動かさない（S03a）</li>
+        <li>音声認識は自宅のバックエンドPCの whisper.cpp（whisper-server）で行い、来場者の声を外部のサービスに送らない。LLM と同じ GPU に載せる（S03a）</li>
+        <li>［すべて起動］は llm.main の読み込みが終わってから stt を起動する（GPU のメモリを LLM から先に確保する）。tts は待たずに起動する（S03b）</li>
+        <li>正から副へ切り替えても、stt は止めずにそのまま使う（S03c）</li>
         <li>正が3回続けて応答しなければ、正を終了して副を起動する。正に戻すのは手動（S03c）</li>
         <li>だれも話さない時間が一定（初期値90秒、設定で変更可）続くと、LLM に渡す履歴を自動で消す。ランチャーの［会話をリセット］でも消せる。console の表示と会話ログは消さず、区切りの行を出す（S01h・S03a）</li>
         <li>ランチャーで機体のマイクを一時停止できる。停止中は console の状態行が「マイク停止中」になる（S03a・S01h）</li>
-        <li>ランチャーに外部サービス（音声認識 Google STT の状態、Tavily の今月の検索回数）を出す。回数はバックエンドが数える（S03a）</li>
+        <li>ランチャーの外部サービスは、Tavily の今月の検索回数だけを出す。回数はバックエンドが数える（S03a）</li>
         <li>起動に失敗したら、理由を出して後ろのサービスを起動待ちで止める（S03d）</li>
         <li>QR は拡大表示できる（S03e）</li>
         <li>走行（キーボードの WASD を押している間だけ動く）では、フェイシャルの表示を変えない。走行の状態はデバッグ HUD（/）にだけ出す</li>
@@ -436,7 +439,6 @@ const DICT = {
     "launcher.mic_pause": "マイクを止める",
     "launcher.mic_resume": "マイクを戻す",
     "launcher.sec_external": "外部サービス",
-    "launcher.ext_stt": "音声認識 Google STT",
     "launcher.ext_search": "検索 Tavily（今月）",
     "launcher.ext_count": "{used} / {limit}",
     "console.history_reset": "ここで会話を区切りました（{seconds}秒だれも話さなかったため）",
@@ -466,6 +468,7 @@ const DICT = {
     "launcher.sec_pair": "端末の登録",
     "launcher.svc_llm_main": "llm.main",
     "launcher.svc_llm_sub": "llm.sub",
+    "launcher.svc_stt": "stt",
     "launcher.svc_tts": "tts",
     "launcher.svc_backend": "backend",
     "launcher.svc_tunnel": "tunnel",
@@ -708,6 +711,7 @@ function services(mode) {
     normal: [
       run({ nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, up: "2h13m", actions: [A("launcher.stop"), A("launcher.restart"), A("launcher.switch_to_sub")] }),
       { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      run({ nameKey: "launcher.svc_stt", detail: "whisper large-v3-turbo q5_0", port: 8081, up: "2h12m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "2h13m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, up: "2h12m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", up: "2h12m", actions: [A("launcher.stop"), A("launcher.restart")] }),
@@ -715,6 +719,7 @@ function services(mode) {
     loading: [
       { dot: "dot-on", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "loading", stateCls: "wait", up: "0m21s", actions: [A("launcher.stop")] },
       { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      { dot: "dot-off", nameKey: "launcher.svc_stt", detail: "whisper large-v3-turbo q5_0", port: 8081, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
       run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "0m18s", actions: [A("launcher.stop"), A("launcher.restart")] }),
       { dot: "dot-off", nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
       { dot: "dot-off", nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
@@ -722,6 +727,7 @@ function services(mode) {
     failover: [
       { dot: "dot-bad", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "down", stateCls: "bad", actions: [A("launcher.show_log"), A("launcher.back_to_main")] },
       run({ nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, up: "0m42s", actions: [A("launcher.restart")] }),
+      run({ nameKey: "launcher.svc_stt", detail: "whisper large-v3-turbo q5_0", port: 8081, up: "3h01m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_tts", detail: "VOICEVOX ENGINE 0.25.2", port: 50021, up: "3h02m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, up: "3h01m", actions: [A("launcher.stop"), A("launcher.restart")] }),
       run({ nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", up: "3h01m", actions: [A("launcher.stop"), A("launcher.restart")] }),
@@ -729,6 +735,7 @@ function services(mode) {
     failed: [
       { dot: "dot-on", nameKey: "launcher.svc_llm_main", detail: "Qwen3-8B Q4_K_M", port: 8080, state: "loading", stateCls: "wait", up: "0m09s", actions: [A("launcher.stop")] },
       { dot: "dot-off", nameKey: "launcher.svc_llm_sub", detail: "Qwen3-4B Q4_K_M", port: 8080, state: "standby", stateCls: "up", actions: [] },
+      { dot: "dot-off", nameKey: "launcher.svc_stt", detail: "whisper large-v3-turbo q5_0", port: 8081, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
       { dot: "dot-bad", nameKey: "launcher.svc_tts", detail: t("launcher.port_in_use", { port: 50021 }), port: null, state: "failed", stateCls: "bad", actions: [A("launcher.show_log"), A("launcher.start")] },
       { dot: "dot-off", nameKey: "launcher.svc_backend", detail: "apps/backend", port: 8787, state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
       { dot: "dot-off", nameKey: "launcher.svc_tunnel", detail: "tekurobo.nid-techtech.com", state: "waiting", stateCls: "wait", actions: [A("launcher.start", { disabled: true })] },
@@ -742,9 +749,8 @@ function inputSources(active = "robot") {
   return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_input"))}</div><div class="radio">${r("launcher.src_robot", "robot")}${r("launcher.src_tablet", "tablet")}${r("launcher.src_phone", "phone")}</div>
     <div><button class="ctl" type="button">${esc(t("launcher.mic_pause"))}</button><button class="ctl" type="button">${esc(t("launcher.reset_history"))}</button></div></div>`;
 }
-function externals(sttOk = true) {
+function externals() {
   return `<div class="l-sec"><div class="sh-comment"># ${esc(t("launcher.sec_external"))}</div>
-    <div class="svc"><span class="${sttOk ? "dot-on" : "dot-off"}"></span><span class="name">stt</span><span class="detail">${esc(t("launcher.ext_stt"))}</span><span class="${sttOk ? "ok" : "up"}">[${esc(t(sttOk ? "launcher.state_running" : "launcher.state_waiting"))}]</span><span></span><span></span></div>
     <div class="svc"><span class="dot-on"></span><span class="name">search</span><span class="detail">${esc(t("launcher.ext_search"))}</span><span class="ok">${esc(t("launcher.ext_count", { used: 312, limit: 1000 }))}</span><span></span><span></span></div></div>`;
 }
 function devices(robotOnline = true) {
@@ -765,12 +771,12 @@ function pairPanel(state = "ready") {
     <div><button class="ctl" type="button">${esc(t("launcher.pair_new"))}</button><button class="ctl primary" type="button">${esc(t("launcher.pair_zoom"))}</button></div>`
     : `<div style="color:var(--color-ink-muted)"># ${esc(t("launcher.pair_wait_backend"))}</div>`}`;
 }
-function launcher({ mode = "normal", banner = "", ev = [], source = "robot", up = 5 }) {
+function launcher({ mode = "normal", banner = "", ev = [], source = "robot", up = 6 }) {
   const srcName = t({ robot: "launcher.src_robot", tablet: "launcher.src_tablet", phone: "launcher.src_phone" }[source]);
   return `<div class="win">
     <div class="win-title"><span>${esc(t("launcher.title"))}</span><span class="wbtns"><span>─</span><span>□</span><span>✕</span></span></div>
-    <div class="t-bar"><span><b>${esc(t("launcher.title"))}</b>  [${esc(t("launcher.summary", { up, all: 5 }))}]</span><span>${esc(t("launcher.input_source", { source: srcName }))}  ${esc(t("launcher.public_url", { url: "tekurobo.nid-techtech.com" }))}</span></div>
-    <div class="l-body"><div class="l-main">${banner}${services(mode)}${inputSources(source)}${externals(mode !== "loading" && mode !== "failed")}${devices(mode !== "loading" && mode !== "failed")}${events(ev)}</div>
+    <div class="t-bar"><span><b>${esc(t("launcher.title"))}</b>  [${esc(t("launcher.summary", { up, all: 6 }))}]</span><span>${esc(t("launcher.input_source", { source: srcName }))}  ${esc(t("launcher.public_url", { url: "tekurobo.nid-techtech.com" }))}</span></div>
+    <div class="l-body"><div class="l-main">${banner}${services(mode)}${inputSources(source)}${externals()}${devices(mode !== "loading" && mode !== "failed")}${events(ev)}</div>
       <div class="l-side">${pairPanel(mode === "loading" || mode === "failed" ? "wait" : "ready")}</div></div></div>`;
 }
 
@@ -801,7 +807,7 @@ function render() {
         variant("考えた時間と返事が出て、話し終わるまでカーソルが点滅する", tablet({ status: "speaking", log: hist() + line("you", "sample.you_3") + line("robot", "sample.robot_3", { cursor: true }), input: { hidden: true } }))),
       sub("S01e", "入力ページ：長い文と長い会話",
         variant("ログは消さずに残し、古い行は上へ流れる", tablet({ status: "ready", log: hist() + line("you", "sample.you_long") + line("robot", "sample.robot_long"), input: {} }))),
-      sub("S01f", "バックエンドにつながらない（LLM・VOICEVOXが応答しないときも）",
+      sub("S01f", "バックエンドにつながらない（LLM・音声認識・VOICEVOXが応答しないときも）",
         variant("自動で再接続を試み続け、戻ったら元の表示に戻る", tablet({ status: "offline", kb: false, body: `<div class="offline"><h3>${esc(t("error.offline_title"))}</h3><p>${esc(t("error.offline_body"))}</p></div>` }))),
       sub("S01g", "別の端末が有効になっている",
         variant("入力元がほかの console のとき。切り替えはランチャーで行う（S03a）", tablet({ status: "ready", kb: false, body: `<div class="offline inactive"><h3>${esc(t("input.inactive_title"))}</h3><p>${esc(t("input.inactive_body"))}</p></div>` }))),
@@ -815,7 +821,7 @@ function render() {
         variant("<b>neutral</b>", face({})) + variant("<b>happy</b>", face({ eye: "happy" })) + variant("<b>surprised</b>", face({ eye: "surprised" })) + variant("<b>curious</b>", face({ eye: "curious" })) + variant("<b>troubled</b>", face({ eye: "troubled" }))),
       sub("S02d", "考え中（LOADING）とアイドル動作",
         variant("<b>LOADING</b>", face({ eye: "loading" })) + variant("<b>まばたき</b>", face({ eye: "blink" })) + variant("<b>きょろきょろ</b>", face({ eye: "look_left" }))),
-      sub("S02e", "眠っている（つながらない・LLMかVOICEVOXが応答しない）",
+      sub("S02e", "眠っている（つながらない・LLMか音声認識かVOICEVOXが応答しない）",
         variant("目を閉じ、口を少し開け、ゆっくり上下に揺れる", face({ eye: "sleep", m: "a", level: 0.05, sleep: true }))),
       sub("S02f", "字幕",
         variant("<b>考え中</b>：来場者の発言", face({ eye: "loading", extra: caption("log.you", "sample.you_3") })) +
@@ -836,16 +842,16 @@ function render() {
       sub("S03a", "通常（すべて稼働中）",
         variant("正（llm.main）が動き、副（llm.sub）は待機。右に端末の登録コード", launcher({ ev: evNormal })), "", true),
       sub("S03b", "起動中",
-        variant("［すべて起動］の直後。順に立ち上げ、backend が動くまで登録コードは出さない", launcher({ mode: "loading", up: 1, banner: `<div class="banner info"><span>${esc(t("launcher.loading_msg"))}</span></div>`, ev: [t("launcher.ev_started", { time: "13:40:02" })] })), "", true),
+        variant("［すべて起動］の直後。llm.main の読み込みが終わってから stt を起動する。backend が動くまで登録コードは出さない", launcher({ mode: "loading", up: 1, banner: `<div class="banner info"><span>${esc(t("launcher.loading_msg"))}</span></div>`, ev: [t("launcher.ev_started", { time: "13:40:02" })] })), "", true),
       sub("S03c", "副への切り替え後",
-        variant("ハートビートが3回続けて失敗したら、正を終了して副を同じポートで起動する。正に戻すのは手動", launcher({ mode: "failover", up: 4, banner: `<div class="banner"><span>! ${esc(t("launcher.failover_msg", { time: "15:41:07" }))}</span><button class="ctl" type="button">${esc(t("launcher.back_to_main"))}</button></div>`, ev: ["!" + t("launcher.ev_heartbeat_fail", { time: "15:40:55", n: 1 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:00", n: 2 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:05", n: 3 }), t("launcher.ev_switched", { time: "15:41:07" })] })), "", true),
+        variant("ハートビートが3回続けて失敗したら、正を終了して副を同じポートで起動する。stt は止めない。正に戻すのは手動", launcher({ mode: "failover", up: 5, banner: `<div class="banner"><span>! ${esc(t("launcher.failover_msg", { time: "15:41:07" }))}</span><button class="ctl" type="button">${esc(t("launcher.back_to_main"))}</button></div>`, ev: ["!" + t("launcher.ev_heartbeat_fail", { time: "15:40:55", n: 1 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:00", n: 2 }), "!" + t("launcher.ev_heartbeat_fail", { time: "15:41:05", n: 3 }), t("launcher.ev_switched", { time: "15:41:07" })] })), "", true),
       sub("S03d", "起動に失敗した",
         variant("失敗したサービスと理由を出し、後ろのサービスは起動待ちのまま止める", launcher({ mode: "failed", up: 0, ev: [t("launcher.ev_started", { time: "13:40:02" }), "!13:40:04 ! tts " + t("launcher.port_in_use", { port: 50021 })] })), "", true),
       sub("S03e", "登録コードの拡大表示",
         variant("スマホの小さい画面越しでも読めるように、QRと文字のコードだけを大きく出す", `<div class="qr-full"><div class="qr">${fakeQr(3)}</div><div style="display:grid;gap:var(--space-4)"><div class="pair-code">K7QM-4X2P</div><div>${esc(t("launcher.pair_remaining", { seconds: 42 }))}</div><div><button class="ctl" type="button">${esc(t("launcher.pair_close"))}</button></div></div></div>`), "", true),
     ]),
   ];
-  document.getElementById("screens").innerHTML = html.filter((g) => g.includes('data-screen="S03"')).join("");
+  document.getElementById("screens").innerHTML = html.filter((g) => g.includes('data-screen="S02"')).join("");
 }
 
 // ===== 切り替え =====

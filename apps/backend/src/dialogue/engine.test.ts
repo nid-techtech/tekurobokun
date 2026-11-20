@@ -105,6 +105,28 @@ describe("buildMessages", () => {
     ]);
   });
 
+  test("調べた往復は、前置きと検索語の1回目を、最終の返事の前に渡す", () => {
+    const searched: Turn = {
+      ...turn("2"),
+      search: {
+        query: "東京タワー 高さ",
+        preSay: "ちょっと調べてみるね。",
+        searchMs: 900,
+        ok: true,
+      },
+    };
+    const messages = buildMessages("SYS", [turn("1"), searched], "now", 4);
+    expect(messages.map((m) => m.content)).toEqual([
+      "SYS",
+      "q1",
+      '{"say":"a1","emotion":"happy"}',
+      "q2",
+      '{"say":"ちょっと調べてみるね。","emotion":"curious","search":"東京タワー 高さ"}',
+      '{"say":"a2","emotion":"happy"}',
+      "now",
+    ]);
+  });
+
   test("往復数が0なら履歴を渡さない", () => {
     expect(buildMessages("SYS", [turn("1")], "now", 0)).toHaveLength(2);
   });

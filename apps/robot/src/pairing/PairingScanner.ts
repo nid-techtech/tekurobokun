@@ -59,6 +59,14 @@ export class PairingScanner {
     svg.setAttribute("class", "pairing-guide");
     svg.setAttribute("viewBox", `0 0 ${CANVAS.w} ${CANVAS.h}`);
     svg.setAttribute("aria-hidden", "true");
+    const frame = document.createElementNS(SVG_NS, "rect");
+    frame.setAttribute("class", "pairing-frame");
+    frame.setAttribute("x", String(CAM.x));
+    frame.setAttribute("y", String(CAM.y));
+    frame.setAttribute("width", String(CAM.w));
+    frame.setAttribute("height", String(CAM.h));
+    frame.setAttribute("stroke-width", "2");
+    svg.appendChild(frame);
     const guide = document.createElementNS(SVG_NS, "rect");
     guide.setAttribute("x", String(CAM.x + (CAM.w - GUIDE) / 2));
     guide.setAttribute("y", String(CAM.y + (CAM.h - GUIDE) / 2));

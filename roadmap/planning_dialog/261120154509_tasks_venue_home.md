@@ -235,7 +235,7 @@ Phaseの推奨: Sonnet・high以上
 
 ## Phase 6: 登録とトークン
 Phaseの推奨: Opus・high以上
-引き継ぎ: T6-1〜T6-9は完了。次はW6-1から。consoleの登録の失敗はモックに文言がないため入力を消すだけ（文言を足すなら仕様変更）。入力元の初期値が`robot`のため、Phase 7まではターミナルの数字キーでconsoleに切り替えてから話しかける
+引き継ぎ: W6-1〜W6-3は通過。次はW6-4（【ユーザー】）。W6-2でS02gの字幕の行の地の色とカメラの外枠を直した（fix_phase6）ため、W6-4で実機の見た目も見る。入力元の初期値が`robot`のため、Phase 7まではターミナルの数字キーでconsoleに切り替えてから話しかける
 - [x] T6-1 【エージェント】`packages/protocol`に、v6のメッセージと管理用APIの型・検証関数を足す（imple 4節。`SessionState`・`Health`・`Turn`の変更、`pair`・`listening`・`voice`・`auth_required`・`paired`・`pair_failed`・`turn_search_started`・`turn_search_done`・`history_cleared`、管理用APIの要求・応答・できごと）。単体テストを足し、3つのアプリの型の参照を新しい型に合わせる（動作はv5のまま保つ）
   - 依存: T1-4
   - 実施: Opus・high

@@ -45,7 +45,7 @@ body {
   top: 0;
   left: 0;
   z-index: 1;
-  background-color: var(--color-face-ink);
+  background-color: var(--color-face-bg);
 }
 
 #pairing-scanner[hidden] {
@@ -65,6 +65,11 @@ body {
   height: 100%;
   fill: none;
   stroke: var(--color-accent);
+}
+
+/* カメラの映像の外枠（モックの.cam） */
+.pairing-guide .pairing-frame {
+  stroke: var(--color-face-ink);
 }
 
 /* B7: `/`キーでトグルするデバッグHUD。FacialEngineの描画には関与しない独立オーバーレイ */

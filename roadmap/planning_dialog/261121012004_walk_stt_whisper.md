@@ -141,14 +141,19 @@
   - 画面: S01i, S02g
 
 ## Phase 7: 機体のマイクで話す
-- [ ] W7-1 【エージェント】checkコマンドが通る
+- [x] W7-1 【エージェント】checkコマンドが通る
   - 推奨: Sonnet・low以上
   - 依存: T7-18
+  - 実施: Opus・high
 - [ ] W7-2 【エージェント】Phase 7で実装した画面が、モックと構造で一致する
   - 依存: W7-1
   - 画面: S01h, S01f, S02h
+  - 実施: Opus・high
+  - メモ: S01hは、状態行→ログ→下端の`# console.locked`の順、入力欄は`is-hidden`でキーボードを出さない、聞いた発言は時刻・プロンプトの後に`span.mic`の`(mic)`、考え中・話し中の行はS01c・S01dと同じで一致。状態行の「考え中」はモックのS01hでは無印、実装は`is-thinking`だが、`.term`では見た目が同じのためそのままとした。検索の行・区切りの行はPhase 8（W8-2）。S01fは`health.stt`の判定を足しただけで表示はv5のまま。使う辞書キー13件の文言がモックと一致し、疑似ロケールにもある。S02hは文字を出さず、口は待機と同じ。目はモックでは待機の目（内側r82）の上にr96の円を重ねて描いているが、実装は注記「内側の円を少し大きくして」に従い内側をr96に置き換えている（`facial.eyes.listeningInnerRadius`）。実機で並べて見るW7-9で、モックのように二重に見せるべきか確かめる
 - [ ] W7-3 【エージェント】スタブで、音声の発話の扱いを確かめる：入力元以外・`idle`以外・マイクの一時停止中の`voice`がSTTに渡らないこと、STTが空なら`idle`へ戻って記録しないこと、STTの失敗でS01f・S02eになり戻ること、入力元の切り替え（管理用API・`OperatorConsole`）でconsoleの表示が変わること、ログの新しい項目とv5の行の読み込み。偽の`whisper-server`が決まり文句・音声なしを返すと空の発話として`idle`に戻ること、応答しないと`health.stt`が`false`になること
   - 依存: W7-1
+  - 実施: Opus・high
+  - メモ: 使い捨てのスクリプト2本で確かめ、すべて通過。(1) `--stub`のbackendに、機体とtabletのconsoleとしてWebSocketで登録・接続し、管理用APIと`OperatorConsole`のキー（stdinをTTYに見せかけて渡した）で操作して28件：`voice`→`(mic)`の発言→返事→待機中、考え中の`voice`・入力元がtabletのとき・マイクの一時停止中の`voice`は`dropped voice: busy・inactive_device・mic_paused`で記録なし、200msのWAV（空）は待機中へ戻り記録なし、認識中に`r`でSTTを止めると`error: "stt_unavailable"`（入力は空・`stt: null`）の1行を残して`health.stt: false`の待機中（受け取ったstatusを`noticeFor`・`displayStateFor`に通してS01f・S02e）、戻せばS01h・待機の顔。入力元の切り替え（API・数字キー）で、tabletは入力ページ・S01g・S01hに変わる。v5の行を足して再起動すると、v5の行は`source: tablet`・`via: text`、機体の行は`via: mic`で履歴に戻り、STTの失敗の行は戻らない。(2) 偽の`whisper-server`に、本物の`WhisperSpeechRecognizer`・`HealthMonitor`・`ConversationSession`をつなぎ、決まり文句（`hallucination`）と音声なし（`no_speech_prob` 0.93）が空の発話として待機中に戻り記録されないこと、`/health`が応答しない（約3.3秒）・止まると`health.stt: false`になり声を渡さないことを確かめた。検証で作った会話ログは消し、`data/devices.json`は元に戻した
 - [ ] W7-4 【エージェント】（バックエンドPCで）実際の`whisper-server`（GPU）でbackendを起動し、録音のセットのWAVを機体として`voice`で送って、文字になること、STTにかかった時間が会話ログに残ること、無音・雑音のWAVが捨てられて何も記録されないことを確かめる
   - 依存: W7-1, T7-24
 - W7-5 → W7-9へ移動

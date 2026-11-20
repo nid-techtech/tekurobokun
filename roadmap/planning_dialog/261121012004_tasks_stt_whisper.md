@@ -264,7 +264,7 @@ Phaseの推奨: Opus・high以上
 - [x] T6-7 【エージェント】機体アプリのTauriを2.12以降に上げ、`on_permission_request`でカメラとマイクの要求だけを許可する（版とAPIは、インストール済みの版と公式ドキュメントで確かめる）
   - 依存: T1-3
   - 実施: Opus・high
-  - メモ: tauri 2.12.7（tauri-build 2.7.6、wry 0.57.3）、`@tauri-apps/api`・`@tauri-apps/cli` 2.12.4、tauri-plugin-opener 2.7.3。インストール済みのソースで`tauri::Builder::on_permission_request(|webview, kind| PermissionResponse)`を確かめ、`Camera`・`Microphone`だけ`Allow`、ほかは`Deny`（Rustの単体テストつき）。実際のカメラ・マイクの許可はW6-4・W7-5で確かめる
+  - メモ: tauri 2.12.7（tauri-build 2.7.6、wry 0.57.3）、`@tauri-apps/api`・`@tauri-apps/cli` 2.12.4、tauri-plugin-opener 2.7.3。インストール済みのソースで`tauri::Builder::on_permission_request(|webview, kind| PermissionResponse)`を確かめ、`Camera`・`Microphone`だけ`Allow`、ほかは`Deny`（Rustの単体テストつき）。実際のカメラ・マイクの許可はW6-4・W7-9で確かめる
 - [x] T6-8 【エージェント】機体に登録を加える：`RobotLink`のトークンとURLの保存とトークン付きの接続（開発用に`config.local.json`の`backend.url`・`backend.token`）、`PairingScanner`（`zxing-wasm/reader`を同梱、カメラの全面表示と枠、成功・古いコードの表示）。S02gの文言（`pair.robot_*`）を辞書へ移す。生成したQRの画像を読む単体テストを書く
   - 依存: T6-5, T6-7
   - 画面: S02g
@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: v7への仕様変更で、Google STTを`whisper-server`に替え、実機の検証を各Phaseへ移した。次は開発機でT7-8から。T7-11の前で停止し、ユーザーのpush・pullのあと、T7-16からはバックエンドPCで行う。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-5で確かめる
+引き継ぎ: v7への仕様変更で、Google STTを`whisper-server`に替え、実機の検証を各Phaseへ移した。次は開発機でT7-8から。T7-19の前で停止し、ユーザーのpush・pullのあと、T7-20からはバックエンドPCで行う。Silero VADの実際の動き（`/vad/`の読み込み、マイク）は未確認で、W7-9で確かめる
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high
@@ -302,6 +302,7 @@ Phaseの推奨: Opus・high以上
   - 実施: Opus・high
   - メモ: `notice.ts`（入力元が`robot`ならS01gにせず、STTが落ちていればS01f。consoleが入力元ならSTTは見ない）と`isViewOnly`、`main.ts`（S01hでは入力欄を隠してキーボードを閉じ、ログをタップしてもフォーカスしない。下端に`# console.locked`の行）、`LogView`の`(mic)`、`StatusLine`の`listening_voice`・`mic_paused`（待機中・聞き取り中は「聞いています」、一時停止中は「マイク停止中」、考え中・話し中はそのまま）。S02eの判定はT7-4で足した。辞書に`status.listening_voice`・`status.mic_paused`・`console.locked`・`console.heard_mark`を移した（`status.hearing`はS01hで使わないため移していない）。検索の行・区切りの行はT8-5
 - T7-6 → 廃止（v7でGoogle STTをやめ、`whisper-server`にしたため。T7-8で置き換える）
+- T7-7 → T7-18へ移動
 - [ ] T7-8 【エージェント】`WhisperSpeechRecognizer`を作り、`GoogleSpeechRecognizer`を置き換える：`whisper-server`の`/inference`をHTTPで呼ぶ（WAVをmultipartで送る、日本語に固定・翻訳しない、時間切れ）、決まり文句の一覧との全体の一致と音声なしの判断で空の発話にする（捨てた理由を標準出力へ）、`health.stt`の確かめ方。設定の`stt`を`provider`（`whisper`・`stub`）と`whisper`（`url`・`language`・`hallucinations`・`noSpeechThreshold`）に替える。Google STTの実装（`google.ts`・`google_auth.ts`）、`scripts/stt_locations.ts`とそのテスト、`package.json`の`stt:locations`、設定の`stt.google`を消す。偽の`whisper-server`で単体テストを書く。項目名と応答の形、受け口は、v1.9系のソースとREADMEで確かめる
   - 依存: T7-3
 - [ ] T7-9 【エージェント】`scripts/setup_whisper.ps1`を作る：版を固定してwhisper.cppのソースを取り、`-DGGML_VULKAN=ON`でビルドする（開発機ではVulkanなしのCPU版も選べる）。比較するモデル（large-v3-turbo q5_0・q8_0、日本語向けのもの）を取得する。置き場所はリポジトリの外で、llama.cppとは別のフォルダ。開発機でCPU版をビルドし、`whisper-server`がポート8081で起動することを確かめる
@@ -310,25 +311,32 @@ Phaseの推奨: Opus・high以上
 - [ ] T7-10 【エージェント】音声認識の比較スクリプト（`scripts/bench_stt.ts`）を作る：録音のセット（`data/stt_bench/`の16kHzモノラルのWAVと正解の文。無音・雑音だけの録音を含められる）を、設定の`stt.bench`のモデルごとに`whisper-server`を起動し直して流し、認識結果・正解との文字の誤り率・かかった時間・捨てた数（理由別）を一覧にする。誤り率の計算に単体テストを書く
   - 推奨: Sonnet・high以上
   - 依存: T7-8
-- [ ] T7-7 【エージェント】`CONTRIBUTING.md`に、音声認識の設定（`whisper-server`の準備と`setup_whisper.ps1`、モデルの置き場所、ポート、決まり文句としきい値）、比較スクリプト（録音のセットの作り方を含む）、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直す（GPUのドライバー、Vulkan SDKとVisual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、各サービスを手で起動する順（`llm.main` → `stt`、VOICEVOX → backend）、`host`・`publicUrl`をLANにして機体とconsoleを登録する手順、開発機とバックエンドPCの間のGitでの受け渡し）。Google STTの記述を消す（T11-1の一部を統合）
+- T7-11 → T7-19へ移動
+- T7-12 → T7-21へ移動
+- T7-13 → T7-22へ移動
+- T7-14 → T7-24へ移動
+- T7-15 → T7-25へ移動
+- T7-16 → T7-20へ移動
+- T7-17 → T7-23へ移動
+- [ ] T7-18 【エージェント】`CONTRIBUTING.md`に、音声認識の設定（`whisper-server`の準備と`setup_whisper.ps1`、モデルの置き場所、ポート、決まり文句としきい値）、比較スクリプト（録音のセットの作り方を含む）、機体の音声入力の設定（検出の方式とパラメータ、半二重）を書く。「バックエンドPC（本番）」を、自宅のLANで動かす手順に書き直す（GPUのドライバー、Vulkan SDKとVisual Studio、Vulkan版のllama-serverと`whisper-server`、モデル、各サービスを手で起動する順（`llm.main` → `stt`、VOICEVOX → backend）、`host`・`publicUrl`をLANにして機体とconsoleを登録する手順、開発機とバックエンドPCの間のGitでの受け渡し）。Google STTの記述を消す（T11-1の一部を統合）
   - 推奨: Sonnet・medium以上
   - 依存: T7-4, T7-5, T7-9, T7-10
-- [ ] T7-11 【ユーザー】バックエンドPCを準備する（手で行うもの）：RX 5700 XTとAMDのドライバー、Vulkan SDK、Visual Studio（C++のビルドツール）、Git・Bun・Claude Code、リポジトリのclone。開発機の作業をコミット・pushし、バックエンドPCでpullする（T11-2の一部を統合）
-  - 依存: T7-7
-- [ ] T7-16 【エージェント】（バックエンドPCで）`setup_whisper.ps1`でVulkan版の`whisper-server`をビルドし、比較するモデルを置く。Vulkan版のllama-server、Qwen3-8B Q4_K_M・Qwen3-4B Q4_K_M・Qwen3.5-9B Q4_K_M・Qwen3.5-4B、VOICEVOX ENGINE 0.25.2を置き、`config/backend.local.json`（`host`・`publicUrl`をLAN、実際のLLM・`whisper-server`・VOICEVOX）を書く。CONTRIBUTINGの手順で各サービスを起動し、`bun run admin status`で`health`がすべて`true`になることを確かめる。手順の食い違いはCONTRIBUTINGを直す（T11-2の残りを統合）
+- [ ] T7-19 【ユーザー】バックエンドPCを準備する（手で行うもの）：RX 5700 XTとAMDのドライバー、Vulkan SDK、Visual Studio（C++のビルドツール）、Git・Bun・Claude Code、リポジトリのclone。開発機の作業をコミット・pushし、バックエンドPCでpullする（T11-2の一部を統合）
+  - 依存: T7-18
+- [ ] T7-20 【エージェント】（バックエンドPCで）`setup_whisper.ps1`でVulkan版の`whisper-server`をビルドし、比較するモデルを置く。Vulkan版のllama-server、Qwen3-8B Q4_K_M・Qwen3-4B Q4_K_M・Qwen3.5-9B Q4_K_M・Qwen3.5-4B、VOICEVOX ENGINE 0.25.2を置き、`config/backend.local.json`（`host`・`publicUrl`をLAN、実際のLLM・`whisper-server`・VOICEVOX）を書く。CONTRIBUTINGの手順で各サービスを起動し、`bun run admin status`で`health`がすべて`true`になることを確かめる。手順の食い違いはCONTRIBUTINGを直す（T11-2の残りを統合）
   - 推奨: Sonnet・high以上
-  - 依存: T7-11
-- [ ] T7-12 【ユーザー】機体の実機を準備する：機体アプリのビルドとインストール、バックエンドPCの`bun run admin pair`のQRを機体のカメラで読んで登録する（T11-6の一部）
-  - 依存: T7-16
-- [ ] T7-13 【ユーザー】録音のセットを作る：機体のマイクで、来場者が言いそうな発話（自分の声。正解の文つき）と、無音・生活音や雑音だけの録音を、16kHzモノラルのWAVで`data/stt_bench/`（バックエンドPC）に置く（録音の道具は問わない）
-  - 依存: T7-12
-- [ ] T7-17 【エージェント】（バックエンドPCで）比較スクリプトを流し、モデルごとの誤り率・時間・専用GPUメモリ・捨てた数と、決まり文句として捨てるべき誤認識の例を報告する。llama-server（Qwen3-8B）を載せた状態でも時間とメモリを測る
+  - 依存: T7-19
+- [ ] T7-21 【ユーザー】機体の実機を準備する：機体アプリのビルドとインストール、バックエンドPCの`bun run admin pair`のQRを機体のカメラで読んで登録する（T11-6の一部）
+  - 依存: T7-20
+- [ ] T7-22 【ユーザー】録音のセットを作る：機体のマイクで、来場者が言いそうな発話（自分の声。正解の文つき）と、無音・生活音や雑音だけの録音を、16kHzモノラルのWAVで`data/stt_bench/`（バックエンドPC）に置く（録音の道具は問わない）
+  - 依存: T7-21
+- [ ] T7-23 【エージェント】（バックエンドPCで）比較スクリプトを流し、モデルごとの誤り率・時間・専用GPUメモリ・捨てた数と、決まり文句として捨てるべき誤認識の例を報告する。llama-server（Qwen3-8B）を載せた状態でも時間とメモリを測る
   - 推奨: Sonnet・medium以上
-  - 依存: T7-10, T7-13, T7-16
-- [ ] T7-14 【ユーザー】T7-17の結果から、音声認識のモデル、捨てる決まり文句の一覧、音声なしのしきい値を決め、`config/backend.local.json`に書く（エージェントに書かせてもよい）
-  - 依存: T7-17
-- [ ] T7-15 【ユーザー】機体の実機で、マイクの機材と、無音検出の方式とパラメータを決め、機体の`config.local.json`に書く（T11-7の一部）
-  - 依存: T7-14
+  - 依存: T7-10, T7-22, T7-20
+- [ ] T7-24 【ユーザー】T7-23の結果から、音声認識のモデル、捨てる決まり文句の一覧、音声なしのしきい値を決め、`config/backend.local.json`に書く（エージェントに書かせてもよい）
+  - 依存: T7-23
+- [ ] T7-25 【ユーザー】機体の実機で、マイクの機材と、無音検出の方式とパラメータを決め、機体の`config.local.json`に書く（T11-7の一部）
+  - 依存: T7-24
 
 ## Phase 8: 調べて答える・話を広げる
 Phaseの推奨: Opus・high以上
@@ -348,14 +356,17 @@ Phaseの推奨: Opus・high以上
   - 依存: T8-2
 - [ ] T8-7 【ユーザー】Tavilyに登録してAPIキーを`config/backend.local.json`に書き、無料枠（月1,000クレジット）を超えたときに止まるか課金されるかを確かめる
   - 依存: T8-1
+- T8-8 → T8-13へ移動
+- T8-9 → T8-14へ移動
+- T8-10 → T8-12へ移動
 - [ ] T8-11 【エージェント】（バックエンドPCで）比較スクリプト（`bench_dialogue.ts`）を、`whisper-server`を載せた状態のGPUで、Qwen3-8B・Qwen3.5-9B・Qwen3.5-4B・Qwen3-4Bについて流し、形式の崩れ・`search`の判断・質問で終わった割合・自己認識・応答時間・専用GPUメモリを報告する。文脈の長さ（`-c`）の候補はW7-6で収まった範囲にする（T11-3の一部）
   - 推奨: Sonnet・medium以上
   - 依存: T8-6, T8-7
-- [ ] T8-10 【ユーザー】T8-11の結果から、正のモデルと文脈の長さを決め、`config/backend.local.json`とllama-serverの起動オプション（CONTRIBUTINGの手順）に書く（エージェントに書かせてもよい）（T11-3の残り）
+- [ ] T8-12 【ユーザー】T8-11の結果から、正のモデルと文脈の長さを決め、`config/backend.local.json`とllama-serverの起動オプション（CONTRIBUTINGの手順）に書く（エージェントに書かせてもよい）（T11-3の残り）
   - 依存: T8-11
-- [ ] T8-8 【ユーザー】`config/persona_self.md`に自己認識の事実を、`config/persona.md`に質問の頻度の方針と検索の判断の指示を書く。バックエンドPCの正のモデルで比較スクリプトの台本を流しながら直す（流すのはエージェントに任せてもよい）
-  - 依存: T8-10
-- [ ] T8-9 【エージェント】`CONTRIBUTING.md`に、検索の設定（APIキー、件数、回数の確かめ方）、人格プロンプトの2つのファイル、比較スクリプトの使い方を書く
+- [ ] T8-13 【ユーザー】`config/persona_self.md`に自己認識の事実を、`config/persona.md`に質問の頻度の方針と検索の判断の指示を書く。バックエンドPCの正のモデルで比較スクリプトの台本を流しながら直す（流すのはエージェントに任せてもよい）
+  - 依存: T8-12
+- [ ] T8-14 【エージェント】`CONTRIBUTING.md`に、検索の設定（APIキー、件数、回数の確かめ方）、人格プロンプトの2つのファイル、比較スクリプトの使い方を書く
   - 推奨: Sonnet・medium以上
   - 依存: T8-5, T8-6
 
@@ -396,24 +407,26 @@ Phaseの推奨: Opus・high以上
   - 依存: T10-6
 - [ ] T10-8 【ユーザー】公開ホスト名を決め（サークルの他の用途と衝突しないか）、cloudflaredの名前付きトンネルを作る（T11-4から移動）
   - 依存: T10-7
+- T10-9 → T10-12へ移動
+- T10-10 → T10-13へ移動
 - [ ] T10-11 【エージェント】（バックエンドPCで）ランチャーをビルドし、`launcher.json`に6つのサービス（正副のモデルとllama-serverの起動オプション、`whisper-server`、VOICEVOX、backend、cloudflared）を書く。`config/backend.local.json`の`host`を`127.0.0.1`、`publicUrl`を公開ホスト名にする。手順の食い違いはCONTRIBUTINGを直す（T11-5の一部）
   - 推奨: Sonnet・high以上
   - 依存: T10-8
-- [ ] T10-9 【ユーザー】バックエンドPCを本番の形にする：自動サインイン、ランチャーのインストールと自動起動と「全部立ち上げる」、Chrome Remote Desktop、スリープの無効、v5で足したポート8787の受信の許可を消す（T11-5から移動）
+- [ ] T10-12 【ユーザー】バックエンドPCを本番の形にする：自動サインイン、ランチャーのインストールと自動起動と「全部立ち上げる」、Chrome Remote Desktop、スリープの無効、v5で足したポート8787の受信の許可を消す（T11-5から移動）
   - 依存: T10-11
-- [ ] T10-10 【ユーザー】タブレット・スマホで、公開ホスト名のconsoleをPWAとして入れ直す（T11-6の一部）
-  - 依存: T10-9
+- [ ] T10-13 【ユーザー】タブレット・スマホで、公開ホスト名のconsoleをPWAとして入れ直す（T11-6の一部）
+  - 依存: T10-12
 
 ## Phase 11: 会場と同じ条件での通し
-- T11-1 → T7-7・T10-7に統合（v7で実機の検証を各Phaseへ移したため。以下同じ）
-- T11-2 → T7-11・T7-16に分割
-- T11-3 → T8-11・T8-10に分割
+- T11-1 → T7-18・T10-7に統合（v7で実機の検証を各Phaseへ移したため。以下同じ）
+- T11-2 → T7-19・T7-20に分割
+- T11-3 → T8-11・T8-12に分割
 - T11-4 → T10-8へ移動
-- T11-5 → T10-11・T10-9に分割
-- T11-6 → T7-12・T9-6・T10-10に分割
-- T11-7 → T7-15・W9-5に分割（走行の速さはW9-5で決める）
+- T11-5 → T10-11・T10-12に分割
+- T11-6 → T7-21・T9-6・T10-13に分割
+- T11-7 → T7-25・W9-5に分割（走行の速さはW9-5で決める）
 - [ ] T11-8 【ユーザー】会場と同じ条件を用意する：モバイルルーター（なければスマホのテザリング）に機体とタブレット・スマホをつなぎ、スマホにChrome Remote Desktopを入れる
-  - 依存: T10-10
+  - 依存: T10-13
 
 ## Phase 12: 公開の準備（0.2.0）
 Phaseの推奨: Sonnet・high以上

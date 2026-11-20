@@ -1,0 +1,24 @@
+{
+  "name": "@tekurobokun/launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12",
+    "@tekurobokun/i18n": "workspace:*",
+    "@tekurobokun/protocol": "workspace:*",
+    "@tekurobokun/theme": "workspace:*",
+    "zxing-wasm": "^3.1.7"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12",
+    "vite": "^6.4.6"
+  }
+}

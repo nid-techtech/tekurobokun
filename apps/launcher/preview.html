@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  画面の確認用（開発のみ）。Tauriの部分を差し替えて、ブラウザで S03a〜S03e を描く。
+  bun run dev（apps/launcher）のあと http://localhost:1430/preview.html?mode=normal を開く。
+  mode：normal（S03a）・loading（S03b）・failover（S03c）・failed（S03d）・zoom（S03e）。
+  normal・failover・zoom は管理用API（127.0.0.1:8788）の /admin/events につなぐので、
+  先にリポジトリのフォルダで bun run backend:stub を起動しておく（登録コードの発行だけは差し替え）。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>preview</title>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const mode = q.get("mode") || "normal";
+      const now = Date.now();
+      const svc = (id, detail, port, state, upMs, extra = {}) => ({ id, detail, port, standby: id === "llm.sub", state, startedAt: upMs == null ? null : now - upMs, reason: null, logPath: "", ...extra });
+      const H = 3600e3, M = 60e3;
+      const sets = {
+        normal: [svc("llm.main","Qwen3-8B Q4_K_M",8080,"running",2*H+13*M), svc("llm.sub","Qwen3-4B Q4_K_M",8080,"standby",null), svc("stt","whisper large-v3-turbo q5_0",8081,"running",2*H+12*M), svc("tts","VOICEVOX ENGINE 0.25.2",50021,"running",2*H+13*M), svc("backend","apps/backend",8787,"running",2*H+12*M), svc("tunnel","tekurobo.nid-techtech.com",null,"running",2*H+12*M)],
+        loading: [svc("llm.main","Qwen3-8B Q4_K_M",8080,"loading",21e3), svc("llm.sub","Qwen3-4B Q4_K_M",8080,"standby",null), svc("stt","whisper large-v3-turbo q5_0",8081,"waiting",null), svc("tts","VOICEVOX ENGINE 0.25.2",50021,"running",18e3), svc("backend","apps/backend",8787,"waiting",null), svc("tunnel","tekurobo.nid-techtech.com",null,"waiting",null)],
+        failed: [svc("llm.main","Qwen3-8B Q4_K_M",8080,"loading",9e3), svc("llm.sub","Qwen3-4B Q4_K_M",8080,"standby",null), svc("stt","whisper large-v3-turbo q5_0",8081,"waiting",null), svc("tts","VOICEVOX ENGINE 0.25.2",50021,"stopped",null), svc("backend","apps/backend",8787,"waiting",null), svc("tunnel","tekurobo.nid-techtech.com",null,"waiting",null)],
+      };
+      sets.failover = sets.normal; sets.zoom = sets.normal;
+      let views = sets[mode];
+      const callbacks = new Map(); let nextId = 1; const listeners = [];
+      const emit = () => { for (const id of listeners) callbacks.get(id)?.({ event: "services", id: 0, payload: views }); };
+      const offline = mode === "loading" || mode === "failed";
+      window.__TAURI_INTERNALS__ = {
+        transformCallback: (cb) => { const id = nextId++; callbacks.set(id, cb); return id; },
+        unregisterCallback: (id) => callbacks.delete(id),
+        invoke: async (cmd, args) => {
+          switch (cmd) {
+            case "launch_info": return { config: { adminPort: offline ? 1 : 8788, startAllOnLaunch: false, autostart: false, searchMonthlyLimit: 1000, heartbeat: { url: "x", intervalMs: 150, timeoutMs: 100, failures: 3 }, failover: { from: "llm.main", to: "llm.sub", releaseTimeoutMs: 0, settleMs: 0 } }, configPath: "", configError: null, startedAllOnLaunch: true, autostart: false };
+            case "list_services": return views;
+            case "plugin:event|listen": listeners.push(args.handler); return 1;
+            case "probe": return mode !== "failover";
+            case "start_all": return null;
+            case "switch_service": views = views.map((v) => v.id === args.from ? { ...v, state: args.mark, startedAt: null } : v.id === args.to ? { ...v, state: "running", startedAt: Date.now() - 42e3 } : v); setTimeout(emit, 0); return null;
+            case "admin_request":
+              if (args.path === "/admin/pairing-codes") return { status: 201, body: JSON.stringify({ code: "K7QM-4X2P", expiresAt: new Date(Date.now() + 42e3).toISOString(), qr: "https://tekurobo.nid-techtech.com/pair#K7QM-4X2P" }) };
+              return { status: 204, body: "" };
+            default: return null;
+          }
+        },
+      };
+      if (mode === "failed") setTimeout(() => { views = views.map((v) => v.id === "tts" ? { ...v, state: "failed", reason: { kind: "port_in_use", port: 50021 } } : v); emit(); }, 300);
+      if (mode === "zoom") setTimeout(() => document.querySelector('[data-key="pair-zoom"]')?.click(), 1500);
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body><div id="app"></div></body>
+</html>

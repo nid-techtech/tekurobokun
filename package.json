@@ -17,7 +17,9 @@
     "console:dev": "bun run --filter @tekurobokun/console dev",
     "console:build": "bun run --filter @tekurobokun/console build",
     "console:icons": "bun scripts/gen_console_icons.ts",
-    "robot:icons": "bun scripts/gen_robot_icons.ts",
+    "robot:icons": "bun scripts/gen_tauri_icons.ts robot",
+    "launcher:icons": "bun scripts/gen_tauri_icons.ts launcher",
+    "launcher:dev": "bun run --filter @tekurobokun/launcher tauri dev",
     "bench": "bun scripts/bench_dialogue.ts",
     "bench:stt": "bun scripts/bench_stt.ts"
   },

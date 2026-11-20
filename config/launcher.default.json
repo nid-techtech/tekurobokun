@@ -1,0 +1,142 @@
+{
+  "repoDir": "",
+  "logDir": "",
+  "startAllOnLaunch": false,
+  "autostart": false,
+  "adminPort": 8788,
+  "searchMonthlyLimit": 1000,
+  "heartbeat": {
+    "url": "http://127.0.0.1:8080/health",
+    "intervalMs": 5000,
+    "timeoutMs": 3000,
+    "failures": 3
+  },
+  "failover": {
+    "from": "llm.main",
+    "to": "llm.sub",
+    "releaseTimeoutMs": 20000,
+    "settleMs": 3000
+  },
+  "services": [
+    {
+      "id": "llm.main",
+      "detail": "Qwen3-8B Q4_K_M",
+      "program": "{home}\\tekurobo_servers\\llama\\llama-server.exe",
+      "args": [
+        "-m",
+        "{home}\\tekurobo_servers\\models\\Qwen3-8B-Q4_K_M.gguf",
+        "--alias",
+        "qwen3-8b",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8080",
+        "-c",
+        "4096",
+        "--reasoning",
+        "off",
+        "-ngl",
+        "all"
+      ],
+      "cwd": "",
+      "port": 8080,
+      "after": [],
+      "standby": false,
+      "readyUrl": "http://127.0.0.1:8080/health",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 180000
+    },
+    {
+      "id": "llm.sub",
+      "detail": "Qwen3-4B Q4_K_M",
+      "program": "{home}\\tekurobo_servers\\llama\\llama-server.exe",
+      "args": [
+        "-m",
+        "{home}\\tekurobo_servers\\models\\Qwen3-4B-Q4_K_M.gguf",
+        "--alias",
+        "qwen3-4b",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8080",
+        "-c",
+        "4096",
+        "--reasoning",
+        "off",
+        "-ngl",
+        "all"
+      ],
+      "cwd": "",
+      "port": 8080,
+      "after": [],
+      "standby": true,
+      "readyUrl": "http://127.0.0.1:8080/health",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 180000
+    },
+    {
+      "id": "stt",
+      "detail": "whisper large-v3-turbo q5_0",
+      "program": "{home}\\tekurobo_servers\\whisper.cpp\\bin\\vulkan\\whisper-server.exe",
+      "args": [
+        "-m",
+        "{home}\\tekurobo_servers\\whisper.cpp\\models\\ggml-large-v3-turbo-q5_0.bin",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8081",
+        "-l",
+        "ja",
+        "--vad",
+        "-vm",
+        "{home}\\tekurobo_servers\\whisper.cpp\\models\\ggml-silero-v6.2.0.bin"
+      ],
+      "cwd": "",
+      "port": 8081,
+      "after": ["llm.main"],
+      "standby": false,
+      "readyUrl": "http://127.0.0.1:8081/health",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 120000
+    },
+    {
+      "id": "tts",
+      "detail": "VOICEVOX ENGINE",
+      "program": "{home}\\tekurobo_servers\\voicevox\\run.exe",
+      "args": ["--host", "127.0.0.1", "--port", "50021"],
+      "cwd": "",
+      "port": 50021,
+      "after": [],
+      "standby": false,
+      "readyUrl": "http://127.0.0.1:50021/version",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 120000
+    },
+    {
+      "id": "backend",
+      "detail": "apps/backend",
+      "program": "bun",
+      "args": ["apps/backend/src/index.ts"],
+      "cwd": "{repo}",
+      "port": 8787,
+      "after": ["llm.main", "stt", "tts"],
+      "standby": false,
+      "readyUrl": "http://127.0.0.1:8788/admin/status",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 30000
+    },
+    {
+      "id": "tunnel",
+      "detail": "cloudflared",
+      "program": "cloudflared",
+      "args": ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run", "--token", ""],
+      "cwd": "",
+      "port": null,
+      "after": ["backend"],
+      "standby": false,
+      "readyUrl": "http://127.0.0.1:20241/ready",
+      "readyDelayMs": 0,
+      "startTimeoutMs": 60000
+    }
+  ]
+}

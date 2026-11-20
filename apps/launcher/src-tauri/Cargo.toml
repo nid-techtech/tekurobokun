@@ -1,0 +1,28 @@
+[package]
+name = "tekurobokun-launcher"
+version = "0.1.0"
+description = "tekurobokun launcher"
+authors = ["nid-techtech"]
+edition = "2021"
+
+[lib]
+# 実行ファイルと名前が衝突しないよう、ライブラリ名に_libを付ける（Windowsでの既知の問題）。
+name = "tekurobokun_launcher_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-autostart = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }

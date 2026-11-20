@@ -3,8 +3,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# 機体アプリ（Tauri）のビルド成果物
+# 機体アプリ・ランチャー（Tauri）のビルド成果物
 apps/robot/src-tauri/target/
+apps/launcher/src-tauri/target/
 
 # 実行時のデータとローカル設定
 logs/

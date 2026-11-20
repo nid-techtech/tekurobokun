@@ -1,0 +1,310 @@
+@import "@tekurobokun/theme/tokens.css";
+@import "@tekurobokun/theme/fonts.css";
+@import "@tekurobokun/i18n/locale.css";
+
+/* ランチャー（S03）：入力ページと同じシェル風の見せ方（スペックシート6節）。
+   反転した状態行、「#」で始まる見出し、括弧のボタン、記号の印。値はtokens.cssだけを参照する。
+   基準はウィンドウ1280×800。Chrome Remote Desktop越しにスマホで見るため、文字を小さくしない。 */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+.win {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  font-size: var(--term-text-size);
+  line-height: var(--term-leading);
+}
+
+/* ===== 状態行 ===== */
+.t-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-4);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  white-space: pre;
+}
+.t-bar b {
+  font-weight: 700;
+}
+
+/* ===== 本体：左に各節、右に端末の登録 ===== */
+.l-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
+  min-height: 0;
+}
+.l-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+  overflow: hidden;
+}
+.l-side {
+  border-left: var(--stroke-thin) solid var(--color-rule-faint);
+  padding: var(--space-3) var(--space-4);
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+.l-sec {
+  display: grid;
+  gap: 0;
+}
+.sh-comment {
+  color: var(--color-ink-muted);
+}
+.l-sec > .sh-comment {
+  margin-bottom: var(--space-1);
+}
+
+/* ===== サービス・外部サービス・端末の行 ===== */
+.svc {
+  display: grid;
+  grid-template-columns: 1.4em 6.5em minmax(0, 1fr) 6.5em 4.5em 15.5em;
+  gap: var(--space-3);
+  align-items: baseline;
+  white-space: nowrap;
+}
+.svc .name {
+  font-weight: 700;
+}
+.svc .detail {
+  color: var(--color-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.svc .detail.bad {
+  color: var(--color-danger);
+  font-weight: 400;
+}
+.svc .up {
+  color: var(--color-ink-muted);
+}
+.svc > span:last-child {
+  text-align: right;
+}
+.svc .ok {
+  color: var(--color-ink);
+}
+.svc .bad {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+.svc .wait {
+  color: var(--color-accent);
+}
+.dot-on::before {
+  content: "●";
+}
+.dot-off::before {
+  content: "○";
+  color: var(--color-ink-muted);
+}
+.dot-bad::before {
+  content: "✕";
+  color: var(--color-danger);
+}
+.l-actions {
+  margin-top: var(--space-2);
+}
+
+/* ===== ボタン（括弧で囲む） ===== */
+.ctl {
+  font: inherit;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 0.1em 0.2em;
+  cursor: pointer;
+  min-width: 0;
+  font-weight: 400;
+}
+.ctl::before {
+  content: "[";
+}
+.ctl::after {
+  content: "]";
+}
+.ctl:not([disabled]):hover {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.ctl:focus-visible {
+  outline: var(--stroke-bold) solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+.ctl[disabled] {
+  color: var(--color-ink-muted);
+  cursor: not-allowed;
+}
+.ctl.primary {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+.ctl.primary:not([disabled]):hover {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+.ctl.primary[disabled] {
+  color: var(--color-ink-muted);
+  font-weight: 400;
+}
+
+/* ===== 入力元のラジオ ===== */
+.radio {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+.radio button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  white-space: pre;
+}
+.radio button[aria-checked="true"] {
+  font-weight: 700;
+}
+.radio button:focus-visible {
+  outline: var(--stroke-bold) solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+
+/* ===== 警告の帯 ===== */
+.banner {
+  border: var(--stroke-bold) solid var(--color-danger);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-danger);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.banner.info {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.banner .ctl {
+  color: inherit;
+}
+
+/* ===== できごと ===== */
+.l-sec.ev {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.events {
+  color: var(--color-ink-muted);
+  white-space: pre;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.events span {
+  display: block;
+}
+.events .err {
+  color: var(--color-danger);
+}
+
+/* ===== 端末の登録（QRはテーマに関係なく白地に黒） ===== */
+.qr {
+  width: 20rem;
+  height: 20rem;
+  background: var(--color-face-bg);
+  color: var(--color-face-ink);
+  padding: var(--space-4);
+  box-sizing: border-box;
+  border: var(--stroke-thin) solid var(--color-rule);
+}
+.qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* zxing-wasmのSVG（白地のrectと、黒のpath）。色はトークンで塗り直す */
+.qr svg rect {
+  fill: var(--color-face-bg);
+}
+.qr svg path {
+  fill: var(--color-face-ink);
+}
+.qr.dim {
+  opacity: 0.25;
+}
+.pair-code {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.bar-text {
+  white-space: pre;
+  color: var(--color-accent);
+}
+
+/* ===== 登録コードの拡大表示（S03e） ===== */
+.qr-full {
+  position: fixed;
+  inset: 0;
+  background: var(--color-face-bg);
+  color: var(--color-face-ink);
+  display: grid;
+  grid-template-columns: minmax(0, 45rem) 1fr;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  box-sizing: border-box;
+  font-size: var(--text-lg);
+}
+.qr-full[hidden] {
+  display: none;
+}
+.qr-full .qr {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  max-height: calc(100vh - var(--space-6) * 2);
+  border: 0;
+}
+.qr-full .info {
+  display: grid;
+  gap: var(--space-4);
+}
+.qr-full .pair-code {
+  font-size: 3rem;
+}
+.qr-full .ctl {
+  color: var(--color-face-ink);
+}
+.qr-full .ctl:not([disabled]):hover {
+  background: var(--color-face-ink);
+  color: var(--color-face-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none;
+  }
+}

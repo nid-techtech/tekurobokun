@@ -6,11 +6,11 @@
 
 - **開発機**：Windows 11。コマンドの例はPowerShell 7で書いています
 - **Bun** 1.4系（パッケージ管理・バックエンドの実行・テスト）
-- **Rust**（安定版）と、Tauri 2の前提（Microsoft C++ Build Tools、WebView2）。機体アプリ（`apps/robot`）のビルドに使います
+- **Rust**（安定版）と、Tauri 2の前提（Microsoft C++ Build Tools、WebView2）。機体アプリ（`apps/robot`）とランチャー（`apps/launcher`）のビルドに使います
 - **Git**
 - 会話を実際のAPIで確かめるときは、後述の「仮のサーバー」（llama-server・`whisper-server`・VOICEVOX ENGINE）
 
-本番では、自宅のバックエンドPC（Windows 11、GPUはRX 5700 XT）でllama-server・`whisper-server`・VOICEVOX ENGINEを動かします。手順は「バックエンドPC（本番）」にあります。v5（0.1.0）の展示当日の起動と、端末の切り替え方は「展示当日の運用」にあります。
+本番では、自宅のバックエンドPC（Windows 11、GPUはRX 5700 XT）で、ランチャー（`apps/launcher`）がllama-server・`whisper-server`・VOICEVOX ENGINE・バックエンド・cloudflaredを起動し、機体とタブレット・スマホは名前付きトンネルでつなぎます。手順は「バックエンドPC（本番）」に、展示当日の起動と端末の切り替え方は「展示当日の運用」にあります。
 
 ## セットアップ
 
@@ -390,6 +390,83 @@ bun run bench:stt -- --logprob-threshold -0.25     # 確からしさのしきい
 - GPUメモリは、Windowsの性能カウンター（`GPU Adapter Memory`の`Dedicated Usage`）の、大きい方のアダプターの値で、モデルを読み込む前との差です。llama-serverなど、ほかのGPUの使用が動いていると、その増減も混ざります
 - サーバーのログは`logs/bench/whisper_server_{モデル名}.log`に残ります
 
+### ランチャー（apps/launcher）
+
+バックエンドPCで、6つのサービスを起動・監視し、backendを操作する画面です（S03）。Tauri 2＋TypeScript＋Viteで、サービスの起動と監視、手元のHTTPはRust（`apps/launcher/src-tauri/src/`）、画面と、正→副の切り替えの判断はTypeScript（`apps/launcher/src/`）が受け持ちます。
+
+```powershell
+bun run launcher:dev     # = cd apps/launcher; bun run tauri dev（開発サーバーはポート1430）
+```
+
+- **画面だけを見る**：`apps/launcher`で`bun run dev`を起動し、ブラウザで`http://localhost:1430/preview.html?mode=normal`を開きます（Tauriの部分を差し替えて描きます）。`mode`は`normal`（S03a）・`loading`（S03b）・`failover`（S03c）・`failed`（S03d）・`zoom`（S03e）です。`normal`・`failover`・`zoom`は管理用APIの`/admin/events`につなぐので、先に`bun run backend:stub`を起動しておきます
+- **Rustのテスト**：`apps/launcher/src-tauri`で`cargo test`。サービスの依存の順、ポートの使用中、プロセスの終了、切り替え、Job Objectで孫のプロセスまで終了することを確かめます（checkコマンドには入っていません）
+- **サービスの出力**：サービスごとに`logs/launcher/{サービス}.log`へ追記します（起動のたびに区切りの行）。行の［ログ］で、既定のアプリで開きます
+
+#### ランチャーの設定
+
+設定は、ランチャーの設定フォルダの`launcher.json`（`%APPDATA%\com.nid-techtech.tekurobokun-launcher\launcher.json`。Git管理外）です。なければ、初回の起動時に雛形（`config/launcher.default.json`をビルドに取り込んだもの）を書き出します。書き換えたら、ランチャーを起動し直します。雛形を変えても、書き出し済みの`launcher.json`は変わりません（消せば書き出し直します）。
+
+文字列の`{home}`はユーザーのフォルダ（`$HOME`）、`{repo}`はリポジトリのフォルダに置き換わります。
+
+| 項目                 | 内容                                                                                                                                           | 雛形の値                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `repoDir`            | リポジトリのフォルダ。空なら、ビルドしたときのリポジトリ（バックエンドPCでビルドすれば、そのままでよい）                                       | 空                              |
+| `logDir`             | サービスの出力の置き場所。空なら`{repoDir}\logs\launcher`                                                                                      | 空                              |
+| `startAllOnLaunch`   | ランチャーが起動したら［すべて起動］を行う                                                                                                     | `false`                         |
+| `autostart`          | Windowsのサインイン時にランチャーを起動する（起動のたびに、スタートアップの登録をこの値に合わせる）                                            | `false`                         |
+| `adminPort`          | backendの管理用API（`config/backend.*.json`の`admin.port`と同じ）                                                                              | `8788`                          |
+| `searchMonthlyLimit` | 外部サービスの行の分母（Tavilyの無料枠）                                                                                                       | `1000`                          |
+| `heartbeat`          | 正のLLMのハートビート：`url`・間隔`intervalMs`・時間切れ`timeoutMs`・副に切り替える連続の失敗の回数`failures`                                  | `/health`、5秒、3秒、3回        |
+| `failover`           | 正`from`と副`to`、正を終了してからポートが空くのを待つ上限`releaseTimeoutMs`、空いてから副を起動するまで待つ時間`settleMs`（VRAMの解放を待つ） | `llm.main`→`llm.sub`、20秒、3秒 |
+| `services[]`         | サービス（下の表）。記載順に並ぶ                                                                                                               | 6つ                             |
+
+`services[]`の各項目：
+
+| 項目              | 内容                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `id`              | `llm.main`・`llm.sub`・`stt`・`tts`・`backend`・`tunnel`                                                 |
+| `detail`          | 画面の詳細の列（モデル名、トンネルなら公開ホスト名）                                                     |
+| `program`・`args` | 実行ファイルと引数。PATHにあれば名前だけでよい（`bun`・`cloudflared`）                                   |
+| `cwd`・`env`      | 作業フォルダ（空なら`repoDir`）と、足す環境変数                                                          |
+| `port`            | 待ち受けるポート。起動の前に使われていないことを確かめ、使われていれば失敗にする（`null`なら確かめない） |
+| `after`           | ［すべて起動］で、これらが「稼働中」になってから起動する。記載順で前にあるものだけを書ける               |
+| `standby`         | 待機のサービス（副のLLM）。［すべて起動］では起動しない                                                  |
+| `readyUrl`        | 200番台が返れば「稼働中」。空なら`port`につながれば、`port`もなければ`readyDelayMs`たてば「稼働中」      |
+| `startTimeoutMs`  | この時間までに「稼働中」にならなければ、終了して「失敗」                                                 |
+
+**6つのサービスと起動の順**：［すべて起動］は、`after`がすべて「稼働中」になったものから起動します。雛形では次の順になります。
+
+1. `llm.main`（llama-server、Qwen3-8B、8080）と`tts`（VOICEVOX ENGINE、50021）を同時に起動します。VOICEVOXはLLMを待ちません
+2. `stt`（`whisper-server`、8081）は、`llm.main`の`/health`が200を返して（モデルの読み込みが終わって）から起動します。GPUのメモリをLLMから先に確保するためです
+3. `backend`（8787、管理用API 8788）は、`llm.main`・`stt`・`tts`が稼働中になってから起動します
+4. `tunnel`（cloudflared）は、`backend`のあとに起動します。`--metrics 127.0.0.1:20241`の`/ready`が200を返せば稼働中です
+
+`llm.sub`（Qwen3-4B）は待機で、正→副の切り替えのときだけ、同じポート8080で起動します。どれかが失敗すると（ポートの使用中、すぐに終了した、時間切れ、実行ファイルがない）、理由を詳細の列とできごとに出し、それに依存するものは「起動待ち」のまま止まります（S03d）。失敗したものを［起動］で手で起動して稼働中になれば、続きを起動します。［すべて停止］は後ろから止めます。
+
+子プロセスは、サービスごとにWindowsのJob Objectに入れて起動します（コンソールのウィンドウは出しません）。停止はジョブごと終了するので、サービスが起動したプロセスも残りません。ランチャーを閉じても、落ちても、ジョブの中のプロセスはOSが終了します。
+
+#### 正→副の切り替え
+
+正（`llm.main`）が稼働中の間、`heartbeat.url`（`/health`）を`intervalMs`ごとに確かめ、失敗と、backendから届く「LLMが時間内に返事をしなかった」知らせ（`/admin/events`の`llm_timeout`）を合わせて数えます。続けて`failures`回で、次の順に副へ切り替えます（S03c）。
+
+1. 正をジョブごと終了し、「応答なし」にする
+2. ポート8080が空くのを、`releaseTimeoutMs`まで待つ
+3. `settleMs`待つ（VRAMの解放を待つ）
+4. 副を同じポートで起動する
+5. backendに`PUT /admin/llm-model`で`sub`を伝える（以後の会話ログは`model: "sub"`）
+
+`stt`は止めません。正に戻すのは手動で、警告の帯か正の行の［正に戻す］を押します（副を止め、同じ手順で正を起動して`main`を伝えます）。正の行の［副に切り替え］は手動の切り替えで、警告の帯は出しません。backendが再起動して別名が食い違ったら（`llm.activeAlias`の初期値は`main`）、ランチャーがいまの別名を伝え直します。
+
+開発機で切り替えを試すときは、`llm.main`と`llm.sub`に、CPUの2つのllama-server（または、`/health`に応える小さなプロセス）を設定し、正のプロセスをタスクマネージャーで終了するか、`heartbeat.url`を応えないURLにします。
+
+#### 画面でできること
+
+- **サービス**：行ごとに起動・停止・再起動・ログ、［すべて起動］・［すべて停止］。稼働時間は起動してからの時間です
+- **入力元**：機体のマイクと、登録済みのconsoleから1つを選びます（`PUT /admin/input-source`）。［マイクを止める］・［マイクを戻す］（機体のマイクの一時停止）、［会話をリセット］（LLMに渡す履歴を消す）
+- **外部サービス**：今月の検索回数（Tavily）
+- **登録済みの端末**：接続中かどうかと登録日時。［登録を解除］で、その端末のトークンを無効にし、接続を切ります（確認のダイアログが出ます）
+- **端末の登録**：backendにつながると、登録コードを出し、QRと文字と残り時間を表示します。期限が切れたとき、登録に使われたときは、自動で新しいコードを出します。［拡大表示］で、QRとコードだけを大きく出します（S03e。Escか［閉じる］で戻る）。QRはテーマに関係なく白地に黒です
+
 ## 開発機の仮のサーバー
 
 LLM・音声認識・音声合成は、本番ではバックエンドPC（Windows 11）で動かします。その準備を待たずに実際のAPIで会話を確かめるため、開発機（Windows）に同じサーバーを置きます。CPUで動かす想定です（開発機のGPUが使えれば、それでもかまいません）。バックエンドPCにも、この手順でサーバーを置きます。違いは「バックエンドPC（本番）」にあります。
@@ -576,7 +653,7 @@ Start-Process "$env:TEMP\voice.wav"   # 音声が再生されれば成功
 
 ## バックエンドPC（本番）
 
-> 「自動起動」と「展示当日の運用」は、v5（0.1.0）の手順（会場でLLM・VOICEVOX・バックエンドを動かす構成）で、音声認識（`whisper-server`）を含みません。ランチャーに置き換わるPhase 10・11で書き直します。この節は、自宅のLANで動かす手順です。
+> この節の前半（「バックエンドの設定（LAN）」まで）は、自宅のLANで各サービスを手で動かす手順（Phase 7〜8）です。Phase 10からは、「本番の形にする」で、名前付きトンネルとランチャーに切り替えます。
 
 自宅のバックエンドPC（Windows 11、Ryzen 5 3500、RX 5700 XT 8GB）に、次の4つを置いて動かします。機体・タブレット・スマホは、同じLANからつなぎます。
 
@@ -741,24 +818,75 @@ bun run console:build      # 入力ページ（apps/console）が変わったと
 2. **console**：タブレットやスマホのブラウザで`http://{IP}:8787/?device=tablet`（スマホは`?device=phone`）を開くと、登録コードの入力行が出ます。バックエンドのウィンドウで`p`を押す（または`bun run admin pair`）と出るコードを、60秒以内に入れます。タブレットは、続けてPWAとしてインストールします（「タブレットへのインストール」。オリジンは`http://{IP}:8787`）
 3. 登録の一覧と解除は、`bun run admin devices`と`bun run admin revoke {id}`です
 
-### 自動起動
+### 本番の形にする（名前付きトンネルとランチャー）
 
-展示では、バックエンドPCを自動でサインインさせ、サインインのたびにllama-server・VOICEVOX ENGINE・バックエンドが起動するようにします。タスクスケジューラの「ログオン時」のタスクとして登録します。それぞれ見えるPowerShellのウィンドウで動き、バックエンドのウィンドウで端末を切り替えるキーを押せます。サービス（セッション0）にしないのは、画面のないセッションではキー入力を受けられず、GPU（Vulkan）が使えない場合があるためです。
+Phase 10から、機体・タブレット・スマホは、Cloudflareの名前付きトンネル（`https://{公開ホスト名}`）だけでバックエンドにつなぎ、全サービスをランチャーで起動します。LAN向けの設定（`host`の`0.0.0.0`と、ポート8787の受信の許可）はやめます。上から順に行います。
 
-1. 「準備」を終え、「動作の確認」でサーバーが手動で動くことを確かめておきます
-2. **自動サインインにします**：`netplwiz`を開き、「ユーザーがこのコンピューターを使うには、ユーザー名とパスワードの入力が必要」のチェックを外します（出ないときは、「設定」→「アカウント」→「サインインオプション」で「Microsoftアカウントに、Windows Helloサインインを要求する」をオフにしてから開きます）
-3. **タスクを登録します**（管理者のPowerShellで、リポジトリのフォルダから）。まず`-WhatIf`で登録される内容を確かめます
+1. **名前付きトンネルを作る**（1回だけ）
+   - cloudflaredを入れます。入れたら新しいターミナルで`cloudflared --version`が出ることを確かめます
+
+     ```powershell
+     winget install --id Cloudflare.cloudflared
+     ```
+
+   - Cloudflareのダッシュボード（Zero Trust）でトンネル（種類はcloudflared）を作り、公開ホスト名を決めて、サービス`http://localhost:8787`に向けます。公開ホスト名は、サークルのほかの用途と衝突しない名前にします。WebSocket（`/ws`）は、そのまま通ります
+   - ダッシュボードに出る、コネクターのトークン（`cloudflared tunnel run --token {トークン}`の`{トークン}`）を控えます。秘密の値なので、Gitにもスクリーンショットにも残しません。cloudflaredをWindowsのサービスとして入れる手順（`cloudflared service install`）は使いません（ランチャーが起動します）
+2. **TavilyのAPIキーを置く**：`config/backend.local.json`（Git管理外）の`search.apiKey`に書きます（`search.provider`は`tavily`のまま）
+3. **ランチャーをビルドして入れる**：リポジトリのフォルダで、次を実行します（コード署名はしません）
 
    ```powershell
-   .\scripts\register_backend_tasks.ps1 -WhatIf
-   .\scripts\register_backend_tasks.ps1
+   cd apps/launcher
+   bun run tauri build
    ```
 
-   サーバー一式は`$HOME\tekurobo_servers`にある前提です（変えるときは`-ServersRoot`）。モデルのファイル名は`-ModelFile`、`--alias`は`-ModelAlias`、ログオンするユーザーは`-User`で変えます。llama-serverをCPUで動かすときは`-NoGpu`を付けます（`-ngl all`を付けません）。起動に要るファイルが見つからないときは、登録せずに止まります
-4. タスクは「タスクスケジューラ」の`\tekurobokun\`のフォルダ（`llama-server`・`voicevox-engine`・`backend`）にできます。バックエンドは、ウィンドウを前に出すため、サインインの20秒後（`-BackendDelaySeconds`）に起動します。再起動して、3つのウィンドウが開き、状態の行が`llm=up tts=up`になることを確かめます
-5. 取り消すときは、管理者のPowerShellで`.\scripts\unregister_backend_tasks.ps1`を実行します（`-WhatIf`で、消えるタスクを確かめられます）。起動中のウィンドウは閉じないので、手で閉じます
+   `apps/launcher/src-tauri/target/release/bundle/nsis/`のインストーラー（`tekurobokun-launcher_{版}_x64-setup.exe`）を実行して入れます。初めて起動すると、`launcher.json`が書き出されます（「ランチャーの設定」）。SmartScreenの警告が出たら「詳細情報」→「実行」です
+4. **`launcher.json`を書く**：雛形は、サーバー一式が`$HOME\tekurobo_servers`にある前提で、正副のモデルと`whisper-server`の起動オプションが入っています。確かめて、トンネルのトークンと公開ホスト名を書きます
 
-コードを更新したときは、先に`git pull`と`bun run console:build`をしてからバックエンドを起動し直します（自動起動はサインイン時だけで、ビルドはしません）。
+   | サービス   | 実行ファイル                                | 引数（雛形）                                                                                                                                                  |
+   | ---------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `llm.main` | `llama\llama-server.exe`                    | `-m models\Qwen3-8B-Q4_K_M.gguf --alias qwen3-8b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off -ngl all`                                               |
+   | `llm.sub`  | 同上                                        | `-m models\Qwen3-4B-Q4_K_M.gguf --alias qwen3-4b`（ほかは正と同じ。同じポート8080）                                                                           |
+   | `stt`      | `whisper.cpp\bin\vulkan\whisper-server.exe` | `-m whisper.cpp\models\ggml-large-v3-turbo-q5_0.bin --host 127.0.0.1 --port 8081 -l ja --vad -vm whisper.cpp\models\ggml-silero-v6.2.0.bin`（`-p`は付けない） |
+   | `tts`      | `voicevox\run.exe`                          | `--host 127.0.0.1 --port 50021`                                                                                                                               |
+   | `backend`  | `bun`                                       | `apps/backend/src/index.ts`（作業フォルダは`{repo}`）                                                                                                         |
+   | `tunnel`   | `cloudflared`                               | `tunnel --no-autoupdate --metrics 127.0.0.1:20241 run --token {トークン}`                                                                                     |
+   - `tunnel`の`args`の最後の`""`にトークンを入れ、`detail`を公開ホスト名にします（状態行と行の詳細に出ます）
+   - 正のモデルを変えたら（Phase 8の比較）、`llm.main`の`detail`・`-m`・`--alias`と、`config/backend.local.json`の`llm.models.main.model`をそろえます。副も同じです。GPUのメモリが足りないときの`-ctk q8_0 -ctv q8_0`も、ここの`args`に足します
+5. **backendを本番の設定にする**：`config/backend.local.json`の`publicUrl`を`https://{公開ホスト名}`にします。`host`は、端末を登録し直すまで（次の手順）`0.0.0.0`のままにしておきます
+6. **端末を登録し直す**：ランチャーで［すべて起動］し、すべて稼働中になってから行います。機体とconsoleは、LANのURLで登録しているので、トンネルのURLで登録し直します
+   - **機体**：機体アプリがLANでつながっている間に、ランチャーの端末の行で機体（`robot`）の［登録を解除］を押します。機体がカメラの登録の画面（S02g）になるので、ランチャーのQR（中身はトンネルのURL）を見せます。機体アプリを閉じていたなどで、登録の画面にならないときは、機体アプリを閉じて、そのデータのフォルダ（`%LOCALAPPDATA%\com.nid-techtech.tekurobokun\EBWebView`）を消してから起動します。機体の`config.local.json`に`backend.url`・`backend.token`（開発用）を書いていたら消します
+   - **console**：下の「PWAを入れ直す」のとおりです。古い登録（LANのときの`tablet`・`phone`）は、ランチャーで［登録を解除］します
+7. **LAN向けの設定をやめる**（管理者）：`config/backend.local.json`の`host`の行を消し（初期値の`127.0.0.1`に戻る）、ランチャーでbackendを［再起動］します。ポート8787の受信の許可を消します
+
+   ```powershell
+   Remove-NetFirewallRule -DisplayName "tekurobokun backend 8787"
+   ```
+
+8. **自動起動**：下の「自動起動」のとおりです
+9. **Windowsの設定**：スリープの無効（「準備」の12）、自動サインイン（「自動起動」）。展示の期間は、「設定」→「Windows Update」で更新を一時停止し、展示の前日までに再起動を済ませておきます
+10. **Chrome Remote Desktop**（会場のスタッフのスマホから、ランチャーを操作するため）
+    - バックエンドPCのChromeで[remotedesktop.google.com/access](https://remotedesktop.google.com/access)を開き、リモートアクセスを設定します（ホストのプログラムを入れ、名前と6桁以上のPINを決めます）
+    - そのGoogleアカウントで2段階認証を有効にしておきます。PINは、スタッフにだけ口頭で伝えます
+    - スタッフのスマホにChrome Remote Desktopのアプリを入れ、同じGoogleアカウントでログインして、バックエンドPCにつながることを確かめます。ランチャーは1280×800で作っているので、スマホは横向きにして、拡大して操作します
+
+**PWAを入れ直す**：オリジンが`https://{公開ホスト名}`に変わるので、タブレットのPWAを入れ直します。HTTPSなので、Edgeのflags（「タブレットへのインストール」の手順2〜3）は要りません。flagsに入れたLANのオリジンは消してかまいません。
+
+1. 古いPWA（LANのオリジンで入れたもの）をアンインストールします
+2. タブレットのEdgeで`https://{公開ホスト名}/?device=tablet`を開き、ランチャーの登録コードを入れて登録します
+3. Edgeのメニュー（`…`）から、アプリとしてインストールします。ホーム画面のアイコンから起動して、登録したままつながることを確かめます
+4. スタッフのスマホは、ブラウザで`https://{公開ホスト名}/?device=phone`を開いて、同じように登録します（インストールはしなくてよい）
+
+### 自動起動
+
+展示では、バックエンドPCを自動でサインインさせ、サインインのたびにランチャー（`apps/launcher`）が起動して、全サービスを立ち上げます。ランチャーは画面のあるセッションで動き、各サービスを子プロセスとして起動します（サービス（セッション0）にしないのは、画面のないセッションではGPU（Vulkan）が使えない場合があるためです）。v5のタスクスケジューラのスクリプトは廃止しました（前に登録したタスクが残っていたら、「タスクスケジューラ」の`\tekurobokun\`のフォルダごと消します）。
+
+1. **自動サインインにします**：`netplwiz`を開き、「ユーザーがこのコンピューターを使うには、ユーザー名とパスワードの入力が必要」のチェックを外します（出ないときは、「設定」→「アカウント」→「サインインオプション」で「Microsoftアカウントに、Windows Helloサインインを要求する」をオフにしてから開きます）
+2. **ランチャーをインストールし、`launcher.json`で次の2つを`true`にします**（「ランチャー」の「設定」）
+   - `autostart`：サインイン時にランチャーを起動する（Tauriの公式のautostartプラグイン。ランチャーを起動するたびに、Windowsの「スタートアップ」の登録をこの値に合わせます）
+   - `startAllOnLaunch`：ランチャーが起動したら［すべて起動］を行う
+3. ランチャーを一度起動して閉じ、再起動します。サインインのあと、ランチャーが開いて全サービスが「稼働中」になることを確かめます
+
+コードを更新したときは、先に`git pull`と`bun run console:build`をしてから、ランチャーでbackendを再起動します（自動起動はビルドをしません）。
 
 ## 展示当日の運用
 
@@ -766,36 +894,23 @@ bun run console:build      # 入力ページ（apps/console）が変わったと
 
 どの順で起動しても、つながった時点で自動で動き出します（入力ページと機体アプリは、つながるまで再接続を続けます）。
 
-1. **バックエンドPC**：自動起動を設定してある場合（「自動起動」）は、電源を入れて自動サインインを待てば、次の3つが見えるウィンドウで起動します。そうでなければ、PowerShellを3つ開き、それぞれで次を起動します。`apps/backend`のウィンドウは、端末の切り替えに使うので、見える場所に置いておきます
-   - llama-server（「動作の確認」のコマンド）
-   - VOICEVOX ENGINE（`run.exe --host 127.0.0.1 --port 50021`）
-   - バックエンド：リポジトリのフォルダで`bun run backend`。コードを更新したときは、先に`git pull`と`bun run console:build`をします
-2. バックエンドのウィンドウに出る状態の行が`llm=up tts=up`になるのを待ちます（モデルの読み込みに少しかかります）
-3. **機体**：`apps/robot/src/config/config.local.json`の`backend.url`を`ws://{バックエンドPCのIP}:8787/ws`にして、機体アプリを起動します。状態の行が`robot=connected`になります
-4. **タブレット**：ホーム画面のtekurobokunのアイコンから起動します。スタッフのスマホは、ブラウザで`http://{IP}:8787/?device=phone`を開いておきます
+1. **バックエンドPC**（自宅）：電源を入れて自動サインインを待てば、ランチャーが開き、全サービスを起動します（「自動起動」）。状態行が「6/6 稼働中」（副の`llm.sub`は待機）になるのを待ちます。`llm.main`の読み込みに数十秒かかります（S03b）
+2. **機体**：機体アプリを起動します。登録済みなら、トンネル経由で自動でつながり、待機の顔になります。ランチャーの端末の行で`robot`が「接続中」になります
+3. **タブレット**：ホーム画面のtekurobokunのアイコンから起動します。スタッフのスマホは、ブラウザで`https://{公開ホスト名}/?device=phone`を開いておきます
+4. 会場からは、スタッフのスマホのChrome Remote Desktopで、ランチャーを見て操作します
 
-状態の行の例：
-
-```
-[operator] active=tablet [1:tablet* 2:phone] session=idle llm=up tts=up robot=connected
-```
-
-`active`は入力を受け付けている端末（一覧の`*`）、`session`は会話の状態（`idle`待機中・`thinking`考え中・`speaking`話し中）、`llm`・`tts`はLLMとVOICEVOXの応答（`DOWN`のときは入力ページが全面の案内、機体が眠っている顔になる）、`robot`は機体アプリの接続です。状態の行は、端末の切り替え、応答や接続の変化があったときに出ます。
+サービスが失敗したら、その行に理由が出ます（S03d）。［ログ］で出力を見て、直してから［起動］します。正のLLMが応答しなくなったら、ランチャーが副に切り替え、警告の帯を出します（S03c）。落ち着いたら［正に戻す］を押します。
 
 ### 端末の切り替え
 
-入力を受け付ける端末は1台だけで、バックエンドを起動したウィンドウでのキー入力で切り替えます（入力ページと機体には、切り替えの操作はありません）。キーを押す前に、そのウィンドウをクリックして選んでおきます。
+入力を受け付けるのは1つだけで、ランチャーの「入力元」で切り替えます（入力ページと機体には、切り替えの操作はありません）。
 
-| キー       | 動き                                                                             |
-| ---------- | -------------------------------------------------------------------------------- |
-| `1`〜`9`   | `devices.list`の順番の端末を有効にする（初期値では`1`がタブレット、`2`がスマホ） |
-| `s`・Enter | いまの状態の行を出す                                                             |
-| `h`・`?`   | キーの説明を出す                                                                 |
-| Ctrl+C     | バックエンドを終える（展示中は押さない）                                         |
+- **機体のマイク**（初期値）：来場者は機体に話しかけます。入力ページはログの表示専用になります。［マイクを止める］で、機体は聞かなくなります（入力ページの状態行が「マイク停止中」）
+- **console:{名前}**：その入力ページから入力します。ほかの入力ページには「いまは別の端末で受け付けています」の全面の案内が出ます。選べるのは、登録済みのconsoleです
+- ［会話をリセット］で、LLMに渡す会話の履歴を消します（入力ページに区切りの行が出ます）。だれも話さない時間が続いたときも、自動で区切ります
+- backendを再起動すると、入力元は`inputSources.active`（初期値は機体のマイク）に戻ります
 
-- 有効でない端末には「いまは別の端末で受け付けています」の全面の案内が出て、有効にすると自動で元の表示に戻ります
-- ウィンドウの中をドラッグして文字を選択した状態だと、キーが効かないことがあります。Escを押して選択を解いてから押します
-- バックエンドを再起動すると、有効な端末は`devices.active`（初期値はタブレット）に戻ります
+開発機でランチャーを使わずにバックエンドを動かすときは、ターミナルの数字キー（`1`が`robot`、続けて`inputSources.consoles`の順）と、`bun run admin source {名前}`でも切り替えられます。
 
 ### 会話ログの整理
 
@@ -814,7 +929,7 @@ bun run console:build      # 入力ページ（apps/console）が変わったと
 
 ## ビルド
 
-機体アプリ（`apps/robot`）は、Tauriで実行ファイルを作ります。コード署名はしません。
+機体アプリ（`apps/robot`）とランチャー（`apps/launcher`）は、Tauriで実行ファイルを作ります。コード署名はしません。
 
 ```powershell
 cd apps/robot
@@ -828,6 +943,8 @@ bun run tauri build
 
 設定（`config.local.json`）はビルドに取り込まれます。接続先を変えたら、ビルドし直します（「別のPCのバックエンドにつなぐ」）。コード署名がないため、初めて起動すると、WindowsのSmartScreenが警告を出すことがあります（「詳細情報」→「実行」）。
 
+ランチャーも同じ手順です（`cd apps/launcher`、`bun run tauri build`）。`apps/launcher/src-tauri/target/release/`に`tekurobokun-launcher.exe`と`bundle/`（インストーラー）ができます。設定の雛形（`config/launcher.default.json`）はビルドに取り込まれますが、使う設定は設定フォルダの`launcher.json`なので、設定を変えてもビルドし直す必要はありません。`repoDir`が空のときは、ビルドしたリポジトリのフォルダを使います。
+
 入力ページは、`bun run console:build`で`apps/console/dist`に作ります。バックエンドがこれを配信します。
 
 ## アイコンの生成
@@ -836,19 +953,20 @@ bun run tauri build
 
 ```powershell
 bun run robot:icons      # 機体アプリ（apps/robot/src-tauri/icons/：icon.ico・icon.icns・各サイズのPNG）
+bun run launcher:icons   # ランチャー（apps/launcher/src-tauri/icons/：同上）
 bun run console:icons    # 入力ページ（apps/console/public/icons/：32・192・512のPNG）
 ```
 
-どちらもTauri CLIの`tauri icon`で書き出します。`robot:icons`は、Android・iOS用のフォルダを消します（デスクトップだけのため）。Apple環境向けの`.icon`は、Icon Composerで作るもので、このリポジトリでは扱いません。
+どれもTauri CLIの`tauri icon`で書き出します。`robot:icons`・`launcher:icons`（`scripts/gen_tauri_icons.ts`）は、Android・iOS用のフォルダを消します（デスクトップだけのため）。Apple環境向けの`.icon`は、Icon Composerで作るもので、このリポジトリでは扱いません。
 
 ## リリース
 
 バージョンはセマンティックバージョニングで、初回は`0.1.0`です。次の順で行います。コミット・タグ・pushと、GitHubのリリースの公開は、人が行います。
 
 1. **バージョンをそろえる**：次のすべてを同じ値にします
-   - `package.json`の`version`（`apps/backend`・`apps/console`・`apps/robot`・`packages/i18n`・`packages/protocol`・`packages/theme`）
-   - `apps/robot/src-tauri/tauri.conf.json`の`version`
-   - `apps/robot/src-tauri/Cargo.toml`の`version`と、`Cargo.lock`の`tekurobokun`の項目
+   - `package.json`の`version`（`apps/backend`・`apps/console`・`apps/robot`・`apps/launcher`・`packages/i18n`・`packages/protocol`・`packages/theme`）
+   - `apps/robot/src-tauri/tauri.conf.json`・`apps/launcher/src-tauri/tauri.conf.json`の`version`
+   - `apps/robot/src-tauri/Cargo.toml`・`apps/launcher/src-tauri/Cargo.toml`の`version`と、それぞれの`Cargo.lock`の`tekurobokun`・`tekurobokun-launcher`の項目
 2. **`CHANGELOG.md`を書く**：[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)の形式で、利用者向けに、リリースごとの変更を書きます。プランアセットの版は書きません（対応は`roadmap/timeline.md`に書きます）
 3. **確かめる**：`bun run check`が通ること。アイコンが最新のマスターSVGから生成したものであること（「アイコンの生成」を実行して、差分が出ないこと）。READMEの特徴・使い方・動作環境が、今回の内容と合っていること
 4. **ビルドする**：「ビルド」の手順で`tauri build`が通ること
@@ -870,15 +988,16 @@ tekurobokun/
 ├─ apps/
 │  ├─ backend/   バックエンド（Bun）。会話の制御、llama-server・`whisper-server`・VOICEVOXの呼び出し、入力ページの配信、登録、管理用API
 │  ├─ console/   入力ページ（TypeScript＋Vite）
-│  └─ robot/     機体アプリ（Tauri 2＋TypeScript＋Vite＋p5.js）
+│  ├─ robot/     機体アプリ（Tauri 2＋TypeScript＋Vite＋p5.js）
+│  └─ launcher/  ランチャー（Tauri 2＋TypeScript＋Vite）。バックエンドPCのサービスの起動と監視、backendの操作
 ├─ packages/
 │  ├─ protocol/  WebSocketのメッセージと管理用APIの型・検証関数、登録コードとQRの中身の規則（アプリが共有）
 │  ├─ i18n/      Paraglide JS 2の辞書（原文：ja）と疑似ロケール、ロケールの判定
 │  └─ theme/     tokens.cssとフォント（M PLUS 1 Code・DotGothic16。OFLのライセンス文つき）
-├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）
+├─ config/       設定ファイル（*.default.jsonをGitで管理し、*.local.jsonで上書き）。ランチャーの設定の雛形（launcher.default.json）
 ├─ data/         登録済みの端末とトークンのハッシュ、音声認識の比較の録音（`data/stt_bench/`）（Git管理外）
-├─ logs/         会話ログとモデル・音声認識の比較の結果（Git管理外）
-├─ scripts/      checkコマンドとその検査、モデル比較、音声認識の比較、開発用の管理CLI、whisper.cppの準備（`setup_whisper.ps1`）、アイコンの生成、バックエンドPCの自動起動の登録・取り消し
+├─ logs/         会話ログ、モデル・音声認識の比較の結果、ランチャーが起動したサービスの出力（`logs/launcher/`）（Git管理外）
+├─ scripts/      checkコマンドとその検査、モデル比較、音声認識の比較、開発用の管理CLI、whisper.cppの準備（`setup_whisper.ps1`）、アイコンの生成
 ├─ .github/      CIのワークフロー（checkコマンドを実行）
 ├─ docs/
 │  ├─ brand/     ブランドの資料とマスターSVG（roadmap/specs/の写し。編集しない）

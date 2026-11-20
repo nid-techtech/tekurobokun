@@ -31,6 +31,21 @@
         "vite": "^6.4.6",
       },
     },
+    "apps/launcher": {
+      "name": "@tekurobokun/launcher",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tauri-apps/api": "^2.12",
+        "@tekurobokun/i18n": "workspace:*",
+        "@tekurobokun/protocol": "workspace:*",
+        "@tekurobokun/theme": "workspace:*",
+        "zxing-wasm": "^3.1.7",
+      },
+      "devDependencies": {
+        "@tauri-apps/cli": "^2.12",
+        "vite": "^6.4.6",
+      },
+    },
     "apps/robot": {
       "name": "@tekurobokun/robot",
       "version": "0.1.0",
@@ -347,6 +362,8 @@
     "@tekurobokun/console": ["@tekurobokun/console@workspace:apps/console"],
 
     "@tekurobokun/i18n": ["@tekurobokun/i18n@workspace:packages/i18n"],
+
+    "@tekurobokun/launcher": ["@tekurobokun/launcher@workspace:apps/launcher"],
 
     "@tekurobokun/protocol": ["@tekurobokun/protocol@workspace:packages/protocol"],
 

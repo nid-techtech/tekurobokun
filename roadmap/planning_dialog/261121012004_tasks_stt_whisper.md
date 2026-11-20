@@ -278,7 +278,7 @@ Phaseの推奨: Opus・high以上
 
 ## Phase 7: 機体のマイクで話す
 Phaseの推奨: Opus・high以上
-引き継ぎ: W7-6は通過（GPUメモリ最大6.7GB）。W7-4は不合格：合成の雑音4件が「はい」と認識され記録された。v1.9.5の`no_speech_prob`はつねに0で`noSpeechThreshold`が効かない（walkのW7-4のメモ）。捨てる条件の直し方（`whisper-server`の`--vad`、`avg_logprob`のしきい値など）をユーザーが決めてから、修正してW7-4を再検証する。Silero VAD（機体）の実際の動きはW7-9で確かめる
+引き継ぎ: W7-6・W7-7・W7-9は通過。残りはW7-4とW7-10。W7-4は不合格：合成の雑音4件が「はい」と認識され記録された。v1.9.5の`no_speech_prob`はつねに0で`noSpeechThreshold`が効かない（walkのW7-4のメモ）。捨てる条件の直し方（`whisper-server`の`--vad`、`avg_logprob`のしきい値など）をユーザーが決めてから、修正してW7-4を再検証する
 - [x] T7-1 【エージェント】`InputSourceRegistry`を作り、`InputDeviceRegistry`を置き換える：入力元（`robot`と設定のconsole）、有効な1つ、マイクの一時停止。管理用APIの`input-source`・`mic`と、`OperatorConsole`の数字キーを合わせる。`status`に`inputSource`・`micPaused`を出す
   - 依存: T6-5
   - 実施: Opus・high

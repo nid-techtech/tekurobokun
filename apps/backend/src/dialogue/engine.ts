@@ -179,6 +179,15 @@ export function buildMessages(
   for (const turn of recent) {
     messages.push({ role: "user", content: turn.text });
     const { say, emotion } = turn.reply ?? { say: "", emotion: "neutral" };
+    // 調べた往復は、1回目（前置きと検索語）も渡す。最終の返事だけだと、事実をすぐ答えた例に見え、
+    // 前置きに答えを書くようになるため（W8-4）。
+    if (turn.search) {
+      const { preSay, query } = turn.search;
+      messages.push({
+        role: "assistant",
+        content: JSON.stringify({ say: preSay, emotion: "curious", search: query }),
+      });
+    }
     messages.push({ role: "assistant", content: JSON.stringify({ say, emotion }) });
   }
   messages.push({ role: "user", content: text });

@@ -207,6 +207,8 @@ async function runScript(
       let emotion = first.emotion;
       let thinkingMs = first.thinkingMs;
       if (first.search !== null) {
+        // バックエンドと同じく、調べた往復は前置きと検索語も履歴に載せる（buildMessagesが1回目として渡す）。
+        turn.search = { query: first.search, preSay: first.say, searchMs: null, ok: null };
         let results: SearchResult[] | null = null;
         if (searcher) {
           try {

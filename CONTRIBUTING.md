@@ -171,7 +171,7 @@ bun run console:build
 bun run backend          # config/backend.*.json の llm・tts の接続先につなぐ
 ```
 
-人格プロンプトは`config/persona.md`から読みます（なければ、返事の形式の指示だけでLLMに問い合わせ、起動時に警告を出します）。返事の形式の指示（`{"say", "emotion"}`のJSONで返す）は`apps/backend/src/dialogue/reply_format.md`にあり、人格プロンプトのあとに付けて渡します。
+人格プロンプトは、2つのファイル`config/persona_self.md`（自己認識の事実）と`config/persona.md`（性格・話し方・調べる判断・質問の頻度）を、この順につないで読みます（「検索と人格プロンプト」）。どちらもなければ、返事の形式の指示だけでLLMに問い合わせ、起動時に警告を出します。返事の形式の指示（`{"say", "emotion", "search"}`のJSONで返す）は`apps/backend/src/dialogue/reply_format.md`にあり、人格プロンプトのあとに付けて渡します。
 
 **入力ページを開発する**（変更をすぐ反映する）
 
@@ -220,6 +220,8 @@ bun run admin exchange                   # コードを出して、機体とし�
 bun run admin exchange --role console --device phone   # 入力ページの端末としてトークンに交換する
 bun run admin devices                    # 登録済みの端末（idと接続中かどうか）
 bun run admin revoke {id}                # 登録を解除する
+bun run admin reset                      # LLMに渡す会話の履歴を消す（入力ページに区切りの行が出る）
+bun run admin model main|sub             # LLMのモデルの別名を切り替える（llama-server側のモデルの入れ替えは別に行う）
 ```
 
 バックエンドを起動したターミナルで`p`を押しても、登録コードとQRの中身を出せます。
@@ -280,38 +282,39 @@ bun run admin revoke {id}                # 登録を解除する
 }
 ```
 
-| 項目                                                    | 内容                                                                                                            | 初期値                                          |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `host`                                                  | 公開用ポートの待ち受け先。本番は`127.0.0.1`（トンネルだけが届く）。LANから試すときは`0.0.0.0`                   | `127.0.0.1`                                     |
-| `port`                                                  | 公開用ポート（入力ページとWebSocket）                                                                           | `8787`                                          |
-| `publicUrl`                                             | 登録のQRに入れる公開URL。LANから試すときは`http://{LANのIP}:8787`                                               | `http://localhost:8787`                         |
-| `admin.port`                                            | 管理用API（`127.0.0.1`だけで待ち受ける）                                                                        | `8788`                                          |
-| `llm.baseUrl`                                           | llama-serverの接続先（OpenAI互換API）                                                                           | `http://127.0.0.1:8080`                         |
-| `llm.models.{main,sub}`                                 | 正・副のモデル名（llama-serverの`--alias`）と、生成の上限トークン数（`maxTokens`）・温度                        | `qwen3-8b`・`qwen3-4b`、`256`・`0.7`            |
-| `llm.activeAlias`                                       | 起動時に使うモデルの別名（`main`・`sub`）                                                                       | `main`                                          |
-| `llm.contextTurns`                                      | LLMに渡す直近の往復数                                                                                           | `4`                                             |
-| `llm.jsonSchema`                                        | JSONスキーマ制約（`response_format`）を使うか                                                                   | `true`                                          |
-| `llm.timeoutMs`                                         | LLMの応答を待つ上限                                                                                             | `60000`                                         |
-| `tts.baseUrl`・`tts.speaker`                            | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                                                   | `http://127.0.0.1:50021`・`1`                   |
-| `inputSources.consoles`                                 | 入力ページの端末名（順番は、入力元を切り替える数字キーの`2`以降の順）                                           | `["tablet", "phone"]`                           |
-| `inputSources.active`                                   | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                                    | `robot`                                         |
-| `pairing.codeTtlMs`                                     | 登録コードの有効時間                                                                                            | `60000`                                         |
-| `pairing.maxFailures`・`failureWindowMs`・`lockMs`      | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない                          | `5`・`60000`・`300000`                          |
-| `stt.provider`                                          | 音声認識の実装（`whisper`・`stub`）。スタブは`--stub`で選ばれる                                                 | `whisper`                                       |
-| `stt.timeoutMs`                                         | 音声認識の応答を待つ上限                                                                                        | `10000`                                         |
-| `stt.whisper.url`・`language`                           | `whisper-server`の接続先（`/inference`と`/health`）と、話す言語（翻訳はしない）                                 | `http://127.0.0.1:8081`・`ja`                   |
-| `stt.whisper.hallucinations`                            | 結果の全体がこのどれかと一致したら、空の発話として捨てる決まり文句（「音声認識」の節）                          | 「ご視聴ありがとうございました」など            |
-| `stt.whisper.logprobThreshold`                          | すべての区切りで認識の確からしさ（`avg_logprob`）がこれを下回ったら、空の発話として捨てる（0以下）              | `-0.3`                                          |
-| `stt.bench`                                             | 音声認識の比較の設定（実行ファイル・モデルのフォルダ・モデルの一覧・VADのモデル`vadModel`。「音声認識の比較」） | モデル3つ（パスは空）、`ggml-silero-v6.2.0.bin` |
-| `search`                                                | 検索（Tavily）の設定の雛形。Phase 8で使い始める                                                                 | 空                                              |
-| `dialogue.questionLoopThreshold`・`session.idleResetMs` | 質問のループを防ぐ指示と、履歴の区切り（Phase 8で使い始める）                                                   | `2`・`90000`                                    |
-| `console.autosendMs`                                    | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                                   | `3000`                                          |
-| `console.fontSizePx`                                    | 入力ページの文字の大きさ                                                                                        | `18`                                            |
-| `console.bottomInsetPx`                                 | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                                                    | `0`                                             |
-| `console.prompt`                                        | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える）                                 | `user`・`nid-techtech`・`~/makers`              |
-| `speakingGraceMs`                                       | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                                                      | `5000`                                          |
-| `healthIntervalMs`                                      | llama-serverとVOICEVOXへの問い合わせの間隔                                                                      | `5000`                                          |
-| `historyDisplayTurns`                                   | 入力ページに送る表示用の履歴の件数                                                                              | `50`                                            |
+| 項目                                               | 内容                                                                                                                   | 初期値                                          |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `host`                                             | 公開用ポートの待ち受け先。本番は`127.0.0.1`（トンネルだけが届く）。LANから試すときは`0.0.0.0`                          | `127.0.0.1`                                     |
+| `port`                                             | 公開用ポート（入力ページとWebSocket）                                                                                  | `8787`                                          |
+| `publicUrl`                                        | 登録のQRに入れる公開URL。LANから試すときは`http://{LANのIP}:8787`                                                      | `http://localhost:8787`                         |
+| `admin.port`                                       | 管理用API（`127.0.0.1`だけで待ち受ける）                                                                               | `8788`                                          |
+| `llm.baseUrl`                                      | llama-serverの接続先（OpenAI互換API）                                                                                  | `http://127.0.0.1:8080`                         |
+| `llm.models.{main,sub}`                            | 正・副のモデル名（llama-serverの`--alias`）と、生成の上限トークン数（`maxTokens`）・温度                               | `qwen3-8b`・`qwen3-4b`、`256`・`0.7`            |
+| `llm.activeAlias`                                  | 起動時に使うモデルの別名（`main`・`sub`）                                                                              | `main`                                          |
+| `llm.contextTurns`                                 | LLMに渡す直近の往復数                                                                                                  | `4`                                             |
+| `llm.jsonSchema`                                   | JSONスキーマ制約（`response_format`）を使うか                                                                          | `true`                                          |
+| `llm.timeoutMs`                                    | LLMの応答を待つ上限                                                                                                    | `60000`                                         |
+| `tts.baseUrl`・`tts.speaker`                       | VOICEVOX ENGINEの接続先と話者（スタイルのid）                                                                          | `http://127.0.0.1:50021`・`1`                   |
+| `inputSources.consoles`                            | 入力ページの端末名（順番は、入力元を切り替える数字キーの`2`以降の順）                                                  | `["tablet", "phone"]`                           |
+| `inputSources.active`                              | 起動時の入力元（`robot`か、`inputSources.consoles`の端末名）                                                           | `robot`                                         |
+| `pairing.codeTtlMs`                                | 登録コードの有効時間                                                                                                   | `60000`                                         |
+| `pairing.maxFailures`・`failureWindowMs`・`lockMs` | 接続元ごとに、`failureWindowMs`の間に`maxFailures`回失敗したら`lockMs`の間受け付けない                                 | `5`・`60000`・`300000`                          |
+| `stt.provider`                                     | 音声認識の実装（`whisper`・`stub`）。スタブは`--stub`で選ばれる                                                        | `whisper`                                       |
+| `stt.timeoutMs`                                    | 音声認識の応答を待つ上限                                                                                               | `10000`                                         |
+| `stt.whisper.url`・`language`                      | `whisper-server`の接続先（`/inference`と`/health`）と、話す言語（翻訳はしない）                                        | `http://127.0.0.1:8081`・`ja`                   |
+| `stt.whisper.hallucinations`                       | 結果の全体がこのどれかと一致したら、空の発話として捨てる決まり文句（「音声認識」の節）                                 | 「ご視聴ありがとうございました」など            |
+| `stt.whisper.logprobThreshold`                     | すべての区切りで認識の確からしさ（`avg_logprob`）がこれを下回ったら、空の発話として捨てる（0以下）                     | `-0.3`                                          |
+| `stt.bench`                                        | 音声認識の比較の設定（実行ファイル・モデルのフォルダ・モデルの一覧・VADのモデル`vadModel`。「音声認識の比較」）        | モデル3つ（パスは空）、`ggml-silero-v6.2.0.bin` |
+| `search.{provider,apiKey,maxResults,timeoutMs}`    | 検索の実装（`tavily`・`stub`）、TavilyのAPIキー、1回の検索で取る結果の件数、検索を待つ上限（「検索と人格プロンプト」） | `tavily`・空・`3`・`8000`                       |
+| `dialogue.questionLoopThreshold`                   | 直近の返事がこの回数続けて質問で終わったら、次の返事に「質問で終わらない」指示を足す                                   | `2`                                             |
+| `session.idleResetMs`                              | だれも話さない時間がこれを超えたら、LLMに渡す履歴を消す（入力ページには区切りの行が出る）                              | `90000`                                         |
+| `console.autosendMs`                               | 入力が止まってから自動で送るまでの時間（`0`で自動送信しない）                                                          | `3000`                                          |
+| `console.fontSizePx`                               | 入力ページの文字の大きさ                                                                                               | `18`                                            |
+| `console.bottomInsetPx`                            | 入力ページの下に空ける余白（キーボードとのずれの調節。前述）                                                           | `0`                                             |
+| `console.prompt`                                   | プロンプトの表示（`user`・`host`・`dir`。ディレクトリ名はイベントごとに変える）                                        | `user`・`nid-techtech`・`~/makers`              |
+| `speakingGraceMs`                                  | 話し中のタイムアウトの余裕（送った音声の長さの合計に足す）                                                             | `5000`                                          |
+| `healthIntervalMs`                                 | llama-serverとVOICEVOXへの問い合わせの間隔                                                                             | `5000`                                          |
+| `historyDisplayTurns`                              | 入力ページに送る表示用の履歴の件数                                                                                     | `50`                                            |
 
 バックエンドは、`llm.baseUrl`の`/health`と`tts.baseUrl`の`/version`に定期的に問い合わせます。LLMかVOICEVOXが応答しない間は、発言を受け付けません（入力ページは全面の案内、機体は眠っている顔）。応答が戻れば、自動で受け付けに戻ります。機体アプリがつながっていない間は、音声を作らず、返事を出したらすぐ待機中に戻ります。
 
@@ -336,17 +339,64 @@ bun run admin revoke {id}                # 登録を解除する
 
 **会話ログ**：1回の発言につき1行のJSONを、`logs/{日付}.jsonl`（日付はJST）に追記します。項目は、日時、入力元の端末、発言、考えた時間、LLMの生の出力、採用した返事と感情、禁止語での差し替え（`none`・`input`・`output`）、エラー（LLMが応答しなかったときの`llm_unavailable`）です。受け付けなかった発言（考え中・話し中の発言、有効でない端末からの発言）は残しません。バックエンドを起動すると、当日のファイルの末尾から`historyDisplayTurns`件を、入力ページの表示用に読み込みます（LLMに渡す往復には使いません）。
 
-### モデルの比較
+### 検索と人格プロンプト
 
-同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、返事を一覧にします。人格プロンプトと返事の形式は、バックエンドと同じものを使います。
+**検索の設定**：来場者の質問にWebで調べて答える機能は、[Tavily](https://www.tavily.com/)のREST API（`POST https://api.tavily.com/search`、`search_depth: basic`）を使います。
 
-```powershell
-bun run bench                         # config/bench.*.json の接続先すべて
-bun run bench -- --target qwen3-4b    # 1つの接続先だけ
-bun run bench -- --repeat 3           # 質問のセットを3回くり返す
+1. Tavilyに登録して、APIキーを取ります
+2. `config/backend.local.json`（Git管理外）に書きます。キーは`config/backend.default.json`（Gitで管理）に書かないでください
+3. バックエンドを再起動します
+
+```json
+{
+  "search": { "apiKey": "tvly-...", "maxResults": 3, "timeoutMs": 8000 }
+}
 ```
 
-接続先と質問は`config/bench.default.json`にあり、`config/bench.local.json`で上書きできます。接続先ごとに`baseUrl`・`model`のほか、`jsonSchema`・`maxTokens`・`temperature`を変えられます（書かない項目は`config/backend.*.json`の`llm`の値）。結果は`logs/bench/{日時}.md`に書き出します。
+- `maxResults`は、1回の検索で取る結果の件数です。結果は、1件300文字に切ってLLMに渡します。多いほど答えは詳しくなりますが、2回目のLLMの入力が増えて、返事が遅くなります
+- `timeoutMs`を超えたら検索の失敗として扱い、「調べられなかった」と答えます（`search_failed.md`）
+- APIキーが空のまま起動すると、警告を出し、検索は毎回失敗します。LLMもTavilyもなしで試すときは、`bun run backend:stub`か、`search.provider`を`stub`にします（スタブは決まった抜粋を返します。検索語に「しっぱい」を入れると失敗、「つかいきり」を入れると無料枠の使い切りを再現します）
+- 無料枠は月1,000クレジットです。超えると検索は止まり（課金はされません。2026年11月に確かめました）、使い切りの理由で失敗して、「調べられなかった」と答えます。会話は続きます。1回の検索は、`basic`で1クレジットです
+
+**今月の検索回数の確かめ方**：次のどれでも確かめられます（月はJSTで、月が変わると0に戻ります）。
+
+```powershell
+bun run admin status            # search=12 (2026-11) の形で出る
+Get-Content data\usage.json     # {"month": "2026-11", "searchCount": 12}
+```
+
+バックエンドの起動時のログにも、今月の回数が出ます。回数は、Tavilyが断った応答（401・429・432〜434）を除いて、送った要求を数えます。時間切れと5xxは、多めの側に数えます。正確なクレジットの残りは、Tavilyの管理画面で確かめてください。スタブの回数は`data/stub/usage.json`に分かれます。
+
+**人格プロンプトの2つのファイル**：どちらも、バックエンドの起動時に読みます。書き換えたら、バックエンドを再起動します（比較スクリプトは、流すたびに読みます）。
+
+| ファイル                 | 書くこと                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `config/persona_self.md` | 自己認識の事実（名前、所属、体のつくり、今日はできないこと、言わないこと）。先頭に置かれる |
+| `config/persona.md`      | 性格、話し方の決まり、調べるかどうかの判断、質問の頻度の方針、会話の例                     |
+
+- `persona_self.md`が、見出しだけのとき（雛形のまま）は、ないものとして扱い、起動時に知らせます。事実を書かないと、モデルが体や所属を作り話で答えます
+- 2つのファイルの内容は、食い違わないようにします。たとえば、走行や人の見え方が、`persona_self.md`と`persona.md`で違うと、モデルはどちらかに引かれて答えます
+- 返事の形式（`reply_format.md`）、検索結果を使うときの指示（`search_results.md`）、検索できなかったときの指示（`search_failed.md`）、質問のループを防ぐ指示（`anti_loop.md`）は、`apps/backend/src/dialogue/`にあります。人格プロンプトのあとに、状況に応じて付けて渡します
+- 直したら、「モデルの比較」で、検索の判断（検索すべき・すべきでない）と、台本での質問の頻度を確かめます
+
+### モデルの比較
+
+同じ質問のセットを接続先ごとに投げ、考えた時間、形式の崩れの数、検索の判断、自己認識の返事、複数ターンの台本での様子を一覧にします（`scripts/bench_dialogue.ts`）。人格プロンプトと返事の形式は、バックエンドと同じものを使います。
+
+```powershell
+bun run bench                                    # config/bench.*.json の接続先すべて
+bun run bench -- --target qwen3-8b               # 1つの接続先だけ（名前をカンマで区切って複数も可）
+bun run bench -- --only search,self              # 区分を絞る（general・search・self・scripts）
+bun run bench -- --repeat 3                      # 質問のセットを3回くり返す
+bun run bench -- --search tavily                 # 台本で、実際に検索して2回目の返事まで確かめる
+bun run bench -- --no-model-check                # 読み込み中のモデルを確かめない
+```
+
+- **質問の区分**：`general`（ふつうの質問）、`search`（検索の判断。検索すべき質問と、検索すべきでない質問）、`self`（自己認識を問う質問）、`scripts`（複数ターンの台本）。質問・台本・質問の型の判定は`config/bench.default.json`にあり、`config/bench.local.json`で上書きできます（配列はまるごと置き換わります）
+- **検索の判断**：1回目の返事の`search`が、検索すべき質問で出たか、検索すべきでない質問で出なかったかを数えます
+- **台本**：設定の往復数（`contextTurns`）で履歴を渡し、質問のループを防ぐ指示も、バックエンドと同じ条件で足します。要約に、質問で終わった割合と、同じ型の質問が続いた回数を出します。検索語が出たときの2回目は、`--search`で選びます：`none`（既定。検索の失敗として問い合わせる）、`stub`（決まった抜粋）、`tavily`（実際に検索する。今月の回数に数える。台本1回で数回使います）
+- **接続先**：`baseUrl`・`model`のほか、`jsonSchema`・`maxTokens`・`temperature`・`contextTurns`を変えられます（書かない項目は`config/backend.*.json`の`llm`の値）。llama-serverには1つのモデルだけを載せるため、`/v1/models`のidに、接続先の`match`（なければ`model`）が含まれない接続先は、飛ばします。測るモデルでllama-serverを起動し直してから、`--target`で選びます
+- **結果**：`logs/bench/{日時}.md`に書き出し、要約の表を表示します。考えた時間は1問ずつの質問（ふつう・検索の判断・自己認識）の値で、台本の「質問で終わった割合」と「同じ型の連続」は、台本すべての合計です
 
 ### 音声認識の比較
 
@@ -479,12 +529,12 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 
 ### llama-server（llama.cpp）
 
-使うモデルはQwen3-4B、予備はGemma 4 E2Bです（どちらも4bitのGGUF、Apache-2.0）。本番のバックエンドPCでも、同じポートと`--alias`で起動します。
+正のモデルはQwen3-8B、副（バックアップ）はQwen3-4Bです（どちらも4bitのGGUF、Apache-2.0。2026年11月、Phase 8の比較で決めました）。本番のバックエンドPCでも、同じポートと`--alias`で起動します。1つのllama-serverには1つのモデルだけを載せ、切り替えるときは入れ替えます。
 
-| モデル              | ポート | `--alias`     | ファイル                   | 入手先                                                                              |
-| ------------------- | ------ | ------------- | -------------------------- | ----------------------------------------------------------------------------------- |
-| Qwen3-4B            | 8080   | `qwen3-4b`    | `Qwen3-4B-Q4_K_M.gguf`     | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF)                     |
-| Gemma 4 E2B（予備） | 8082   | `gemma-4-e2b` | `gemma-4-E2B-it-Q4_0.gguf` | [ggml-org/gemma-4-E2B-it-GGUF](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) |
+| モデル         | ポート | `--alias`  | ファイル               | 入手先                                                          |
+| -------------- | ------ | ---------- | ---------------------- | --------------------------------------------------------------- |
+| Qwen3-8B（正） | 8080   | `qwen3-8b` | `Qwen3-8B-Q4_K_M.gguf` | [Qwen/Qwen3-8B-GGUF](https://huggingface.co/Qwen/Qwen3-8B-GGUF) |
+| Qwen3-4B（副） | 8080   | `qwen3-4b` | `Qwen3-4B-Q4_K_M.gguf` | [Qwen/Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF) |
 
 1. [llama.cppのReleases](https://github.com/ggml-org/llama.cpp/releases)から、`b`で始まる最新のビルドの`llama-b{番号}-bin-win-cpu-x64.zip`をダウンロードします（GPUを使う場合は`win-vulkan-x64`）
 2. `$HOME\tekurobo_servers\llama`に展開します
@@ -492,37 +542,37 @@ New-Item -ItemType Directory -Force "$HOME\tekurobo_servers" | Out-Null
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\tekurobo_servers\models" | Out-Null
+curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+  "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
 curl.exe -L -o "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
   "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
-curl.exe -L -o "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf"
 ```
 
-起動（ポートは明示します。既定のポートは版によって変わるため）。予備のE2Bは、使うときだけ別のPowerShellで起動します。
+起動（ポートは明示します。既定のポートは版によって変わるため）。副のQwen3-4Bは、正を止めてから、同じポートで起動します。GPUがない開発機では`-ngl all`を付けません（本番は付けます）。
 
 ```powershell
-# Qwen3-4B（ポート8080）。思考出力はサーバーの側でも止める（バックエンドも enable_thinking: false を送る）
+# Qwen3-8B（正、ポート8080）。思考出力はサーバーの側でも止める（バックエンドも enable_thinking: false を送る）
+& "$HOME\tekurobo_servers\llama\llama-server.exe" `
+  -m "$HOME\tekurobo_servers\models\Qwen3-8B-Q4_K_M.gguf" `
+  --alias qwen3-8b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
+
+# Qwen3-4B（副、同じポート8080。8081は`whisper-server`が使う）
 & "$HOME\tekurobo_servers\llama\llama-server.exe" `
   -m "$HOME\tekurobo_servers\models\Qwen3-4B-Q4_K_M.gguf" `
   --alias qwen3-4b --host 127.0.0.1 --port 8080 -c 4096 --reasoning off
-
-# Gemma 4 E2B（予備、ポート8082。8081は`whisper-server`が使う）
-& "$HOME\tekurobo_servers\llama\llama-server.exe" `
-  -m "$HOME\tekurobo_servers\models\gemma-4-E2B-it-Q4_0.gguf" `
-  --alias gemma-4-e2b --host 127.0.0.1 --port 8082 -c 4096
 ```
 
-`config/backend.default.json`の初期値はQwen3-4B（`http://127.0.0.1:8080`、`qwen3-4b`）なので、上書きなしでつながります。**予備のE2Bに切り替える**ときは、`config/backend.local.json`の`llm`に次を書き、バックエンドを再起動します（Qwen3-4Bに戻すときは`llm`を消します）。
+`config/backend.default.json`の初期値は、正がQwen3-8B（`qwen3-8b`）、副がQwen3-4B（`qwen3-4b`）で、どちらも`http://127.0.0.1:8080`です。起動時に使うのは正（`llm.activeAlias`の初期値`main`）なので、上書きなしでつながります。**副に切り替える**ときは、llama-serverをQwen3-4Bで起動し直し、`config/backend.local.json`に次を書いて、バックエンドを再起動します（正に戻すときは、この行を消します）。
 
 ```json
 {
-  "llm": { "baseUrl": "http://127.0.0.1:8082", "model": "gemma-4-e2b" }
+  "llm": { "activeAlias": "sub" }
 }
 ```
 
-モデルの比較（`bun run bench`）は、初期値でQwen3-4BとE2Bの両方に問い合わせます（「モデルの比較」）。開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。
+モデルの比較（`bun run bench`）の接続先は、「モデルの比較」にあります。開発機で測った考えた時間はCPUでの値で、バックエンドPC（RX480・Vulkan）での値とは違います。
 
-モデルは、開発機での比較（Gemma 4 E4B・Qwen3-4B・E2B）で決めました。経緯は`roadmap/development/261113172152_change_model_qwen3.md`にあります。
+モデルは、Phase 8のバックエンドPCでの比較（Qwen3-8B・Qwen3.5-9B・Qwen3.5-4B・Qwen3-4B）で決めました。Qwen3-8Bは、形式の崩れがなく、検索の判断と応答時間（中央値約0.8秒）のバランスが良く、`whisper-server`と合わせて専用GPUメモリ約6.7GBで8GBに収まります。副のQwen3-4Bは、応答が最も速く（中央値約0.6秒）、メモリも約4.6GBで余裕があります。Qwen3.5の2つは応答が遅く（1.6〜2.5秒）、選びませんでした。Gemma 4は、v6の開発機での比較（`roadmap/development/261113172152_change_model_qwen3.md`）で外れています。
 
 ### VOICEVOX ENGINE 0.25.2
 
@@ -686,7 +736,7 @@ llama-serverと`whisper-server`は、同じGPUのメモリ（8GB）を分け合�
    & "$HOME\tekurobo_servers\llama\llama-server.exe" --list-devices
    ```
 
-6. **LLMのモデル**：次のGGUFを`$HOME\tekurobo_servers\models`に置きます。Qwen3-8B（正）とQwen3-4B（副）が本番の候補で、Qwen3.5の2つはPhase 8の比較用です
+6. **LLMのモデル**：次のGGUFを`$HOME\tekurobo_servers\models`に置きます。Qwen3-8B（正）とQwen3-4B（副）が本番で使うモデルで、Qwen3.5の2つはPhase 8の比較にだけ使いました（選ばなかったので、置かなくてもかまいません）
 
    | モデル     | `--alias`    | ファイル                 | 大きさ  | 入手先                                                          |
    | ---------- | ------------ | ------------------------ | ------- | --------------------------------------------------------------- |

@@ -881,6 +881,8 @@ Phase 10から、機体・タブレット・スマホは、Cloudflareの名前�
 
    - Cloudflareのダッシュボード（Zero Trust）でトンネル（種類はcloudflared）を作り、公開ホスト名を決めて、サービス`http://localhost:8787`に向けます。公開ホスト名は、サークルのほかの用途と衝突しない名前にします。WebSocket（`/ws`）は、そのまま通ります
    - ダッシュボードに出る、コネクターのトークン（`cloudflared tunnel run --token {トークン}`の`{トークン}`）を控えます。秘密の値なので、Gitにもスクリーンショットにも残しません。cloudflaredをWindowsのサービスとして入れる手順（`cloudflared service install`）は使いません（ランチャーが起動します）
+   - ダッシュボードのコネクターの画面に出るコマンドは、`cloudflared service install {トークン}`の形です。実行せず、`{トークン}`の部分だけをコピーします
+   - 実行してサービス`Cloudflared`が入ると、同じトンネルが先に動き、ランチャーの`tunnel`が「Error opening metrics server listener」（20241番が使用中）で起動に失敗します。管理者のPowerShellで`cloudflared service uninstall`を実行し、残った`C:\ProgramData\cloudflared\token`（トークンのファイル）を消してから、ランチャーで`tunnel`を起動します
 2. **TavilyのAPIキーを置く**：`config/backend.local.json`（Git管理外）の`search.apiKey`に書きます（`search.provider`は`tavily`のまま）
 3. **ランチャーをビルドして入れる**：リポジトリのフォルダで、次を実行します（コード署名はしません）
 
